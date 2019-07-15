@@ -1,31 +1,36 @@
 
-ocp = Ocp()
+ocp = OcpMultiStage()
 
 stage = ocp.stage() # Omitting means variable
 
-s = stage.state() # Framehack to get stage['s']
+p = stage.state() # Framehack to get stage['s']
 v = stage.state()
 
-stage.set_der(s,v)
-stage.set_der(v,-10)
+stage.set_der(p,v)
+stage.set_der(v,-9.81)
 
-stage.path_constraint(s<=5)
+stage.path_constraint(p<=5)
+
+#stage.subject_to(stage.t0==0)
+#ocp.subject_to(stage.t0==0)
 
 ocp.subject_to(stage.t0==0) # not stage.subject_to !
 
-sk = stage
+s = stage
 
-stages = [sk]
+stages = [s]
 for i in range(10):
-    ocp.add(sk)
-    ocp.subject_to(sk.at_t0(s)==0)
-    ocp.subject_to(sk.at_tf(s)==0)
-    ocp.subject_to(sk.at_tf(v)==-0.9*sk.at_t0(v)) # Bouncing inverts (and diminimishes velocity)
-    ocp.subject_to(sk.tf==skp.t0)
+    ocp.subject_to(s.at_t0(p)==0)
+    ocp.subject_to(s.at_tf(p)==0)
 
-    sk, skp = skp, ocp.stage(stage) # copy constructor
+    s_next = ocp.stage(stage) # copy constructor
+    #s.subject_to(stage.t0==0)
+    
+    ocp.subject_to(s.tf==s_next.t0)
+    ocp.subject_to(s.at_tf(v)==-0.9*s_next.at_t0(v)) # Bouncing inverts (and diminimishes velocity)
 
-    stages.append(skp)
+    sk = s_next
+    stages.append(s_next)
 
 sol = ocp.solve()
 

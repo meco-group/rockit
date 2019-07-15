@@ -1,6 +1,6 @@
 ocp = Ocp()
 
-stage = ocp.stage(t0=0,T=Ocp.Free(1.0)) # T initialised at 1, T>=0
+stage = ocp.stage(t0=0,T=ocp.Free(1.0)) # T initialised at 1, T>=0
 
 p = stage.state(2)
 v = stage.state(2)
