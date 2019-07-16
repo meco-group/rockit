@@ -4,8 +4,11 @@ stage = ocp.stage(t0=0,T=Ocp.Free(1.0)) # T initialised at 1, T>=0
 
 u = stage.control(spline=...)
 
-v = stage.integral(v)
-p = stage.integral(u)
+#v = stage.integral(v)
+#p = stage.integral(u)
+
+stage.set_der(v, u)
+stage.set_der(p, v)
 
 stage.path_constraint(v[1]<=2) # Time scaling
 

@@ -29,14 +29,14 @@ for i in range(10):
     ocp.subject_to(s.tf==s_next.t0)
     ocp.subject_to(s.at_tf(v)==-0.9*s_next.at_t0(v)) # Bouncing inverts (and diminimishes velocity)
 
-    sk = s_next
+    s = s_next
     stages.append(s_next)
 
 sol = ocp.solve()
 
 for s in stages:
-  ts, xs = sol(s).sample_sim(x)
-  plot(ts, xs)
+  ts, ps = sol(s).sample_sim(p)
+  plot(ts, ps)
 
 
 
