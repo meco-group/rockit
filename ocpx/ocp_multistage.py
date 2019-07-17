@@ -3,6 +3,7 @@ from .stage import Stage
 class OcpMultiStage:
   def __init__(self):
     self.stages = []
+    # Flag to make solve() faster when solving a second time (e.g. with different parameter values)
     self.is_transcribed = False
 
   def stage(self,**kwargs):

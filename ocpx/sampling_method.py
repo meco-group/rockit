@@ -8,9 +8,10 @@ class SamplingMethod:
    
   def discrete_system(self,stage):
     f = stage._ode()
-    DT = stage.tf/self.N/self.M
-    X0 = f.mx_in("x")
-    U = f.mx_in("u")
+
+    DT = stage.tf/self.N/self.M  # Size of integrator interval
+    X0 = f.mx_in("x")            # Initial state
+    U = f.mx_in("u")             # Control
     X = X0
     for j in range(self.M):
         k1 = f(X, U)

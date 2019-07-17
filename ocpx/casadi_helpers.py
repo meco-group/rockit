@@ -1,6 +1,6 @@
 from casadi import *
 
-def reinterpret_expression(expr,symbols_from,symbols_to):
+def reinterpret_expr(expr,symbols_from,symbols_to):
     """
 
     x = MX.sym("x")
@@ -8,10 +8,9 @@ def reinterpret_expression(expr,symbols_from,symbols_to):
 
     z = -(x*y**2+2*x)**4<0
 
-    print(reinterpret_expression(z,[y],[sin(y)]))
+    print(reinterpret_expr(z,[y],[sin(y)]))
 
     """
-
 
     f = Function('f',symbols_from,[expr])
 
