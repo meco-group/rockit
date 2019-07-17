@@ -76,12 +76,9 @@ class Stage:
 
   # Internal methods
 
-  def _ode_dict(self):
-    ode = {}
-    ode['x'] = self.x
-    ode['p'] = self.u
-    ode['ode'] = vcat([self._state_der[k] for k in self.states.keys()])
-    return ode
+  def _ode(self):
+    ode = vcat([self._state_der[k] for k in self.states.keys()])
+    return Function('ode',[self.x,self.u],[ode],["x","u"],["ode"])
 
   def _bake(self,x0=None,xf=None,u0=None,uf=None):
     for k in self._expr_t0.keys():

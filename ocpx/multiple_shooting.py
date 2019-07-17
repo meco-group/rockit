@@ -29,7 +29,7 @@ class MultipleShooting(SamplingMethod):
       xk = self.X[k]
       uk = self.U[k]
       xk_next = self.X[k+1]
-      opti.subject_to(xk_next==F(x0=xk,p=uk)["xf"])
+      opti.subject_to(xk_next==F(x0=xk,u=uk)["xf"])
 
       for c in stage._path_constraints_expr():
         opti.subject_to(stage._expr_apply(c,x=xk,u=uk))
