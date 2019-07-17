@@ -24,18 +24,14 @@ class MultipleShooting(SamplingMethod):
     F = self.discrete_system(stage)
 
     for k in range(self.N):
-      xk = self.X[k]
-      uk = self.U[k]
-      xk_next = self.X[k+1]
-      opti.subject_to(xk_next==F(x0=xk,u=uk)["xf"])
+      opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k])["xf"])
 
       for c in stage._path_constraints_expr():
-        opti.subject_to(stage._expr_apply(c,x=xk,u=uk))
+        opti.subject_to(stage._expr_apply(c,x=self.X[k],u=self.U[k]))
 
     for c in stage._boundary_constraints_expr():
       opti.subject_to(stage._expr_apply(c))
         
-
   def add_objective(self,stage,opti):
     opti.minimize(opti.f+stage._expr_apply(stage._objective))
 

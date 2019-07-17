@@ -37,11 +37,10 @@ ocp.method(DirectMethod(solver='ipopt'))
 
 stage.method(MultipleShooting(N=50,M=2,intg='rk'))
 
+# Missing: a nonzero initial guess for m
 
 sol = ocp.solve()
 
 
-# what to do with controls? drop the last.
-ts, xsol = sol.sample(x)
 
 
