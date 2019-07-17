@@ -8,10 +8,8 @@ class MultipleShooting(SamplingMethod):
 
   def transcribe(self,stage,opti):
     self.add_variables(stage,opti)
-    stage._bake(x0=self.X[0],
-               xf=self.X[-1],
-               u0=self.U[0],
-               uf=self.U[-1])
+    stage._bake(x0=self.X[0],xf=self.X[-1],
+                u0=self.U[0],uf=self.U[-1])
     self.add_constraints(stage,opti)
     self.add_objective(stage,opti)
 

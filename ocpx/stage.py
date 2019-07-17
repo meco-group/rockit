@@ -1,15 +1,14 @@
-from collections import OrderedDict
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
 
 class Stage:
   def __init__(self, ocp, t0=0, tf=1):
     self.ocp = ocp
-    self.states = OrderedDict()
-    self.controls = OrderedDict()
+    self.states = []
+    self.controls = []
     self._state_der = dict()
     self._constraints = []
-    self._expr_t0 = OrderedDict() # Expressions defined at t0
-    self._expr_tf = OrderedDict() # Expressions defined at tf
+    self._expr_t0 = dict() # Expressions defined at t0
+    self._expr_tf = dict() # Expressions defined at tf
     self._objective = 0
     self.t0 = t0
     self.tf = tf
@@ -18,13 +17,14 @@ class Stage:
     """
     Create a state
     """
+    # Create a placeholder symbol with a dummy name (see #25)
     x = MX.sym("x")
-    self.states[x] = x
+    self.states.append(x)
     return x
 
   def control(self):
     u = MX.sym("u")
-    self.controls[u] = u
+    self.controls.append(u)
     return u
 
   def set_der(self, state, der):
@@ -57,11 +57,11 @@ class Stage:
 
   @property
   def x(self):
-    return vcat(list(self.states.values()))
+    return vcat(self.states)
 
   @property
   def u(self):
-    return vcat(list(self.controls.values()))
+    return vcat(self.controls)
 
   @property
   def nx(self):
@@ -77,7 +77,7 @@ class Stage:
   # Internal methods
 
   def _ode(self):
-    ode = vcat([self._state_der[k] for k in self.states.keys()])
+    ode = vcat([self._state_der[k] for k in self.states])
     return Function('ode',[self.x,self.u],[ode],["x","u"],["ode"])
 
   def _bake(self,x0=None,xf=None,u0=None,uf=None):
