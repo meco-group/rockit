@@ -7,7 +7,7 @@ class SamplingMethod:
     self.intg = intg
    
   def discrete_system(self,stage):
-    ode = stage.ode_dict()
+    ode = stage._ode_dict()
     intg = integrator('intg',self.intg,ode,{"t0": 0, "tf": stage.tf/self.N,"number_of_finite_elements": self.M})
     return intg
     
