@@ -71,6 +71,9 @@ class Stage:
   def nu(self):
     return self.u.numel()
 
+  def is_trajectory(self, expr):
+    return depends_on(expr,vertcat(self.x,self.u))
+
   # Internal methods
 
   def _ode_dict(self):
@@ -93,18 +96,26 @@ class Stage:
     return [c for c in self._constraints if self.is_trajectory(c)]
 
   def _expr_apply(self,expr,**kwargs):
-    expr = substitute([expr],
-      list(self._expr_t0.keys())+list(self._expr_tf.keys()),
-      list(self._expr_t0.values())+list(self._expr_tf.values()))[0]
-    if kwargs:
-      helper = self._expr_to_function(expr)
-      return helper.call(kwargs,True,False)["out"]
-    else:
-      return expr
+    subst_from = []
+    subst_to = []
+    for k,v in self._expr_t0.items():
+      subst_from.append(k)
+      subst_to.append(v)
+    for k,v in self._expr_tf.items():
+      subst_from.append(k)
+      subst_to.append(v)
+    if "x" in kwargs:
+      subst_from.append(self.x)
+      subst_to.append(kwargs["x"])
+    if "u" in kwargs:
+      subst_from.append(self.u)
+      subst_to.append(kwargs["u"])
+
+    return substitute([expr],subst_from,subst_to)[0]
+
   _constr_apply = _expr_apply
 
   def _expr_to_function(self,expr):
     return Function('helper',[self.x,self.u],[expr],["x","u"],["out"])
 
-  def is_trajectory(self, expr):
-    return depends_on(expr,vertcat(self.x,self.u))
+
