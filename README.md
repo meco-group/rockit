@@ -5,7 +5,7 @@ Some recommendations for a productive setup:
 * Install https://docs.conda.io/en/latest/miniconda.html
   This allows you to create an isolated Python environment.
 
-* `conda create --name ocpx python=3.7 matplotlib scipy ipython pylint ipdb`
+* `conda create --name ocpx python=3.7 matplotlib scipy ipython pylint`
 * `conda activate ocpx`
 
 # CasADi setup
