@@ -1,6 +1,6 @@
 Some recommendations for a productive setup:
 
-== Python environment ==
+# Python environment
 
 Install https://docs.conda.io/en/latest/miniconda.html
 This allows you to create an isolated Python environment.
@@ -8,10 +8,10 @@ This allows you to create an isolated Python environment.
 `conda create --name ocpx python=3.7 matplotlib scipy ipython pylint`
 `conda activate ocpx`
 
-== CasADi setup ==
+# CasADi setup
 In your Python environment, do `pip install casadi`
 
-== IDE ==
+# IDE
 
 Install https://code.visualstudio.com/
 Install the Python extension.
