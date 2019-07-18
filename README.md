@@ -18,4 +18,5 @@ Some recommendations for a productive setup:
  * Open the `ocpx` cloned folder, navigate to the `hello_world.py` example.
  * A bar at the bottom of the screen should mention the Python environment,
   make sure to select 'ocpx' environment.
+ * Add the `ocpx` cloned folder into PYTHONPATH with `export PYTHONPATH=$PYTHONPATH:/path/to/repo`
  * Right-click the open file, select 'Run Python file in terminal'.
