@@ -48,12 +48,9 @@ class SamplingMethod:
 
   def prepare_sundials(self,f,X,DT,U):
     # Preparing arguments of Sundials integrators
-
-    # TODO support of Sundials integrators limited to fixed end-time problems
-    assert DT.is_symbolic(), "Free end-time problems are not supported for Sundials integrators (cvodes, idas)."
-
     opts = {} # TODO - additional options
-    opts['tf'] = DT
-    data = {'x': X, 'p': U, 'ode': f(X,U)}
+    opts['tf'] = 1
+    data = {'x': X, 'p': U, 'ode': DT*f(X,U)}
+    # data = {'x': X, 't',t, 'p': U, 'ode': substitute(DT*f(X,U),t,t*DT)}
 
     return (data, opts)
