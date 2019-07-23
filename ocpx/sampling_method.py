@@ -31,9 +31,22 @@ class SamplingMethod:
 
   def intg_cvodes(self,f,X,DT,U):
     # A single CVODES step
-    opts = {} # TODO - additional options
-    opts['tf'] = DT
-    _f = {'x': X, 'p': U, 'ode': f(X,U)}
-    I = integrator('intg_cvodes', 'cvodes', _f, opts)
+    data, opts = self.prepare_sundials(f,X,DT,U)
+    I = integrator('intg_cvodes', 'cvodes', data, opts)
 
     return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
+
+  def intg_idas(self,f,X,DT,U):
+    # A single IDAS step
+    data, opts = self.prepare_sundials(f,X,DT,U)
+    I = integrator('intg_idas', 'idas', data, opts)
+
+    return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
+
+  def prepare_sundials(self,f,X,DT,U):
+    # Preparing arguments of Sundials integrators
+    opts = {} # TODO - additional options
+    opts['tf'] = DT
+    data = {'x': X, 'p': U, 'ode': f(X,U)}
+
+    return (data, opts)
