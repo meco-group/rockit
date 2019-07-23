@@ -13,23 +13,27 @@ class SamplingMethod:
     X0 = f.mx_in("x")            # Initial state
     U = f.mx_in("u")             # Control
 
-    return getattr(self, "intg_"+self.intg)(f,X0,DT,U)
-
-  def intg_rk(self,f,X0,DT,U):
     X = X0
+    intg = getattr(self, "intg_"+self.intg)(f,X,DT,U)
     for j in range(self.M):
-        k1 = f(X, U)
-        k2 = f(X + DT/2 * k1, U)
-        k3 = f(X + DT/2 * k2, U)
-        k4 = f(X + DT * k3, U)
-        X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
-    return Function('F', [X0, U], [X], ['x0','u'], ['xf'])
+      X = intg(X,U)
 
-  def intg_cvodes(self,f,X0,DT,U):
+    return Function('F', [X0, U], [X], ['x0', 'u'], ['xf'])
+
+  def intg_rk(self,f,X,DT,U):
+    # A single Runge-Kutta 4 step
+    k1 = f(X, U)
+    k2 = f(X + DT/2 * k1, U)
+    k3 = f(X + DT/2 * k2, U)
+    k4 = f(X + DT * k3, U)
+
+    return Function('F', [X, U], [X + DT/6*(k1 +2*k2 +2*k3 +k4)], ['x0','u'],['xf'])
+
+  def intg_cvodes(self,f,X,DT,U):
+    # A single CVODES step
     opts = {} # TODO - additional options
     opts['tf'] = DT
-    X = X0
     _f = {'x': X, 'p': U, 'ode': f(X,U)}
-    I = integrator('blabla', 'cvodes', _f, opts)
+    I = integrator('intg_cvodes', 'cvodes', _f, opts)
 
-    return Function('F', [X0, U], I(X, U, [], [], [], []), ['x0','u'],['xf','qf','zf','rxf','rqf','rzf'])
+    return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
