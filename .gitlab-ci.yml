@@ -23,6 +23,6 @@ testing:examples:
     - export PYTHONPATH=$PYTHONPATH:$(pwd)
     - echo $PYTHONPATH
   script:
-    - python -v examples/working/hello_world.py
+    - python examples/working/hello_world.py
   # only:
   #   - master
