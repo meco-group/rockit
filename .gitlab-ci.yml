@@ -1,0 +1,30 @@
+stages:
+  - testing
+
+# testing:unit-tests:
+#   stage: testing
+#   image: conda/miniconda3-centos7
+#   tags:
+#     - meco
+#   before_script:
+#     - ...
+#   script:
+#     - ...
+#   only:
+#     - master
+
+testing:examples:
+  stage: testing
+  image: conda/miniconda3-centos7
+  tags:
+    - meco
+  before_script:
+    - conda create --name ocpx python=3.6 matplotlib scipy ipython pylint
+    - conda activate ocpx
+    - pip install casadi
+    - export PYTHONPATH=$PYTHONPATH:$(pwd)
+    - echo $PYTHONPATH
+  script:
+    - python -v examples/working/hello_world.py
+  # only:
+  #   - master
