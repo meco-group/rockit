@@ -1,4 +1,5 @@
 from .sampling_method import SamplingMethod
+from casadi import sumsqr, vertcat
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
@@ -21,6 +22,7 @@ class MultipleShooting(SamplingMethod):
     # We are creating variables in a special order such that the resulting constraint Jacobian
     # is block-sparse
     self.X.append(opti.variable(stage.nx))
+    self.T=opti.variable()
 
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
@@ -29,18 +31,19 @@ class MultipleShooting(SamplingMethod):
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
+    opti.subject_to(self.T>=0)
 
     for k in range(self.N):
-      # Dynamic cosntraints a.k.a. gap-closing constraints
-      opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k])["xf"])
+      # Dynamic constraints a.k.a. gap-closing constraints
+      opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k],T=self.T)["xf"])
 
       for c in stage._path_constraints_expr(): # for each constraint expression
         # Add it to the optimizer, but first make x,u concrete.
-        opti.subject_to(stage._constr_apply(c,x=self.X[k],u=self.U[k]))
+        opti.subject_to(stage._constr_apply(c,x=self.X[k],u=self.U[k],T = self.T))
 
     for c in stage._boundary_constraints_expr(): # Append boundary conditions to the end
       opti.subject_to(stage._constr_apply(c))
         
   def add_objective(self,stage,opti):
-    opti.minimize(opti.f+stage._expr_apply(stage._objective))
+    opti.minimize(opti.f+stage._expr_apply(stage._objective,T=self.T))
 
