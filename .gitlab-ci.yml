@@ -15,13 +15,11 @@ stages:
 
 testing:examples:
   stage: testing
-  image: conda/miniconda3-centos7
+  image: asteinh/ocpx-base
   tags:
     - docker
   before_script:
-    - conda create --name ocpx python=3.6 matplotlib scipy ipython pylint
-    - conda activate ocpx
-    - pip install casadi
+    - source activate ocpx
     - export PYTHONPATH=$PYTHONPATH:$(pwd)
     - echo $PYTHONPATH
   script:
