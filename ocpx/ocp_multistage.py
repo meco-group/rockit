@@ -1,4 +1,5 @@
 from .stage import Stage
+from .ocpx_solution import OcpxSolution
 
 class OcpMultiStage:
   def __init__(self):
@@ -20,4 +21,5 @@ class OcpMultiStage:
       for s in self.stages:
         s._method.transcribe(s, opti)
       self.is_transcribed = True
-    sol = opti.solve()
+    return OcpxSolution(opti.solve())
+    
