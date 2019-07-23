@@ -22,7 +22,13 @@ class Stage:
     self.states.append(x)
     return x
 
-  def control(self):
+  def control(self,order=0):
+    if order>=1:
+  	  u = self.state()
+  	  helper_u = self.control(order=order-1)
+  	  self.set_der(u, helper_u)
+  	  return u
+
     u = MX.sym("u")
     self.controls.append(u)
     return u
