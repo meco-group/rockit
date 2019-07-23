@@ -17,7 +17,7 @@ testing:examples:
   stage: testing
   image: conda/miniconda3-centos7
   tags:
-    - meco
+    - docker
   before_script:
     - conda create --name ocpx python=3.6 matplotlib scipy ipython pylint
     - conda activate ocpx
