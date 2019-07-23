@@ -34,8 +34,6 @@ class MultipleShooting(SamplingMethod):
     opti.subject_to(self.T>=0)
 
     for k in range(self.N):
-      print(F(x0=vertcat(0.1,0),u=1,T=1)["xf"])
-      print(F(x0=vertcat(0.1,0),u=1,T=2)["xf"])
       # Dynamic constraints a.k.a. gap-closing constraints
       opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k],T=self.T)["xf"])
 
