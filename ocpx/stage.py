@@ -1,7 +1,7 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
 
 class Stage:
-  def __init__(self, ocp, t0=0, tf=1):
+  def __init__(self, ocp, t0=0, tf=1,T=None):
     self.ocp = ocp
     self.states = []
     self.controls = []
@@ -12,6 +12,7 @@ class Stage:
     self._objective = 0
     self.t0 = t0
     self.tf = tf
+    self.T = MX.sym('T')
 
   def state(self):
     """
@@ -107,6 +108,9 @@ class Stage:
     if "u" in kwargs:
       subst_from.append(self.u)
       subst_to.append(kwargs["u"])
+    if "T" in kwargs:
+      subst_from.append(self.T)
+      subst_to.append(kwargs["T"])
 
     return substitute([expr],subst_from,subst_to)[0]
 
@@ -114,5 +118,3 @@ class Stage:
 
   def _expr_to_function(self,expr):
     return Function('helper',[self.x,self.u],[expr],["x","u"],["out"])
-
-
