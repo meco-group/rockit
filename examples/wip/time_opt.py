@@ -38,4 +38,3 @@ ocp.method(DirectMethod(solver='ipopt'))
 # Make it concrete for this stage
 stage.method(MultipleShooting(N=20,M=6,intg='rk'))
 sol = ocp.solve()
-print(ocp.OptimalX())
