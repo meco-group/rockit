@@ -5,6 +5,8 @@ class Stage:
     self.ocp = ocp
     self.states = []
     self.controls = []
+    self.parameters = []
+    self._param_vals = dict()
     self._state_der = dict()
     self._constraints = []
     self._expr_t0 = dict() # Expressions defined at t0
@@ -22,6 +24,15 @@ class Stage:
     self.states.append(x)
     return x
 
+  def parameter(self):
+    """
+    Create a parameter
+    """
+    # Create a placeholder symbol with a dummy name (see #25)
+    p = MX.sym("p")
+    self.parameters.append(p)
+    return p
+
   def control(self,order=0):
     if order>=1:
   	  u = self.state()
@@ -32,6 +43,11 @@ class Stage:
     u = MX.sym("u")
     self.controls.append(u)
     return u
+
+
+  def set_value(self, parameter, value):
+  	self._param_vals[parameter] = value
+
 
   def set_der(self, state, der):
     self._state_der[state] = der
@@ -70,12 +86,20 @@ class Stage:
     return vcat(self.controls)
 
   @property
+  def p(self):
+    return vcat(self.parameters)
+
+  @property
   def nx(self):
     return self.x.numel()
 
   @property
   def nu(self):
     return self.u.numel()
+
+  @property
+  def np(self):
+    return self.p.numel()
 
   def is_trajectory(self, expr):
     return depends_on(expr,vertcat(self.x,self.u))
@@ -113,7 +137,10 @@ class Stage:
     if "u" in kwargs:
       subst_from.append(self.u)
       subst_to.append(kwargs["u"])
-
+    if "p" in kwargs:
+      for i,p in enumerate(self.parameters):
+      	subst_from.append(p)
+      	subst_to.append(kwargs["p"][i])
     return substitute([expr],subst_from,subst_to)[0]
 
   _constr_apply = _expr_apply
