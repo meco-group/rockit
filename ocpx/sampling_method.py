@@ -1,4 +1,4 @@
-from casadi import integrator, Function
+from casadi import integrator, Function, MX
 
 class SamplingMethod:
   def __init__(self,N=50,M=1,intg='rk'):
@@ -13,7 +13,7 @@ class SamplingMethod:
     X0 = f.mx_in("x")            # Initial state
     U = f.mx_in("u")             # Control
     X = X0
-    T = stage.T
+    T = MX.sym("T")
     DT = T/self.N/self.M    
     for j in range(self.M):
         k1 = f(X, U)

@@ -1,4 +1,5 @@
 from .stage import Stage
+from .freetime import FreeTime
 from casadi import hcat
 
 class OcpMultiStage:
@@ -25,7 +26,3 @@ class OcpMultiStage:
 
   def free(self,T_init):
     return FreeTime(T_init)
-
-class FreeTime:
-  def __init__(self, T_init):
-    self.T_init = T_init

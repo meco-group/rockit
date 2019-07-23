@@ -22,7 +22,11 @@ class MultipleShooting(SamplingMethod):
     # We are creating variables in a special order such that the resulting constraint Jacobian
     # is block-sparse
     self.X.append(opti.variable(stage.nx))
-    self.T=opti.variable()
+    if stage.is_free_time():
+      self.T=opti.variable()
+      opti.set_initial(self.T, stage._T.T_init)
+    else:
+      self.T = stage.T
 
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
@@ -31,7 +35,8 @@ class MultipleShooting(SamplingMethod):
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
-    opti.subject_to(self.T>=0)
+    if stage.is_free_time():
+      opti.subject_to(self.T>=0)
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints

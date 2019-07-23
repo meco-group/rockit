@@ -1,4 +1,5 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
+from .freetime import FreeTime
 
 class Stage:
   def __init__(self, ocp, t0=0, tf=1,T=None):
@@ -12,7 +13,15 @@ class Stage:
     self._objective = 0
     self.t0 = t0
     self.tf = tf
-    self.T = MX.sym('T')
+    self._T = T
+
+    if self.is_free_time():
+      self.T = MX.sym('T')
+    else: 
+      self.T = tf-t0
+	  
+  def is_free_time(self):
+    return isinstance(self._T, FreeTime)
 
   def state(self):
     """
@@ -108,7 +117,7 @@ class Stage:
     if "u" in kwargs:
       subst_from.append(self.u)
       subst_to.append(kwargs["u"])
-    if "T" in kwargs:
+    if self.is_free_time() and "T" in kwargs:
       subst_from.append(self.T)
       subst_to.append(kwargs["T"])
 
