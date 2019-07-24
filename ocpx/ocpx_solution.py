@@ -36,6 +36,6 @@ class OcpxSolution:
         sub_expr.append(stage._constr_apply(
             expr, x=stage._method.xk[-1], u=stage._method.U[-1]))
         res = [self.sol.value(elem) for elem in sub_expr]
-        time = np.linspace(stage.t0, self.sol.value(stage.tf),
+        time = np.linspace(stage.t0, self.sol.value(stage._method.T),
                            stage._method.N * stage._method.M + 1)
         return time, np.array(res)
