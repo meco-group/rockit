@@ -7,6 +7,7 @@ class MultipleShooting(SamplingMethod):
     self.X = [] # List that will hold N+1 decision variables for state vector
     self.U = [] # List that will hold N decision variables for control vector
     self.T = None
+    self.t0 = None
     self.P = []
     self.poly_coeff = [] # Optional list to save the coefficients for a polynomial 
     self.xk = [] # List for intermediate integrator states
@@ -30,10 +31,12 @@ class MultipleShooting(SamplingMethod):
     # is block-sparse
     self.X.append(opti.variable(stage.nx))
     if stage.is_free_time():
-      self.T=opti.variable()
+      self.T = opti.variable()
       opti.set_initial(self.T, stage._T.T_init)
     else:
       self.T = stage.T
+
+    self.t0 = stage.t0
 
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
@@ -53,9 +56,8 @@ class MultipleShooting(SamplingMethod):
     self.xk = [self.X[0]]
 
     for k in range(self.N):
-      FF = F(x0=self.X[k],u=self.U[k],T=self.control_grid[k])
+      FF = F(x0=self.X[k],u=self.U[k],t0=self.control_grid[k],T=self.control_grid[k+1]-self.control_grid[k])
       # Dynamic constraints a.k.a. gap-closing constraints
-
       opti.subject_to(self.X[k+1]==FF["xf"])
 
       # Save intermediate info
@@ -80,7 +82,5 @@ class MultipleShooting(SamplingMethod):
       self.P.append(opti.parameter(p.shape[0],p.shape[1]))
 
   def set_parameter(self,stage,opti):
-    for i,p in enumerate(stage.parameters):   
+    for i,p in enumerate(stage.parameters):
       opti.set_value(self.P[i], stage._param_vals[p])
-
-

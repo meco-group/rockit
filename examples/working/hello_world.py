@@ -39,20 +39,6 @@ stage.method(MultipleShooting(N=20,M=4,intg='rk'))
 
 # solve
 sol = ocp.solve()
-<<<<<<< HEAD
-ts,xsol = sol.sample(stage,x1,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
-ts,xsol = sol.sample(stage,x2,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
-
-#
-#plt.plot(ts,xsol,'-o')
-#ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
-plt.plot(ts,xsol,'-o')
-plt.legend(["x1","x2"])
-
-plt.show(block=True)
-=======
 
 tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
 tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
@@ -69,4 +55,4 @@ ax[1].legend(['grid_integrator', 'grid_control'])
 for i in range(2):
     ax[i].set_xlabel('Time [s]', fontsize=14)
     ax[i].set_ylabel('State {}'.format(i+1), fontsize=14)
->>>>>>> sampled_solution
+plt.show(block=True)

@@ -15,8 +15,9 @@ class SamplingMethod:
     # nstates x (4 * M)
     poly_coeffs = []
 
+    t0 = MX.sym('t0')
     T = MX.sym('T')
-    DT = T/self.N/self.M
+    DT = T/self.M
 
     # Size of integrator interval
     X0 = f.mx_in("x")            # Initial state
@@ -29,8 +30,8 @@ class SamplingMethod:
       X.append(intg_res["xf"])
       poly_coeffs.append(intg_res["poly_coeff"])
 
-    return Function('F', [X0, U, T], [X[-1], hcat(X), hcat(poly_coeffs)],
-                    ['x0','u', 'T'], ['xf', 'Xi', 'poly_coeff'])
+    return Function('F', [X0, U, T, t0], [X[-1], hcat(X), hcat(poly_coeffs)],
+                    ['x0','u', 'T', 't0'], ['xf', 'Xi', 'poly_coeff'])
 
 
 
