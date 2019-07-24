@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
@@ -55,7 +55,7 @@ class MultipleShooting(SamplingMethod):
     self.xk = [self.X[0]]
 
     for k in range(self.N):
-      FF = F(x0=self.X[k],u=self.U[k],t0=self.control_grid[k],T=self.control_grid[k+1]-self.control_grid[k])
+      FF = F(x0=self.X[k],u=self.U[k],t0=self.control_grid[k],T=self.control_grid[k+1]-self.control_grid[k], p=vcat(self.P))
       # Dynamic constraints a.k.a. gap-closing constraints
       opti.subject_to(self.X[k+1]==FF["xf"])
 

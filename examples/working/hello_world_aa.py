@@ -11,10 +11,13 @@ x1 = stage.state()
 x2 = stage.state()
 
 # Defince controls
-u = stage.control(1,order=2)
+u = stage.control(1,order=1)
+
+#setting parameter
+p = stage.parameter(2);
 
 # Specify ODE
-stage.set_der(x1, (1-x2**2)*x1 - x2 + u)
+stage.set_der(x1, (p[1]-x2**2)*x1 - x2 + u)
 stage.set_der(x2,  x1)
 
 # Lagrange objective
@@ -26,14 +29,16 @@ stage.subject_to(-1<=u)
 stage.subject_to(x1>=-0.25)
 
 # Initial constraints
-stage.subject_to(stage.at_t0(x1)==0)
+stage.subject_to(stage.at_t0(x1)==p[0])
 stage.subject_to(stage.at_t0(x2)==1)
+
+stage.set_value(p, [0, 1.3])
 
 # Pick a solution method
 ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
-stage.method(MultipleShooting(N=20,M=4,intg='rk'))
+stage.method(MultipleShooting(N=20,M=4,intg='idas'))
 
 # solve
 sol = ocp.solve()

@@ -39,12 +39,12 @@ class Stage:
     self.states.append(x)
     return x
 
-  def parameter(self):
+  def parameter(self,dim=1):
     """
     Create a parameter
     """
     # Create a placeholder symbol with a dummy name (see #25)
-    p = MX.sym("p")
+    p = MX.sym("p",dim)
     self.parameters.append(p)
     return p
 
@@ -125,7 +125,7 @@ class Stage:
 
   def _ode(self):
     ode = vcat([self._state_der[k] for k in self.states])
-    return Function('ode',[self.x,self.u],[ode],["x","u"],["ode"])
+    return Function('ode',[self.x,self.u,self.p],[ode],["x","u","p"],["ode"])
 
   def _bake(self,x0=None,xf=None,u0=None,uf=None):
     for k in self._expr_t0.keys():
