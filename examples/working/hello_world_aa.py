@@ -1,18 +1,17 @@
 from ocpx import *
-import matplotlib.pyplot as plt
 
 # Inspired from https://github.com/casadi/casadi/blob/master/docs/examples/python/direct_multiple_shooting.py
 
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0,T=10)
+stage = ocp.stage(t0=0,tf=10)
 
 # Define states
 x1 = stage.state()
 x2 = stage.state()
 
 # Defince controls
-u = stage.control()
+u = stage.control(1,order=2)
 
 # Specify ODE
 stage.set_der(x1, (1-x2**2)*x1 - x2 + u)
@@ -38,15 +37,3 @@ stage.method(MultipleShooting(N=20,M=4,intg='rk'))
 
 # solve
 sol = ocp.solve()
-ts,xsol = sol.sample(stage,x1,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
-ts,xsol = sol.sample(stage,x2,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
-
-#
-#plt.plot(ts,xsol,'-o')
-#ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
-plt.plot(ts,xsol,'-o')
-plt.legend(["x1","x2"])
-
-plt.show(block=True)

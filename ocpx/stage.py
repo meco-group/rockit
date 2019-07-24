@@ -7,6 +7,8 @@ class Stage:
     self.ocp = ocp
     self.states = []
     self.controls = []
+    self.parameters = []
+    self._param_vals = dict()
     self._state_der = dict()
     self._constraints = []
     self._expr_t0 = dict() # Expressions defined at t0
@@ -18,27 +20,48 @@ class Stage:
 
     if self.is_free_time():
       self.T = MX.sym('T')
-    else: 
+    else:
       self.T = T
 
     self.tf = self.t0 + self.T
-	  
+	
+    self.t = MX.sym('t')
+
   def is_free_time(self):
     return isinstance(self._T, FreeTime)
 
-  def state(self):
+  def state(self,dim=1):
     """
     Create a state
     """
     # Create a placeholder symbol with a dummy name (see #25)
-    x = MX.sym("x")
+    x = MX.sym("x",dim)
     self.states.append(x)
     return x
 
-  def control(self):
-    u = MX.sym("u")
+  def parameter(self):
+    """
+    Create a parameter
+    """
+    # Create a placeholder symbol with a dummy name (see #25)
+    p = MX.sym("p")
+    self.parameters.append(p)
+    return p
+
+  def control(self,dim=1,order=0):
+    if order>=1:
+  	  u = self.state(dim)
+  	  helper_u = self.control(dim=dim,order=order-1)
+  	  self.set_der(u, helper_u)
+  	  return u
+
+    u = MX.sym("u",dim)
     self.controls.append(u)
     return u
+
+  def set_value(self, parameter, value):
+  	self._param_vals[parameter] = value
+
 
   def set_der(self, state, der):
     self._state_der[state] = der
@@ -80,12 +103,20 @@ class Stage:
     return vcat(self.controls)
 
   @property
+  def p(self):
+    return vcat(self.parameters)
+
+  @property
   def nx(self):
     return self.x.numel()
 
   @property
   def nu(self):
     return self.u.numel()
+
+  @property
+  def np(self):
+    return self.p.numel()
 
   def is_trajectory(self, expr):
     return depends_on(expr,vertcat(self.x,self.u))
@@ -109,6 +140,10 @@ class Stage:
     return [c for c in self._constraints if self.is_trajectory(c)]
 
   def _expr_apply(self,expr,**kwargs):
+    """
+    Substitute placeholder symbols with actual decision variables,
+    or expressions involving decision variables
+    """
     subst_from = []
     subst_to = []
     for k,v in self._expr_t0.items():
@@ -117,6 +152,9 @@ class Stage:
     for k,v in self._expr_tf.items():
       subst_from.append(k)
       subst_to.append(v)
+    if "t" in kwargs:
+      subst_from.append(self.t)
+      subst_to.append(kwargs["t"])
     if "x" in kwargs:
       subst_from.append(self.x)
       subst_to.append(kwargs["x"])
@@ -127,6 +165,10 @@ class Stage:
       subst_from.append(self.T)
       subst_to.append(kwargs["T"])
 
+    if "p" in kwargs:
+      for i,p in enumerate(self.parameters):
+      	subst_from.append(p)
+      	subst_to.append(kwargs["p"][i])
     return substitute([expr],subst_from,subst_to)[0]
 
   _constr_apply = _expr_apply
