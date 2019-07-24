@@ -6,7 +6,8 @@ class MultipleShooting(SamplingMethod):
     SamplingMethod.__init__(self,*args,**kwargs)
     self.X = [] # List that will hold N+1 decision variables for state vector
     self.U = [] # List that will hold N decision variables for control vector
-    #self.T = None
+    self.T = None
+    self.t0 = None
     self.rk4_coeff = []
     self.P = []
 
@@ -28,10 +29,12 @@ class MultipleShooting(SamplingMethod):
     # is block-sparse
     self.X.append(opti.variable(stage.nx))
     if stage.is_free_time():
-      self.T=opti.variable()
+      self.T = opti.variable()
       opti.set_initial(self.T, stage._T.T_init)
     else:
       self.T = stage.T
+
+    self.t0 = stage.t0
 
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
@@ -49,7 +52,7 @@ class MultipleShooting(SamplingMethod):
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      FF = F(x0=self.X[k],u=self.U[k],T=self.T)
+      FF = F(x0=self.X[k],u=self.U[k],T=self.T, t0=self.t0)
       self.rk4_coeff.append(FF["poly_coeff"])
       opti.subject_to(self.X[k+1]==FF["xf"])
 
@@ -73,6 +76,9 @@ class MultipleShooting(SamplingMethod):
       self.P.append(opti.parameter(p.shape[0],p.shape[1]))
 
   def set_parameter(self,stage,opti):
-    for i,p in enumerate(stage.parameters):   
+    for i,p in enumerate(stage.parameters):
       opti.set_value(self.P[i], stage._param_vals[p])
+<<<<<<< HEAD
 
+=======
+>>>>>>> 25e5ac1deff9d3d525f3d783a5ce13ff486d9a07
