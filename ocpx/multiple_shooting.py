@@ -38,14 +38,14 @@ class MultipleShooting(SamplingMethod):
     F = self.discrete_system(stage)
 
     # Create time grid (might be symbolic)
-    ts = stage._expr_apply(linspace(MX(stage.t0),stage.tf,self.N+1),T=self.T)
+    self.control_grid = stage._expr_apply(linspace(MX(stage.t0),stage.tf,self.N+1),T=self.T)
 
     if stage.is_free_time():
       opti.subject_to(self.T>=0)
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      FF = F(x0=self.X[k],u=self.U[k],t0=ts[k],tf=ts[k+1])
+      FF = F(x0=self.X[k],u=self.U[k],t0=self.control_grid[k],tf=self.control_grid[k+1])
       self.rk4_coeff.append(FF["rk4_coeff"])
       opti.subject_to(self.X[k+1]==FF["xf"])
 
