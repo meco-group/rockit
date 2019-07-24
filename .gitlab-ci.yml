@@ -1,28 +1,35 @@
 stages:
   - testing
+  - docs
 
-# testing:unit-tests:
-#   stage: testing
-#   image: conda/miniconda3-centos7
-#   tags:
-#     - meco
-#   before_script:
-#     - ...
-#   script:
-#     - ...
-#   only:
-#     - master
-
-testing:examples:
+.test_template: &test_template
   stage: testing
   image: asteinh/ocpx-base
   tags:
     - docker
+  cache:
+    paths:
+      - .pip
   before_script:
     - source activate ocpx
+    - mkdir -p .pip
+    - pip --cache-dir=.pip install casadi
     - export PYTHONPATH=$PYTHONPATH:$(pwd)
-    - echo $PYTHONPATH
-  script:
-    - python examples/working/hello_world.py
+
+# testing:unittests:
+  # <<: *test_template
+  # before_script:
+  #   - ...
+  # script:
+  #   - ...
   # only:
   #   - master
+
+testing:examples:
+  <<: *test_template
+  # before_script:
+  #   - echo $PYTHONPATH
+  script:
+    - python examples/working/hello_world.py
+  only:
+    - master
