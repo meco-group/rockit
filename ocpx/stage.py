@@ -14,6 +14,7 @@ class Stage:
     self._expr_t0 = dict() # Expressions defined at t0
     self._expr_tf = dict() # Expressions defined at tf
     self._objective = 0
+    self._initial = dict()
     self.t0 = t0
     self._T = T
 
@@ -23,6 +24,8 @@ class Stage:
       self.T = T
 
     self.tf = self.t0 + self.T
+	
+    self.t = MX.sym('t')
 
   def is_free_time(self):
     return isinstance(self._T, FreeTime)
@@ -71,6 +74,9 @@ class Stage:
 
   def subject_to(self, constr):
     self._constraints.append(constr)
+
+  def set_initial(self,var,expr):
+    self._initial[var] = expr
 
   def at_t0(self, expr):
     p = MX.sym("p_t0", expr.sparsity())
@@ -146,6 +152,9 @@ class Stage:
     for k,v in self._expr_tf.items():
       subst_from.append(k)
       subst_to.append(v)
+    if "t" in kwargs:
+      subst_from.append(self.t)
+      subst_to.append(kwargs["t"])
     if "x" in kwargs:
       subst_from.append(self.x)
       subst_to.append(kwargs["x"])
