@@ -7,4 +7,5 @@ RUN conda install --name ocpx matplotlib
 RUN conda install --name ocpx scipy
 RUN conda install --name ocpx ipython
 RUN conda install --name ocpx pylint
+RUN conda install --name ocpx nose
 RUN conda install --name ocpx -c conda-forge casadi
