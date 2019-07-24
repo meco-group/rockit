@@ -23,13 +23,20 @@ class SamplingMethod:
     tf = MX.sym("tf")
     DT = (tf-t0)/self.M
     for j in range(self.M):
+        x_0 = X
+
         k1 = f(X, U)
         k2 = f(X + DT/2 * k1, U)
         k3 = f(X + DT/2 * k2, U)
         k4 = f(X + DT * k3, U)
         X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
 
+        f0 = k1
+        f1 = 2/DT*(k2-k1)
+        f2 = 4/DT**2*(k3-k2)
+        f3 = 4*(k4-2*k3+k1)/DT**3
+
         xk.append(X)
-        poly_coeff.append(hcat([k1, k2, k3, k4]))
+        poly_coeff.append(hcat([x_0, f0, f1, f2, f3]))
 
     return Function('F', [X0, U, t0, tf], [X, hcat(xk), hcat(poly_coeff)],['x0','u','t0','tf'],['xf', 'xk','poly_coeff'])

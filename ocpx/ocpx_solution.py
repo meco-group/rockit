@@ -20,7 +20,8 @@ class OcpxSolution:
         sub_expr = []
         sub_expr.append(stage._constr_apply(expr,x=stage._method.X[0],u=stage._method.U[0]))
         for k in range(stage._method.N):
-            sub_expr.append(stage._constr_apply(expr,x=stage._method.X[k+1],u=stage._method.U[k]))
+            sub_expr.append(stage._constr_apply(expr,x=stage._method.X[k],u=stage._method.U[k]))
+        sub_expr.append(stage._constr_apply(expr,x=stage._method.X[-1],u=stage._method.U[-1]))
         res = [self.sol.value(elem) for elem in sub_expr]
         time = np.linspace(stage.t0,stage.tf,stage._method.N+1)
         return time, np.array(res)
@@ -30,7 +31,8 @@ class OcpxSolution:
         sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[0],u=stage._method.U[0]))
         for k in range(stage._method.N):
             for l in range(stage._method.M):
-                sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[k*stage._method.M + l + 1],u=stage._method.U[k]))
+                sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[k*stage._method.M + l],u=stage._method.U[k]))
+        sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[-1],u=stage._method.U[-1]))
         res = [self.sol.value(elem) for elem in sub_expr]
         time = np.linspace(stage.t0,stage.tf,stage._method.N*stage._method.M+1)
         return time, np.array(res)
