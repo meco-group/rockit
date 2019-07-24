@@ -54,7 +54,7 @@ pages:
     - docs:sphinx
   script:
     - mkdir public
-    - cp -R ./docs/sphinx/build/html/ ./public/
+    - cp -R ./docs/sphinx/build/html/* ./public/
   artifacts:
     paths:
       - public
