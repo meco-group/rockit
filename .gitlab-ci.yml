@@ -55,6 +55,7 @@ pages:
   tags:
     - pages
   dependencies:
+    - testing:unittests
     - docs:sphinx
   script:
     - mkdir public
