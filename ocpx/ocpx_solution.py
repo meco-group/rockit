@@ -4,33 +4,38 @@ from casadi import vertcat
 
 
 class OcpxSolution:
-    def __init__(self,sol):
+    def __init__(self, sol):
         self.sol = sol
 
     def sample(self, stage, expr, grid):
-        if isinstance(grid,GridControl):
+        if isinstance(grid, GridControl):
             return self._grid_control(stage, expr, grid)
-            
-        elif isinstance(grid,GridIntegrator):
+
+        elif isinstance(grid, GridIntegrator):
             return self._grid_integrator(stage, expr, grid)
         else:
             raise Exception("Unknown grid option")
 
-    def _grid_control(self,stage, expr, grid):
+    def _grid_control(self, stage, expr, grid):
         sub_expr = []
-        sub_expr.append(stage._constr_apply(expr,x=stage._method.X[0],u=stage._method.U[0]))
+        sub_expr.append(stage._constr_apply(
+            expr, x=stage._method.X[0], u=stage._method.U[0]))
         for k in range(stage._method.N):
-            sub_expr.append(stage._constr_apply(expr,x=stage._method.X[k+1],u=stage._method.U[k]))
+            sub_expr.append(stage._constr_apply(
+                expr, x=stage._method.X[k + 1], u=stage._method.U[k]))
         res = [self.sol.value(elem) for elem in sub_expr]
         time = self.sol.value(stage._method.control_grid)
         return time, np.array(res)
 
-    def _grid_integrator(self,stage, expr, grid):
+    def _grid_integrator(self, stage, expr, grid):
         sub_expr = []
-        sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[0],u=stage._method.U[0]))
+        sub_expr.append(stage._constr_apply(
+            expr, x=stage._method.xk[0], u=stage._method.U[0]))
         for k in range(stage._method.N):
             for l in range(stage._method.M):
-                sub_expr.append(stage._constr_apply(expr,x=stage._method.xk[k*stage._method.M + l + 1],u=stage._method.U[k]))
+                sub_expr.append(stage._constr_apply(
+                    expr, x=stage._method.xk[k * stage._method.M + l + 1], u=stage._method.U[k]))
         res = [self.sol.value(elem) for elem in sub_expr]
-        time = np.linspace(stage.t0,stage.tf,stage._method.N*stage._method.M+1)
+        time = np.linspace(stage.t0, stage.tf,
+                           stage._method.N * stage._method.M + 1)
         return time, np.array(res)
