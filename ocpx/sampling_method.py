@@ -11,6 +11,7 @@ class SamplingMethod:
   def discrete_system(self,stage):
     f = stage._ode()
 
+    t0 = MX.sym('t0')
     T = MX.sym('T')
     DT = T/self.N/self.M
 
@@ -23,8 +24,8 @@ class SamplingMethod:
     for j in range(self.M):
       X.append(intg(X[-1],U))
 
-    return Function('F', [X0, U, T], [X[-1], hcat(X), hcat(self.poly_coeff)],
-                    ['x0','u', 'T'], ['xf', 'Xi', 'poly_coeff'])
+    return Function('F', [X0, U, T, t0], [X[-1], hcat(X), hcat(self.poly_coeff)],
+                    ['x0', 'u', 'T', 't0'], ['xf', 'Xi', 'poly_coeff'])
 
   def intg_rk(self,f,X,DT,U):
     # A single Runge-Kutta 4 step
