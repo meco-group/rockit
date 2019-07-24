@@ -1,29 +1,63 @@
 stages:
   - testing
   - docs
+  - publish
 
-.test_template: &test_template
-  stage: testing
+# shorthand for testing
+.test_template: &template
   image: asteinh/ocpx-base
   tags:
     - docker
-  cache:
-    paths:
-      - .pip
   before_script:
     - source activate ocpx
     - mkdir -p .pip
     - pip --cache-dir=.pip install casadi
+    - pip --cache-dir=.pip install sphinx_rtd_theme
+    - pip --cache-dir=.pip install coverage
     - export PYTHONPATH=$PYTHONPATH:$(pwd)
+  cache:
+    paths:
+      - .pip
+
+testing:unittests:
+  stage: testing
+  <<: *template
+  script:
+    - nosetests --with-coverage --cover-package=ocpx
+
+testing:examples:
+  stage: testing
+  <<: *template
+  script:
+    - python examples/working/hello_world.py
+
+docs:sphinx:
+  stage: docs
+  <<: *template
+  dependencies:
+    - testing:unittests
+    - testing:examples
+  script:
+    - cd docs/sphinx && mkdir -p apidoc
+    - sphinx-apidoc -f -o ./apidoc/ ../../ocpx/
+    - make html
+  artifacts:
+    paths:
+      - docs/sphinx/build
   only:
     - master
 
-testing:unittests:
-  <<: *test_template
+pages:
+  stage: publish
+  tags:
+    - pages
+  dependencies:
+    - docs:sphinx
   script:
-    - nosetests
-
-testing:examples:
-  <<: *test_template
-  script:
-    - python examples/working/hello_world.py
+    - mkdir public
+    - cp -R ./docs/sphinx/build/html/* ./public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - master
