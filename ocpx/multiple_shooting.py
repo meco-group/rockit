@@ -88,7 +88,3 @@ class MultipleShooting(SamplingMethod):
   def set_parameter(self,stage,opti):
     for i,p in enumerate(stage.parameters):
       opti.set_value(self.P[i], stage._param_vals[p])
-<<<<<<< HEAD
-
-=======
->>>>>>> 25e5ac1deff9d3d525f3d783a5ce13ff486d9a07
