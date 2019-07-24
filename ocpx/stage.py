@@ -15,12 +15,12 @@ class Stage:
     self.t0 = t0
     self.tf = tf
 
-  def state(self):
+  def state(self,dim=1):
     """
     Create a state
     """
     # Create a placeholder symbol with a dummy name (see #25)
-    x = MX.sym("x")
+    x = MX.sym("x",dim)
     self.states.append(x)
     return x
 
@@ -33,17 +33,16 @@ class Stage:
     self.parameters.append(p)
     return p
 
-  def control(self,order=0):
+  def control(self,dim=1,order=0):
     if order>=1:
-  	  u = self.state()
-  	  helper_u = self.control(order=order-1)
+  	  u = self.state(dim)
+  	  helper_u = self.control(dim=dim,order=order-1)
   	  self.set_der(u, helper_u)
   	  return u
 
-    u = MX.sym("u")
+    u = MX.sym("u",dim)
     self.controls.append(u)
     return u
-
 
   def set_value(self, parameter, value):
   	self._param_vals[parameter] = value
@@ -147,5 +146,3 @@ class Stage:
 
   def _expr_to_function(self,expr):
     return Function('helper',[self.x,self.u],[expr],["x","u"],["out"])
-
-
