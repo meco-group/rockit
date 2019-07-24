@@ -11,8 +11,6 @@ stages:
   cache:
     paths:
       - .pip
-  # only:
-  #   - master
 
 # preparation for all stages
 before_script:
@@ -47,6 +45,8 @@ docs:sphinx:
   artifacts:
     paths:
       - docs/sphinx/build
+  # only:
+  #   - master
 
 pages:
   stage: publish
