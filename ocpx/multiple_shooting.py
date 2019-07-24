@@ -6,6 +6,7 @@ class MultipleShooting(SamplingMethod):
     SamplingMethod.__init__(self,*args,**kwargs)
     self.X = [] # List that will hold N+1 decision variables for state vector
     self.U = [] # List that will hold N decision variables for control vector
+    self.rk4_coeff = []
 
   def transcribe(self,stage,opti):
     """
@@ -44,7 +45,9 @@ class MultipleShooting(SamplingMethod):
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k],t0=ts[k],tf=ts[k+1])["xf"])
+      FF = F(x0=self.X[k],u=self.U[k],t0=ts[k],tf=ts[k+1])
+      self.rk4_coeff.append(FF["rk4_coeff"])
+      opti.subject_to(self.X[k+1]==FF["xf"])
 
       for c in stage._path_constraints_expr(): # for each constraint expression
         # Add it to the optimizer, but first make x,u concrete.

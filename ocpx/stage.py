@@ -1,5 +1,6 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
 from .freetime import FreeTime
+from .stage_options import GridControl, GridIntegrator
 
 class Stage:
   def __init__(self, ocp, t0=0, T=1):
@@ -128,3 +129,11 @@ class Stage:
 
   def _expr_to_function(self,expr):
     return Function('helper',[self.x,self.u],[expr],["x","u"],["out"])
+
+  @property
+  def grid_control(self):
+    return GridControl()
+
+  @property
+  def grid_integrator(self):
+    return GridIntegrator()
