@@ -38,3 +38,16 @@ ocp.method(DirectMethod(solver='ipopt'))
 # Make it concrete for this stage
 stage.method(MultipleShooting(N=20,M=6,intg='rk'))
 sol = ocp.solve()
+
+ts,xsol = sol.sample(stage,p,grid=stage.grid_control)
+plt.plot(ts,xsol,'-o')
+ts,xsol = sol.sample(stage,v,grid=stage.grid_control)
+plt.plot(ts,xsol,'-o')
+
+#
+#plt.plot(ts,xsol,'-o')
+#ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
+plt.plot(ts,xsol,'-o')
+plt.legend(["p","v"])
+
+plt.show()
