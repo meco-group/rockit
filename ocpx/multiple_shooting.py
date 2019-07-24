@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX
+from casadi import sumsqr, vertcat, linspace, substitute, MX, vcat
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
@@ -41,7 +41,10 @@ class MultipleShooting(SamplingMethod):
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
-
+    print('x is ')
+    print(self.X)
+    print('p is ')
+    print(self.P)
     # Create time grid (might be symbolic)
     self.control_grid = stage._expr_apply(linspace(MX(stage.t0),stage.tf,self.N+1),T=self.T)
 
@@ -50,7 +53,7 @@ class MultipleShooting(SamplingMethod):
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      FF = F(x0=self.X[k],u=self.U[k])
+      FF = F(x0=self.X[k],u=self.U[k], p=vcat(self.P))
       self.rk4_coeff.append(FF["poly_coeff"])
       opti.subject_to(self.X[k+1]==FF["xf"])
 

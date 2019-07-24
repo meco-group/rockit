@@ -119,7 +119,7 @@ class Stage:
 
   def _ode(self):
     ode = vcat([self._state_der[k] for k in self.states])
-    return Function('ode',[self.x,self.u],[ode],["x","u"],["ode"])
+    return Function('ode',[self.x,self.u,self.p],[ode],["x","u","p"],["ode"])
 
   def _bake(self,x0=None,xf=None,u0=None,uf=None):
     for k in self._expr_t0.keys():

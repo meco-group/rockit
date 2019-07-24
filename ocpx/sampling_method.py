@@ -1,7 +1,7 @@
 from casadi import integrator, Function, MX, hcat
 
 class SamplingMethod:
-  def __init__(self,N=50,M=1,intg='rk'):
+  def __init__(self,N=50,M=1,intg='rk4'):
     self.N = N
     self.M = M
     self.intg = intg
@@ -17,29 +17,29 @@ class SamplingMethod:
     # Size of integrator interval
     X0 = f.mx_in("x")            # Initial state
     U = f.mx_in("u")             # Control
-
+    P = f.mx_in("p")
     X = [X0]
-    intg = getattr(self, "intg_"+self.intg)(f,X0,DT,U)
+    intg = getattr(self, "intg_"+self.intg)(f,X0,DT,U,P)
     for j in range(self.M):
-      X.append(intg(X[-1],U))
+      X.append(intg(X[-1],U,P))
 
-    return Function('F', [X0, U], [X[-1], hcat(X), hcat(self.poly_coeff)], ['x0','u'], ['xf', 'Xi', 'poly_coeff'])
+    return Function('F', [X0, U, P], [X[-1], hcat(X), hcat(self.poly_coeff)], ['x0','u', 'p'], ['xf', 'Xi', 'poly_coeff'])
 
-  def intg_rk(self,f,X,DT,U):
+  def intg_rk(self,f,X,DT,U,P):
     # A single Runge-Kutta 4 step
-    k1 = f(X, U)
-    k2 = f(X + DT/2 * k1, U)
-    k3 = f(X + DT/2 * k2, U)
-    k4 = f(X + DT * k3, U)
+    k1 = f(X, U, P)
+    k2 = f(X + DT/2 * k1, U, P)
+    k3 = f(X + DT/2 * k2, U, P)
+    k4 = f(X + DT * k3, U, P)
     self.poly_coeff.append(hcat([X, k1,k2,k3,k4]))
-    return Function('F', [X, U], [X + DT/6*(k1 +2*k2 +2*k3 +k4)], ['x0','u'], ['xf'])
+    return Function('F', [X, U, P], [X + DT/6*(k1 +2*k2 +2*k3 +k4)], ['x0','u', 'p'], ['xf'])
 
-  def intg_cvodes(self,f,X,DT,U):
+  def intg_cvodes(self,f,X,DT,U,P):
     # A single CVODES step
-    data, opts = self.prepare_sundials(f,X,DT,U)
+    data, opts = self.prepare_sundials(f,X,DT,U,P)
     I = integrator('intg_cvodes', 'cvodes', data, opts)
 
-    return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
+    return Function('F', [X, U,P], [I.call({'x0': X, 'p': vcat([U, P])})['xf']], ['x0','u','p'],['xf'])
 
   def intg_idas(self,f,X,DT,U):
     # A single IDAS step
@@ -48,11 +48,11 @@ class SamplingMethod:
 
     return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
 
-  def prepare_sundials(self,f,X,DT,U):
+  def prepare_sundials(self,f,X,DT,U,P):
     # Preparing arguments of Sundials integrators
     opts = {} # TODO - additional options
     opts['tf'] = 1
-    data = {'x': X, 'p': U, 'ode': DT*f(X,U)}
+    data = {'x': X, 'p': U, 'ode': DT*f(X,U,P)}
     # data = {'x': X, 't',t, 'p': U, 'ode': substitute(DT*f(X,U),t,t*DT)}
 
     return (data, opts)
