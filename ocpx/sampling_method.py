@@ -1,10 +1,12 @@
-from casadi import integrator, Function
+from casadi import integrator, Function, MX, hcat
 
 class SamplingMethod:
   def __init__(self,N=50,M=1,intg='rk'):
     self.N = N
     self.M = M
     self.intg = intg
+    # Coefficient matrix from RK4 to reconstruct 4th order polynomial (x0,k1,k2,k3,k4)
+    self.poly_coeff = []
 
   def discrete_system(self,stage):
     f = stage._ode()
@@ -16,12 +18,12 @@ class SamplingMethod:
     X0 = f.mx_in("x")            # Initial state
     U = f.mx_in("u")             # Control
 
-    X = X0
-    intg = getattr(self, "intg_"+self.intg)(f,X,DT,U)
+    X = [X0]
+    intg = getattr(self, "intg_"+self.intg)(f,X0,DT,U)
     for j in range(self.M):
-      X = intg(X,U)
+      X.append(intg(X[-1],U))
 
-    return Function('F', [X0, U, T], [X], ['x0','u','T'], ['xf'])
+    return Function('F', [X0, U], [X[-1], hcat(X), hcat(self.poly_coeff)], ['x0','u'], ['xf', 'Xi', 'poly_coeff'])
 
   def intg_rk(self,f,X,DT,U):
     # A single Runge-Kutta 4 step
@@ -29,7 +31,7 @@ class SamplingMethod:
     k2 = f(X + DT/2 * k1, U)
     k3 = f(X + DT/2 * k2, U)
     k4 = f(X + DT * k3, U)
-
+    self.poly_coeff.append(hcat([X, k1,k2,k3,k4]))
     return Function('F', [X, U], [X + DT/6*(k1 +2*k2 +2*k3 +k4)], ['x0','u'], ['xf'])
 
   def intg_cvodes(self,f,X,DT,U):

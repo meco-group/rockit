@@ -1,5 +1,7 @@
 from .stage import Stage
+from .freetime import FreeTime
 from casadi import hcat
+from .ocpx_solution import OcpxSolution
 
 class OcpMultiStage:
   def __init__(self):
@@ -21,11 +23,7 @@ class OcpMultiStage:
       for s in self.stages:
         s._method.transcribe(s, opti)
       self.is_transcribed = True
-    sol = opti.solve()
+    return OcpxSolution(opti.solve())
 
   def free(self,T_init):
     return FreeTime(T_init)
-
-class FreeTime:
-  def __init__(self, T_init):
-    self.T_init = T_init
