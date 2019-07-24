@@ -1,5 +1,6 @@
 from ocpx import *
 import matplotlib.pyplot as plt
+import numpy as np
 
 # Inspired from https://github.com/casadi/casadi/blob/master/docs/examples/python/direct_multiple_shooting.py
 
@@ -38,15 +39,19 @@ stage.method(MultipleShooting(N=20,M=4,intg='rk'))
 
 # solve
 sol = ocp.solve()
-ts,xsol = sol.sample(stage,x1,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
-ts,xsol = sol.sample(stage,x2,grid=stage.grid_control)
-plt.plot(ts,xsol,'-o')
 
-#
-#plt.plot(ts,xsol,'-o')
-#ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
-plt.plot(ts,xsol,'-o')
-plt.legend(["x1","x2"])
+tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
+tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
 
-plt.show()
+tsb,x1b = sol.sample(stage,x1,grid=stage.grid_integrator)
+tsb,x2b = sol.sample(stage,x2,grid=stage.grid_integrator)
+
+fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+ax[0].plot(tsb,  x1b,'.-')
+ax[0].plot(tsa, x1a,'o')
+ax[1].plot(tsb,  x2b,'.-')
+ax[1].plot(tsa, x2a,'o')
+ax[1].legend(['grid_integrator', 'grid_control'])
+for i in range(2):
+    ax[i].set_xlabel('Time [s]', fontsize=14)
+    ax[i].set_ylabel('State {}'.format(i+1), fontsize=14)
