@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
@@ -66,8 +66,8 @@ class MultipleShooting(SamplingMethod):
   def set_initial(self,stage,opti):
     for var,expr in stage._initial.items():
       for k in range(self.N):
-        opti.set_initial(stage._expr_apply(var,x=self.X[k],u=self.U[k]), stage._expr_apply(expr,t=self.control_grid[k]))
-      opti.set_initial(stage._expr_apply(var,x=self.X[-1],u=self.U[-1]), stage._expr_apply(expr,t=self.control_grid[-1]))
+        opti.set_initial(stage._expr_apply(var,x=self.X[k],u=self.U[k]), opti.debug.value(stage._expr_apply(expr,t=self.control_grid[k]),opti.initial()))
+      opti.set_initial(stage._expr_apply(var,x=self.X[-1],u=self.U[-1]), opti.debug.value(stage._expr_apply(expr,t=self.control_grid[-1]),opti.initial()))
   def add_parameter(self,stage,opti):
     for p in stage.parameters:
       self.P.append(opti.parameter(p.shape[0],p.shape[1]))

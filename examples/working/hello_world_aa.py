@@ -4,7 +4,7 @@ from ocpx import *
 
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0,tf=10)
+stage = ocp.stage(t0=0,T=10)
 
 # Define states
 x1 = stage.state()
