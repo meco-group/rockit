@@ -2,7 +2,7 @@ from casadi import MX, substitute, Function, vcat, depends_on, vertcat
 from .freetime import FreeTime
 
 class Stage:
-  def __init__(self, ocp, t0=0, tf=1,T=None):
+  def __init__(self, ocp, t0=0, T=1):
     self.ocp = ocp
     self.states = []
     self.controls = []
@@ -12,13 +12,14 @@ class Stage:
     self._expr_tf = dict() # Expressions defined at tf
     self._objective = 0
     self.t0 = t0
-    self.tf = tf
     self._T = T
 
     if self.is_free_time():
       self.T = MX.sym('T')
     else: 
-      self.T = tf-t0
+      self.T = T
+
+    self.tf = self.t0 + self.T
 	  
   def is_free_time(self):
     return isinstance(self._T, FreeTime)
