@@ -8,17 +8,15 @@ stages:
   image: asteinh/ocpx-base
   tags:
     - docker
+  before_script:
+    - source activate ocpx
+    - mkdir -p .pip
+    - pip --cache-dir=.pip install casadi
+    - pip --cache-dir=.pip install sphinx_rtd_theme
+    - export PYTHONPATH=$PYTHONPATH:$(pwd)
   cache:
     paths:
       - .pip
-
-# preparation for all stages
-before_script:
-  - source activate ocpx
-  - mkdir -p .pip
-  - pip --cache-dir=.pip install casadi
-  - pip --cache-dir=.pip install sphinx_rtd_theme
-  - export PYTHONPATH=$PYTHONPATH:$(pwd)
 
 testing:unittests:
   stage: testing
