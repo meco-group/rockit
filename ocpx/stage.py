@@ -19,11 +19,11 @@ class Stage:
 
     if self.is_free_time():
       self.T = MX.sym('T')
-    else: 
+    else:
       self.T = T
 
     self.tf = self.t0 + self.T
-	  
+
   def is_free_time(self):
     return isinstance(self._T, FreeTime)
 
@@ -134,6 +134,10 @@ class Stage:
     return [c for c in self._constraints if self.is_trajectory(c)]
 
   def _expr_apply(self,expr,**kwargs):
+    """
+    Substitute placeholder symbols with actual decision variables,
+    or expressions involving decision variables
+    """
     subst_from = []
     subst_to = []
     for k,v in self._expr_t0.items():

@@ -49,4 +49,4 @@ plt.plot(ts,xsol,'-o')
 plt.plot(ts,xsol,'-o')
 plt.legend(["x1","x2"])
 
-plt.show()
+plt.show(block=True)
