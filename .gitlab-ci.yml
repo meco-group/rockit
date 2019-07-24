@@ -29,7 +29,7 @@ testing:examples:
   stage: testing
   <<: *template
   script:
-    - for exmpl in *.py; do python "$exmpl"; done
+    - python examples/working/hello_world.py
 
 docs:sphinx:
   stage: docs
