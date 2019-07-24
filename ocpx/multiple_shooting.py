@@ -7,17 +7,21 @@ class MultipleShooting(SamplingMethod):
     self.X = [] # List that will hold N+1 decision variables for state vector
     self.U = [] # List that will hold N decision variables for control vector
     self.rk4_coeff = []
+    self.P = []
 
   def transcribe(self,stage,opti):
     """
     Transcription is the process of going from a continous-time OCP to an NLP
     """
     self.add_variables(stage,opti)
+    self.add_parameter(stage,opti)
     # Now that decision variables exist, we can bake the at_t0(...)/at_tf(...) expressions
     stage._bake(x0=self.X[0],xf=self.X[-1],
                 u0=self.U[0],uf=self.U[-1])
     self.add_constraints(stage,opti)
     self.add_objective(stage,opti)
+    self.set_parameter(stage,opti)
+
 
   def add_variables(self,stage,opti):
     # We are creating variables in a special order such that the resulting constraint Jacobian
@@ -51,11 +55,20 @@ class MultipleShooting(SamplingMethod):
 
       for c in stage._path_constraints_expr(): # for each constraint expression
         # Add it to the optimizer, but first make x,u concrete.
-        opti.subject_to(stage._constr_apply(c,x=self.X[k],u=self.U[k],T = self.T))
+        opti.subject_to(stage._constr_apply(c,x=self.X[k],u=self.U[k],T = self.T,p=self.P))
 
     for c in stage._boundary_constraints_expr(): # Append boundary conditions to the end
-      opti.subject_to(stage._constr_apply(c))
+      opti.subject_to(stage._constr_apply(c,p=self.P))
         
   def add_objective(self,stage,opti):
     opti.minimize(opti.f+stage._expr_apply(stage._objective,T=self.T))
+
+  def add_parameter(self,stage,opti):
+    for p in stage.parameters:
+      self.P.append(opti.parameter(p.shape[0],p.shape[1]))
+
+  def set_parameter(self,stage,opti):
+    for i,p in enumerate(stage.parameters):   
+      opti.set_value(self.P[i], stage._param_vals[p])
+
 
