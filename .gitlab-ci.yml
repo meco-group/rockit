@@ -15,19 +15,15 @@ stages:
     - mkdir -p .pip
     - pip --cache-dir=.pip install casadi
     - export PYTHONPATH=$PYTHONPATH:$(pwd)
+  only:
+    - master
 
 testing:unittests:
   <<: *test_template
   script:
     - nosetests
-  # only:
-  #   - master
 
 testing:examples:
   <<: *test_template
-  # before_script:
-  #   - echo $PYTHONPATH
   script:
     - python examples/working/hello_world.py
-  # only:
-  #   - master
