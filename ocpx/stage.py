@@ -24,7 +24,7 @@ class Stage:
       self.T = T
 
     self.tf = self.t0 + self.T
-	
+
     self.t = MX.sym('t')
 
   def is_free_time(self):
@@ -43,7 +43,6 @@ class Stage:
     """
     Create a parameter
     """
-    # Create a placeholder symbol with a dummy name (see #25)
     p = MX.sym("p",dim)
     self.parameters.append(p)
     return p
