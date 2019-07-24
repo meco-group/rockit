@@ -36,12 +36,12 @@ class Stage:
     self.states.append(x)
     return x
 
-  def parameter(self):
+  def parameter(self,dim=1):
     """
     Create a parameter
     """
     # Create a placeholder symbol with a dummy name (see #25)
-    p = MX.sym("p")
+    p = MX.sym("p",dim)
     self.parameters.append(p)
     return p
 
