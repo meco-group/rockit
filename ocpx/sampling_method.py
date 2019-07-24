@@ -1,28 +1,74 @@
-from casadi import integrator, Function, MX, hcat
+from casadi import integrator, Function, MX, hcat, vertcat
+
 
 class SamplingMethod:
-  def __init__(self,N=50,M=1,intg='rk'):
-    self.N = N
-    self.M = M
-    self.intg = intg
-    # Coefficient matrix from RK4 to reconstruct 4th order polynomial (x0,k1,k2,k3,k4)
-    self.rk4_coeff = []
-   
-  def discrete_system(self,stage):
-    f = stage._ode()
+    def __init__(self, N=50, M=1, intg='rk'):
+        self.N = N
+        self.M = M
+        self.intg = intg
 
-      # Size of integrator interval
-    X0 = f.mx_in("x")            # Initial state
-    U = f.mx_in("u")             # Control
-    X = X0
-    t0 = MX.sym("t0")
-    tf = MX.sym("tf")
-    DT = (tf-t0)/self.M
-    for j in range(self.M):
-        k1 = f(X, U)
-        k2 = f(X + DT/2 * k1, U)
-        k3 = f(X + DT/2 * k2, U)
-        k4 = f(X + DT * k3, U)
-        self.rk4_coeff.append(hcat([X, k1, k2, k3, k4]))
-        X=X+DT/6*(k1 +2*k2 +2*k3 +k4)
-    return Function('F', [X0, U, t0, tf], [X,hcat(self.rk4_coeff)],['x0','u','t0','tf'],['xf','rk4_coeff'])
+    def discrete_system(self, stage):
+        f = stage._ode()
+
+        # intermediate integrator states should result in a (nstates x M)
+        xk = []
+        # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
+        # nstates x (4 * M)
+        poly_coeffs = []
+
+        t0 = MX.sym('t0')
+        T = MX.sym('T')
+        DT = T / self.M
+
+        # Size of integrator interval
+        X0 = f.mx_in("x")            # Initial state
+        U = f.mx_in("u")             # Control
+        P = f.mx_in("p")
+
+        X = [X0]
+        intg = getattr(self, "intg_" + self.intg)(f, X0, U, P)
+        assert not intg.has_free()
+        for j in range(self.M):
+            intg_res = intg(x0=X[-1], u=U, DT=DT, p=P)
+            X.append(intg_res["xf"])
+            poly_coeffs.append(intg_res["poly_coeff"])
+
+        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs)],
+                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff'])
+        assert not ret.has_free()
+        return ret
+
+    def intg_rk(self, f, X, U, P):
+        DT = MX.sym("DT")
+        # A single Runge-Kutta 4 step
+        k1 = f(X, U, P)
+        k2 = f(X + DT / 2 * k1, U, P)
+        k3 = f(X + DT / 2 * k2, U, P)
+        k4 = f(X + DT * k3, U, P)
+        poly_coeff = hcat([X, k1, k2, k3, k4])
+        return Function('F', [X, U, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff], ['x0', 'u', 'DT', 'p'], ['xf', 'poly_coeff'])
+
+    def intg_cvodes(self, f, X, U, P):
+        # A single CVODES step
+        data, opts = self.prepare_sundials(f, X, U, P)
+        I = integrator('intg_cvodes', 'cvodes', data, opts)
+        DT = MX.sym("DT")
+        return Function('F', [X, U, DT, P], [I.call({'x0': X, 'p': vertcat(U, DT, P)})['xf'], MX()], ['x0', 'u', 'DT', 'p'], ['xf', 'poly_coeff'])
+
+    def intg_idas(self, f, X, U, P):
+        # A single IDAS step
+        data, opts = self.prepare_sundials(f, X, U, P)
+        I = integrator('intg_idas', 'idas', data, opts)
+        DT = MX.sym("DT")
+
+        return Function('F', [X, U, DT, P], [I.call({'x0': X, 'p': vertcat(U, DT, P)})['xf'], MX()], ['x0', 'u', 'DT', 'p'], ['xf', 'poly_coeff'])
+
+    def prepare_sundials(self, f, X, U, P):
+        # Preparing arguments of Sundials integrators
+        opts = {}  # TODO - additional options
+        opts['tf'] = 1
+        DT = MX.sym("DT")
+        data = {'x': X, 'p': vertcat(U, DT, P), 'ode': DT * f(X, U, P)}
+        # data = {'x': X, 't',t, 'p': U, 'ode': substitute(DT*f(X,U),t,t*DT)}
+
+        return (data, opts)

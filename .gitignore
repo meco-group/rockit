@@ -3,3 +3,6 @@
 !.gitignore
 !.gitlab-ci.yml
 public/
+
+# Install files
+*.egg-info/
