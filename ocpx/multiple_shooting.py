@@ -49,7 +49,7 @@ class MultipleShooting(SamplingMethod):
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      FF = F(x0=self.X[k],u=self.U[k])
+      FF = F(x0=self.X[k],u=self.U[k],T=self.T)
       self.rk4_coeff.append(FF["poly_coeff"])
       opti.subject_to(self.X[k+1]==FF["xf"])
 
@@ -59,7 +59,7 @@ class MultipleShooting(SamplingMethod):
 
     for c in stage._boundary_constraints_expr(): # Append boundary conditions to the end
       opti.subject_to(stage._constr_apply(c,p=self.P))
-        
+
   def add_objective(self,stage,opti):
     opti.minimize(opti.f+stage._expr_apply(stage._objective,T=self.T))
 
