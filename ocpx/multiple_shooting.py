@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
@@ -23,9 +23,8 @@ class MultipleShooting(SamplingMethod):
                 u0=self.U[0],uf=self.U[-1])
     self.add_constraints(stage,opti)
     self.add_objective(stage,opti)
+    self.set_initial(stage,opti)
     self.set_parameter(stage,opti)
-
-
   def add_variables(self,stage,opti):
     # We are creating variables in a special order such that the resulting constraint Jacobian
     # is block-sparse
@@ -41,7 +40,7 @@ class MultipleShooting(SamplingMethod):
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
       self.X.append(opti.variable(stage.nx))
-
+    
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
@@ -77,6 +76,11 @@ class MultipleShooting(SamplingMethod):
   def add_objective(self,stage,opti):
     opti.minimize(opti.f+stage._expr_apply(stage._objective,T=self.T))
 
+  def set_initial(self,stage,opti):
+    for var,expr in stage._initial.items():
+      for k in range(self.N):
+        opti.set_initial(stage._expr_apply(var,x=self.X[k],u=self.U[k]), opti.debug.value(stage._expr_apply(expr,t=self.control_grid[k]),opti.initial()))
+      opti.set_initial(stage._expr_apply(var,x=self.X[-1],u=self.U[-1]), opti.debug.value(stage._expr_apply(expr,t=self.control_grid[-1]),opti.initial()))
   def add_parameter(self,stage,opti):
     for p in stage.parameters:
       self.P.append(opti.parameter(p.shape[0],p.shape[1]))
@@ -84,3 +88,7 @@ class MultipleShooting(SamplingMethod):
   def set_parameter(self,stage,opti):
     for i,p in enumerate(stage.parameters):
       opti.set_value(self.P[i], stage._param_vals[p])
+<<<<<<< HEAD
+
+=======
+>>>>>>> 25e5ac1deff9d3d525f3d783a5ce13ff486d9a07

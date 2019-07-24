@@ -1,8 +1,12 @@
 # time optimal example for mass-spring-damper system
 
 from ocpx import *
-from casadi import sumsqr, vertcat
+from casadi import sumsqr, vertcat, sin, cos
+import math
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy import signal
+
 ocp = OcpMultiStage()
 
 stage = ocp.stage(t0=0,T=ocp.free(1.0)) # T initialised at 1, T>=0
@@ -13,6 +17,8 @@ p = stage.state()
 v = stage.state()
 u = stage.control()
 
+stage.set_initial(p,cos(2*np.pi*stage.t)) 
+stage.set_initial(v,sin(2*np.pi*stage.t)) 
 stage.set_der(p,v)
 stage.set_der(v,(u - c*v - k*p)/m)
 
