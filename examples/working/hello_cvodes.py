@@ -39,7 +39,6 @@ stage.method(MultipleShooting(N=20, M=4, intg='cvodes'))
 # solve
 sol = ocp.solve()
 
-print(stage._method.poly_coeff)
 # solve
 ts, xsol = sol.sample(stage, x1, grid=stage.grid_control)
 plt.plot(ts, xsol, '-o')
