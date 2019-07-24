@@ -11,7 +11,7 @@ class SamplingMethod:
   def discrete_system(self,stage):
     f = stage._ode()
 
-    T = stage.T
+    T = MX.sym('T')
     DT = T/self.N/self.M
 
     # Size of integrator interval
@@ -23,7 +23,8 @@ class SamplingMethod:
     for j in range(self.M):
       X.append(intg(X[-1],U))
 
-    return Function('F', [X0, U], [X[-1], hcat(X), hcat(self.poly_coeff)], ['x0','u'], ['xf', 'Xi', 'poly_coeff'])
+    return Function('F', [X0, U, T], [X[-1], hcat(X), hcat(self.poly_coeff)],
+                    ['x0','u', 'T'], ['xf', 'Xi', 'poly_coeff'])
 
   def intg_rk(self,f,X,DT,U):
     # A single Runge-Kutta 4 step

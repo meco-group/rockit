@@ -21,14 +21,14 @@ class MiscTests(unittest.TestCase):
 
                 stage.subject_to(u<=b)
                 stage.subject_to(-b<=u)
-                
+
                 stage.add_objective(stage.at_tf(x))
                 stage.subject_to(stage.at_t0(x)==x0)
 
                 ocp.method(DirectMethod(solver='ipopt'))
 
                 stage.method(MultipleShooting(N=4,M=M,intg='rk'))
-                
+
                 sol = ocp.solve()
 
                 ts, xs = sol.sample(stage,x,grid=stage.grid_control)
@@ -53,7 +53,7 @@ class MiscTests(unittest.TestCase):
 
             stage.subject_to(u<=b)
             stage.subject_to(-b<=u)
-            
+
             stage.add_objective(stage.T)
             stage.subject_to(stage.at_t0(x)==x0)
             stage.subject_to(stage.at_tf(x)==xf)
@@ -61,7 +61,7 @@ class MiscTests(unittest.TestCase):
             ocp.method(DirectMethod(solver='ipopt'))
 
             stage.method(MultipleShooting(N=4,intg='rk'))
-            
+
             sol = ocp.solve()
 
             ts, xs = sol.sample(stage,x,grid=stage.grid_control)
