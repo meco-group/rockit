@@ -1,0 +1,29 @@
+stages:
+  - testing
+  - docs
+
+.test_template: &test_template
+  stage: testing
+  image: asteinh/ocpx-base
+  tags:
+    - docker
+  cache:
+    paths:
+      - .pip
+  before_script:
+    - source activate ocpx
+    - mkdir -p .pip
+    - pip --cache-dir=.pip install casadi
+    - export PYTHONPATH=$PYTHONPATH:$(pwd)
+  only:
+    - master
+
+testing:unittests:
+  <<: *test_template
+  script:
+    - nosetests
+
+testing:examples:
+  <<: *test_template
+  script:
+    - python examples/working/hello_world.py

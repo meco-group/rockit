@@ -55,3 +55,4 @@ ax[1].legend(['grid_integrator', 'grid_control'])
 for i in range(2):
     ax[i].set_xlabel('Time [s]', fontsize=14)
     ax[i].set_ylabel('State {}'.format(i+1), fontsize=14)
+plt.show(block=True)
