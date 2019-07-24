@@ -12,6 +12,11 @@ Welcome to OCPx's documentation!
 
    apidoc/modules
 
+Coverage
+========
+
+* `Report <./coverage/index.html>`_
+
 Indices and tables
 ==================
 

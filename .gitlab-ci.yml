@@ -23,7 +23,10 @@ testing:unittests:
   stage: testing
   <<: *template
   script:
-    - nosetests --with-coverage --cover-package=ocpx
+    - nosetests --with-coverage --cover-html --cover-package=ocpx
+  artifacts:
+    paths:
+      - cover
 
 testing:examples:
   stage: testing
@@ -56,6 +59,7 @@ pages:
   script:
     - mkdir public
     - cp -R ./docs/sphinx/build/html/* ./public/
+    - cp -R ./cover ./public/coverage
   artifacts:
     paths:
       - public
