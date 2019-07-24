@@ -2,6 +2,7 @@
 
 from ocpx import *
 from casadi import sumsqr, vertcat
+import matplotlib.pyplot as plt
 ocp = OcpMultiStage()
 
 stage = ocp.stage(t0=0,T=ocp.free(1.0)) # T initialised at 1, T>=0
