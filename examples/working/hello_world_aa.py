@@ -44,7 +44,7 @@ stage.set_value(dp, 1)
 ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
-stage.method(MultipleShooting(N=20,M=4,intg='rk4'))
+stage.method(MultipleShooting(N=20,M=4,intg='idas'))
 
 # solve
 sol = ocp.solve()

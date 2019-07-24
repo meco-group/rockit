@@ -1,4 +1,4 @@
-from casadi import integrator, Function, MX, hcat
+from casadi import integrator, Function, MX, hcat, vcat
 
 class SamplingMethod:
   def __init__(self,N=50,M=1,intg='rk4'):
@@ -41,18 +41,18 @@ class SamplingMethod:
 
     return Function('F', [X, U,P], [I.call({'x0': X, 'p': vcat([U, P])})['xf']], ['x0','u','p'],['xf'])
 
-  def intg_idas(self,f,X,DT,U):
+  def intg_idas(self,f,X,DT,U,P):
     # A single IDAS step
-    data, opts = self.prepare_sundials(f,X,DT,U)
+    data, opts = self.prepare_sundials(f,X,DT,U,P)
     I = integrator('intg_idas', 'idas', data, opts)
 
-    return Function('F', [X, U], [I.call({'x0': X, 'p': U})['xf']], ['x0','u'],['xf'])
+    return Function('F', [X, U, P], [I.call({'x0': X, 'p': vcat([U, P])})['xf']], ['x0','u','p'],['xf'])
 
   def prepare_sundials(self,f,X,DT,U,P):
     # Preparing arguments of Sundials integrators
     opts = {} # TODO - additional options
     opts['tf'] = 1
-    data = {'x': X, 'p': U, 'ode': DT*f(X,U,P)}
+    data = {'x': X, 'p': vcat([U, P]), 'ode': DT*f(X,U,P)}
     # data = {'x': X, 't',t, 'p': U, 'ode': substitute(DT*f(X,U),t,t*DT)}
 
     return (data, opts)
