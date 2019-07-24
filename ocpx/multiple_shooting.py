@@ -1,11 +1,12 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat
+from casadi import sumsqr, vertcat, linspace, substitute, MX
 
 class MultipleShooting(SamplingMethod):
   def __init__(self,*args,**kwargs):
     SamplingMethod.__init__(self,*args,**kwargs)
     self.X = [] # List that will hold N+1 decision variables for state vector
     self.U = [] # List that will hold N decision variables for control vector
+    self.rk4_coeff = []
 
   def transcribe(self,stage,opti):
     """
@@ -22,7 +23,11 @@ class MultipleShooting(SamplingMethod):
     # We are creating variables in a special order such that the resulting constraint Jacobian
     # is block-sparse
     self.X.append(opti.variable(stage.nx))
-    self.T=opti.variable()
+    if stage.is_free_time():
+      self.T=opti.variable()
+      opti.set_initial(self.T, stage._T.T_init)
+    else:
+      self.T = stage.T
 
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
@@ -31,11 +36,18 @@ class MultipleShooting(SamplingMethod):
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
-    opti.subject_to(self.T>=0)
+
+    # Create time grid (might be symbolic)
+    ts = stage._expr_apply(linspace(MX(stage.t0),stage.tf,self.N+1),T=self.T)
+
+    if stage.is_free_time():
+      opti.subject_to(self.T>=0)
 
     for k in range(self.N):
       # Dynamic constraints a.k.a. gap-closing constraints
-      opti.subject_to(self.X[k+1]==F(x0=self.X[k],u=self.U[k],T=self.T)["xf"])
+      FF = F(x0=self.X[k],u=self.U[k],t0=ts[k],tf=ts[k+1])
+      self.rk4_coeff.append(FF["rk4_coeff"])
+      opti.subject_to(self.X[k+1]==FF["xf"])
 
       for c in stage._path_constraints_expr(): # for each constraint expression
         # Add it to the optimizer, but first make x,u concrete.

@@ -1,7 +1,9 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
+from .freetime import FreeTime
+from .stage_options import GridControl, GridIntegrator
 
 class Stage:
-  def __init__(self, ocp, t0=0, tf=1,T=None):
+  def __init__(self, ocp, t0=0, T=1):
     self.ocp = ocp
     self.states = []
     self.controls = []
@@ -11,8 +13,17 @@ class Stage:
     self._expr_tf = dict() # Expressions defined at tf
     self._objective = 0
     self.t0 = t0
-    self.tf = tf
-    self.T = MX.sym('T')
+    self._T = T
+
+    if self.is_free_time():
+      self.T = MX.sym('T')
+    else: 
+      self.T = T
+
+    self.tf = self.t0 + self.T
+	  
+  def is_free_time(self):
+    return isinstance(self._T, FreeTime)
 
   def state(self):
     """
@@ -108,7 +119,7 @@ class Stage:
     if "u" in kwargs:
       subst_from.append(self.u)
       subst_to.append(kwargs["u"])
-    if "T" in kwargs:
+    if self.is_free_time() and "T" in kwargs:
       subst_from.append(self.T)
       subst_to.append(kwargs["T"])
 
@@ -118,3 +129,11 @@ class Stage:
 
   def _expr_to_function(self,expr):
     return Function('helper',[self.x,self.u],[expr],["x","u"],["out"])
+
+  @property
+  def grid_control(self):
+    return GridControl()
+
+  @property
+  def grid_integrator(self):
+    return GridIntegrator()
