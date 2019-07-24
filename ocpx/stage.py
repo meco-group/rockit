@@ -12,6 +12,7 @@ class Stage:
     self._expr_t0 = dict() # Expressions defined at t0
     self._expr_tf = dict() # Expressions defined at tf
     self._objective = 0
+    self._initial = dict()
     self.t0 = t0
     self._T = T
 
@@ -50,6 +51,9 @@ class Stage:
 
   def subject_to(self, constr):
     self._constraints.append(constr)
+
+  def set_initial(self,var,expr):
+    self._initial[var] = expr
 
   def at_t0(self, expr):
     p = MX.sym("p_t0", expr.sparsity())

@@ -2,6 +2,7 @@
 
 from ocpx import *
 from casadi import sumsqr, vertcat
+import math
 ocp = OcpMultiStage()
 
 stage = ocp.stage(t0=0,T=ocp.free(1.0)) # T initialised at 1, T>=0
@@ -11,7 +12,7 @@ k = 1
 p = stage.state()
 v = stage.state()
 u = stage.control()
-
+stage.set_initial(v,0) 
 stage.set_der(p,v)
 stage.set_der(v,(u - c*v - k*p)/m)
 

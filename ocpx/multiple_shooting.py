@@ -18,6 +18,7 @@ class MultipleShooting(SamplingMethod):
                 u0=self.U[0],uf=self.U[-1])
     self.add_constraints(stage,opti)
     self.add_objective(stage,opti)
+	self.set_initial(stage,opti)
 
   def add_variables(self,stage,opti):
     # We are creating variables in a special order such that the resulting constraint Jacobian
@@ -32,7 +33,7 @@ class MultipleShooting(SamplingMethod):
     for k in range(self.N):
       self.U.append(opti.variable(stage.nu))
       self.X.append(opti.variable(stage.nx))
-
+    
   def add_constraints(self,stage,opti):
     # Obtain the discretised system
     F = self.discrete_system(stage)
@@ -59,3 +60,8 @@ class MultipleShooting(SamplingMethod):
   def add_objective(self,stage,opti):
     opti.minimize(opti.f+stage._expr_apply(stage._objective,T=self.T))
 
+  def set_initial(self,stage,opti):
+    for var,expr in stage._initial.items():
+	  for k in range(self.N):
+     	opti.set_initial(stage._expr_apply(var,x=self.X[k],u=self.U[k]), substitute(expr))
+      opti.set_initial(stage._expr_apply(var,x=self.X[-1],u=self.U[-1]), substitute(expr))
