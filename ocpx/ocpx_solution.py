@@ -72,8 +72,8 @@ class OcpxSolution:
         sub_expr.append(stage._constr_apply(
             expr, x=stage._method.xk[-1], u=stage._method.U[-1]))
         res = [self.sol.value(elem) for elem in sub_expr]
-        time = np.linspace(stage.t0, self.sol.value(stage._method.T),
-                           stage._method.N * stage._method.M + 1)
+        time = self.sol.value(stage._method.control_grid)
+        time = np.linspace(time[0], time[-1], stage._method.N * stage._method.M + 1)
         return time, np.array(res)
 
     def _grid_intg_fine(self, stage, expr, grid, refine):
