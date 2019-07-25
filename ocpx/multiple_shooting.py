@@ -64,10 +64,11 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(self.X[k + 1] == FF["xf"])
 
             # Save intermediate info
-            self.poly_coeff.append(FF["poly_coeff"])
-            x_temp = FF["Xi"]
+            poly_coeff_temp = FF["poly_coeff"]
+            xk_temp = FF["Xi"]
             # we cannot return a list from a casadi function
-            self.xk.extend([x_temp[:, i] for i in range(self.M)])
+            self.xk.extend([xk_temp[:, i] for i in range(self.M)])
+            self.poly_coeff.extend([poly_coeff_temp[:, i] for i in range(self.M*5)])
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
