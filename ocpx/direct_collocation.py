@@ -1,11 +1,19 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat
+from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
+                   vcat, collocation_points, collocation_interpolators
 
 
-class MultipleShooting(SamplingMethod):
-    def __init__(self, *args, **kwargs):
+class DirectCollocation(SamplingMethod):
+    def __init__(self, *args, degree=4, scheme='radau', **kwargs):
         SamplingMethod.__init__(self, *args, **kwargs)
+        if not self.M == 1:
+            raise NotImplementedError(
+                "Direct Collocation not yet supported for M!=1")
+        self.degree = degree
+        self.tau = collocation_points(degree, scheme)
+        [self.C, self.D] = collocation_interpolators(self.tau)
         self.X = []  # List that will hold N+1 decision variables for state vector
+        self.Z = []  # List that will hold helper collocation states
         self.U = []  # List that will hold N decision variables for control vector
         self.T = None
         self.t0 = None
@@ -37,55 +45,43 @@ class MultipleShooting(SamplingMethod):
         else:
             self.T = stage.T
 
-        if stage.is_free_starttime():
-            self.t0 = opti.variable()
-            opti.set_initial(self.t0, stage._t0.T_init)
-        else:
-            self.t0 = stage.t0
+        self.t0 = stage.t0
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
             self.X.append(opti.variable(stage.nx))
+            self.Z.append(opti.variable(stage.nx, self.degree))
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
-        F = self.discrete_system(stage)
+        f = stage._ode()
 
         # Create time grid (might be symbolic)
         self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
+            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T)
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
 
         self.poly_coeff = []
-        self.xk = []
+        self.xk = self.X
 
         for k in range(self.N):
-            FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=vcat(self.P))
-            # Dynamic constraints a.k.a. gap-closing constraints
-            opti.subject_to(self.X[k + 1] == FF["xf"])
+            dt = self.control_grid[k + 1] - self.control_grid[k]
+            Z = horzcat(self.X[k], self.Z[k])
+            for j in range(self.degree):
+                Pidot_j = Z @ vcat(self.C[j + 1]) / dt
+                # Collocation constraints
+                opti.subject_to(Pidot_j == f(
+                    x=self.Z[k][:, j], u=self.U[k], p=vcat(self.P))["ode"])
 
-            # Save intermediate info
-            self.poly_coeff.append(FF["poly_coeff"])
-            x_temp = FF["Xi"]
-            # we cannot return a list from a casadi function
-            self.xk.extend([x_temp[:, i] for i in range(self.M)])
+            # Continuity constraints
+            opti.subject_to(Z @ vcat(self.D) == self.X[k + 1])
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(stage._constr_apply(
-                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P,
-					t=self.control_grid[k]))
-        
-        for c in stage._path_constraints_expr():  # for each constraint expression
-                # Add it to the optimizer, but first make x,u concrete.
-          opti.subject_to(stage._constr_apply(
-          c, x=self.X[-1], u=self.U[-1], T=self.T, p=self.P,
-          t=self.control_grid[-1]))
-		
-        self.xk.append(self.X[-1])
+                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P))
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))

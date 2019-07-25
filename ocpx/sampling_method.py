@@ -11,7 +11,6 @@ class SamplingMethod:
         f = stage._ode()
 
         # intermediate integrator states should result in a (nstates x M)
-        xk = []
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
         poly_coeffs = []

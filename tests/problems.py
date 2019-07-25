@@ -1,7 +1,7 @@
 from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
 
 
-def integrator_control_problem(N, M, T, u_max, x0, t0=0, intg_method='rk'):
+def integrator_control_problem(T, u_max, x0, stage_method, t0=0):
     ocp = OcpMultiStage()
     stage = ocp.stage(t0=t0, T=T)
 
@@ -18,6 +18,6 @@ def integrator_control_problem(N, M, T, u_max, x0, t0=0, intg_method='rk'):
 
     ocp.method(DirectMethod(solver='ipopt'))
 
-    stage.method(MultipleShooting(N=N, M=M, intg=intg_method))
+    stage.method(stage_method)
 
     return (ocp.solve(), stage, x, u)

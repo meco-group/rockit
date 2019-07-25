@@ -11,14 +11,29 @@ class OcpxSolution:
     def sample(self, stage, expr, grid):
         """Sample expression at solution on a given grid.
 
-        Returns a numpy.array with the numerical values of the
-        expression at the grid points specifeid by the grid type.
+        Parameters
+        ----------
+        stage : :obj:`~ocpx.stage.Stage`
+            An optimal control problem stage.
+        expr : :obj:`casadi.MX`
+            Arbitrary expression containing states, controls, ...
+        grid : :obj:`~ocpx.stage_options.GridOption`
+            Type of time grid to use for sampling,
+            options are available in ocpx.stage_options.
 
-        arguments:
-        state -- an optimal control problem stage
-        expr  -- arbitrary expression containing states, controls, ...
-        grid  -- type of time grid to use for sampling,
-        options are available in ocpx.stage_options
+        Returns
+        -------
+        time : numpy.ndarray
+            Time from zero to final time, same length as res
+        res : numpy.ndarray
+            Numerical values of evaluated expression at points in time vector.
+
+        Examples
+        --------
+        Assume an ocp with a stage is already defined.
+
+        >>> sol = ocp.solve()
+        >>> tx, xs = sol.sample(stage, x, grid=stage.grid_control)
         """
         if isinstance(grid, GridControl):
             return self._grid_control(stage, expr, grid)
