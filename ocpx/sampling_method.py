@@ -10,7 +10,6 @@ class SamplingMethod:
     def discrete_system(self, stage):
         f = stage._ode()
 
-        # intermediate integrator states should result in a (nstates x M)
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
         poly_coeffs = []
@@ -44,7 +43,13 @@ class SamplingMethod:
         k2 = f(X + DT / 2 * k1, U, P)
         k3 = f(X + DT / 2 * k2, U, P)
         k4 = f(X + DT * k3, U, P)
-        poly_coeff = hcat([X, k1, k2, k3, k4])
+
+        f0 = k1
+        f1 = 2/DT*(k2-k1)/2
+        f2 = 4/DT**2*(k3-k2)/6
+        f3 = 4*(k4-2*k3+k1)/DT**3/24
+        poly_coeff = hcat([X, f0, f1, f2, f3])
+
         return Function('F', [X, U, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff], ['x0', 'u', 'DT', 'p'], ['xf', 'poly_coeff'])
 
     def intg_cvodes(self, f, X, U, P):
