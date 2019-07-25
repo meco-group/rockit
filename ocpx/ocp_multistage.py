@@ -1,6 +1,6 @@
 from .stage import Stage
 from .freetime import FreeTime
-from casadi import hcat
+from casadi import hcat, substitute
 from .ocpx_solution import OcpxSolution
 from copy import deepcopy
 
@@ -10,6 +10,7 @@ class OcpMultiStage:
         self.stages = []
         # Flag to make solve() faster when solving a second time (e.g. with different parameter values)
         self.is_transcribed = False
+        self._constraints = []
 
     def stage(self, prev_stage=None, **kwargs):
         if prev_stage is None:
@@ -26,10 +27,21 @@ class OcpMultiStage:
     def solve(self):
         opti = self._method.opti
         if not self.is_transcribed:
+            constraints = self._constraints
             for s in self.stages:
                 s._method.transcribe(s, opti)
+                constraints = [s.subst_expr(c) for c in constraints]
+
+            for c in constraints:
+                opti.subject_to(c)
+
             self.is_transcribed = True
+
         return OcpxSolution(opti.solve())
 
     def free(self, T_init):
         return FreeTime(T_init)
+
+    def subject_to(self, constr):
+        """Set the constraint."""
+        self._constraints.append(constr)

@@ -1,7 +1,10 @@
+from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
+from ocpx.freetime import FreeTime
 
 ocp = OcpMultiStage()
 
-stage = ocp.stage()  # Omitting means variable
+ocp.method(DirectMethod(solver='ipopt'))
+stage = ocp.stage(t0=FreeTime(0), T=FreeTime(1))  # Omitting means variable
 
 p = stage.state()
 v = stage.state()
@@ -9,7 +12,8 @@ v = stage.state()
 stage.set_der(p, v)
 stage.set_der(v, -9.81)
 
-stage.path_constraint(p <= 5)
+stage.subject_to(p <= 5)
+stage.method(MultipleShooting(N=20, M=4, intg='cvodes'))
 
 ocp.subject_to(stage.t0 == 0)  # not stage.subject_to !
 
@@ -33,4 +37,4 @@ sol = ocp.solve()
 
 for s in stages:
     ts, ps = sol(s).sample_sim(p)
-    plot(ts, ps)
+    # plot(ts, ps)
