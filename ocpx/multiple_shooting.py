@@ -33,10 +33,14 @@ class MultipleShooting(SamplingMethod):
         self.X.append(opti.variable(stage.nx))
         if stage.is_free_time():
             self.T = opti.variable()
-            self.t0 = opti.variable()
             opti.set_initial(self.T, stage._T.T_init)
         else:
             self.T = stage.T
+
+        if stage.is_free_starttime():
+            self.t0 = opti.variable()
+            opti.set_initial(self.t0, stage._t0.T_init)
+        else:
             self.t0 = stage.t0
 
         for k in range(self.N):
