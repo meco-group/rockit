@@ -6,7 +6,7 @@ import numpy as np
 
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0,T=10)
+stage = ocp.stage(t0=0, T=10)
 
 # Define states
 x1 = stage.state()
@@ -16,43 +16,52 @@ x2 = stage.state()
 u = stage.control()
 
 # Specify ODE
-stage.set_der(x1, (1-x2**2)*x1 - x2 + u)
-stage.set_der(x2,  x1)
+stage.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+stage.set_der(x2, x1)
 
 # Lagrange objective
 stage.add_objective(stage.integral(x1**2 + x2**2 + u**2))
 
 # Path constraints
-stage.subject_to(u<=1)
-stage.subject_to(-1<=u)
-stage.subject_to(x1>=-0.25)
+stage.subject_to(u <= 1)
+stage.subject_to(-1 <= u)
+stage.subject_to(x1 >= -0.25)
 
 # Initial constraints
-stage.subject_to(stage.at_t0(x1)==0)
-stage.subject_to(stage.at_t0(x2)==1)
+stage.subject_to(stage.at_t0(x1) == 0)
+stage.subject_to(stage.at_t0(x2) == 1)
 
 # Pick a solution method
 ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
-stage.method(MultipleShooting(N=20,M=4,intg='rk'))
+stage.method(MultipleShooting(N=20, M=4, intg='rk'))
 
 # solve
 sol = ocp.solve()
 
-tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
-tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
+# Show structure
+ocp.spy()
 
-tsb,x1b = sol.sample(stage,x1,grid=stage.grid_integrator)
-tsb,x2b = sol.sample(stage,x2,grid=stage.grid_integrator)
+tsa, x1a = sol.sample(stage, x1, grid='control')
+tsa, x2a = sol.sample(stage, x2, grid='control')
+
+tsb, x1b = sol.sample(stage, x1, grid='integrator')
+tsb, x2b = sol.sample(stage, x2, grid='integrator')
+
+tsc, x1c = sol.sample(stage, x1, grid='integrator', refine=10)
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-ax[0].plot(tsb,  x1b,'.-')
-ax[0].plot(tsa, x1a,'o')
-ax[1].plot(tsb,  x2b,'.-')
-ax[1].plot(tsa, x2a,'o')
+ax[0].plot(tsb, x1b, '.-')
+ax[0].plot(tsa, x1a, 'o')
+ax[1].plot(tsb, x2b, '.-')
+ax[1].plot(tsa, x2a, 'o')
 ax[1].legend(['grid_integrator', 'grid_control'])
 for i in range(2):
     ax[i].set_xlabel('Time [s]', fontsize=14)
-    ax[i].set_ylabel('State {}'.format(i+1), fontsize=14)
+    ax[i].set_ylabel('State {}'.format(i + 1), fontsize=14)
+
+fig, ax = plt.subplots(figsize=(15, 4))
+ax.plot(tsc, x1c, '.-')
+ax.plot(tsa, x1a, 'o')
 plt.show(block=True)
