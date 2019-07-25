@@ -32,7 +32,7 @@ for i in range(3):
     stages.append(stage_next)
 
 sol = ocp.solve()
-for s in stages:
+for s in stages[0:-1]:
     ts, ps = sol.sample(s, p, grid=stage.grid_control)
     plt.plot(ts, ps)
 
