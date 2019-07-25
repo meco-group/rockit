@@ -72,7 +72,8 @@ class MultipleShooting(SamplingMethod):
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(stage._constr_apply(
-                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P))
+                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P,
+					t=self.control_grid[k]))
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))

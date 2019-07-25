@@ -122,7 +122,6 @@ class Stage:
         return depends_on(expr, vertcat(self.x, self.u))
 
     # Internal methods
-
     def _ode(self):
         ode = vcat([self._state_der[k] for k in self.states])
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
