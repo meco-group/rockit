@@ -2,13 +2,14 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem
+from ocpx import MultipleShooting
 
 
 class OcpxSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
         N, T, u_max, x0 = 10, 10, 2, 1
         tolerance = 1e-6
-        sol, stage, x, u = integrator_control_problem(N, 3, T, u_max, x0)
+        sol, stage, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
 
         ts, xs = sol.sample(
             stage, x, grid=stage.grid_integrator)
