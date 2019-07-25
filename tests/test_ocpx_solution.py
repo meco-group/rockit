@@ -1,33 +1,14 @@
 import unittest
 import numpy as np
 from numpy.testing import assert_allclose
+from problems import integrator_control_problem
 
-from ocpx import *
 
-
-class MiscTests(unittest.TestCase):
+class OcpxSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
         N, T, u_max, x0 = 10, 10, 2, 1
-
-        ocp = OcpMultiStage()
-        stage = ocp.stage(t0=0, T=T)
-
-        x = stage.state()
-        u = stage.control()
-
-        stage.set_der(x, u)
-
-        stage.subject_to(u <= u_max)
-        stage.subject_to(-u_max <= u)
-
-        stage.add_objective(stage.at_tf(x))
-        stage.subject_to(stage.at_t0(x) == x0)
-
-        ocp.method(DirectMethod(solver='ipopt'))
-
-        stage.method(MultipleShooting(N=N, M=3, intg='rk'))
-
-        sol = ocp.solve()
+        tolerance = 1e-6
+        sol, stage, x, u = integrator_control_problem(N, 3, T, u_max, x0)
 
         ts, xs = sol.sample(
             stage, x, grid=stage.grid_integrator)
@@ -42,7 +23,7 @@ class MiscTests(unittest.TestCase):
 
         # Note: index hack because of issue with sample function
         # Fix this and run the correct version of this test!
-        assert_allclose(ts, t_exact, atol=1e-6)
-        assert_allclose(xs[1:], x_exact[:-1], atol=1e-6)
-        assert_allclose(us, u_exact, atol=1e-6)
-        assert_allclose(uxs[1:], u_exact[:-1] * x_exact[:-1], atol=1e-6)
+        assert_allclose(ts, t_exact, atol=tolerance)
+        assert_allclose(xs[1:], x_exact[:-1], atol=tolerance)
+        assert_allclose(us, u_exact, atol=tolerance)
+        assert_allclose(uxs[1:], u_exact[:-1] * x_exact[:-1], atol=tolerance)
