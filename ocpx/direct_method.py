@@ -7,9 +7,9 @@ class DirectMethod:
       'first discretize, then optimize'
     """
 
-    def __init__(self, solver):
+    def __init__(self, solver, solver_options={}):
         self.opti = Opti()
-        self.opti.solver(solver)
+        self.opti.solver(solver, solver_options)
 
     def spy_jacobian(self):
         import matplotlib.pylab as plt
