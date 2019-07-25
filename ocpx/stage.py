@@ -52,14 +52,14 @@ class Stage:
         self.parameters.append(p)
         return p
 
-    def control(self, dim=1, order=0):
+    def control(self, dimm=1,dimn=1, order=0):
         if order >= 1:
-            u = self.state(dim)
-            helper_u = self.control(dim=dim, order=order - 1)
+            u = self.state(dimm,dimn)
+            helper_u = self.control(dimm=dimm,dimn=dimn, order=order - 1)
             self.set_der(u, helper_u)
             return u
 
-        u = MX.sym("u", dim)
+        u = MX.sym("u", dimm,dimn)
         self.controls.append(u)
         return u
 
