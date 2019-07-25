@@ -116,7 +116,7 @@ class Stage:
 
     @property
     def p(self):
-        return vcat(self.parameters)
+        return veccat(*self.parameters)
 
     @property
     def nx(self):
@@ -187,9 +187,8 @@ class Stage:
             subst_to.append(kwargs["T"])
 
         if "p" in kwargs:
-            for i, p in enumerate(self.parameters):
-                subst_from.append(p)
-                subst_to.append(kwargs["p"][i])
+            subst_from.append(self.p)
+            subst_to.append(kwargs["p"])
 
         return (subst_from, subst_to)
 
