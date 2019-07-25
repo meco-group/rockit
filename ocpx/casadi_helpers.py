@@ -3,14 +3,14 @@ from casadi import *
 
 def reinterpret_expr(expr, symbols_from, symbols_to):
     """
+    .. code-block:: python
+    
+        x = MX.sym("x")
+        y = MX.sym("y")
 
-    x = MX.sym("x")
-    y = MX.sym("y")
+        z = -(x*y**2+2*x)**4<0
 
-    z = -(x*y**2+2*x)**4<0
-
-    print(reinterpret_expr(z,[y],[sin(y)]))
-
+        print(reinterpret_expr(z,[y],[sin(y)]))
     """
 
     f = Function('f', symbols_from, [expr])
