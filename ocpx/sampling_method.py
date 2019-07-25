@@ -12,7 +12,6 @@ class SamplingMethod:
         f = stage._ode()
 
         # intermediate integrator states should result in a (nstates x M)
-        xk = []
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
         poly_coeffs = []
@@ -42,7 +41,7 @@ class SamplingMethod:
     def intg_rk(self, f, X, U, P):
         DT = MX.sym("DT")
         # A single Runge-Kutta 4 step
-        k1 = f(X, U, P)	
+        k1 = f(X, U, P)
         k2 = f(X + DT / 2 * k1, U, P)
         k3 = f(X + DT / 2 * k2, U, P)
         k4 = f(X + DT * k3, U, P)

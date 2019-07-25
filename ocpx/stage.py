@@ -1,6 +1,7 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat
 from .freetime import FreeTime
 from .stage_options import GridControl, GridIntegrator
+from copy import copy
 
 
 class Stage:
@@ -18,7 +19,9 @@ class Stage:
         self._initial = dict()
         self._T = T
         self._t0 = t0
+        self._create_variables(t0, T)
 
+    def _create_variables(self, t0, T):
         if self.is_free_time():
             self.T = MX.sym('T')
         else:
@@ -214,3 +217,11 @@ class Stage:
     @property
     def grid_integrator(self):
         return GridIntegrator()
+
+    def create_copy(self):
+        """Create a copy of the object, keep important links."""
+        cpy = copy(self)
+        # new T
+        # substitute objective & constraints
+        #
+        return 
