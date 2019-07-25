@@ -70,12 +70,12 @@ ocp.subject_to(ut5 == ut6)
 
 sol = ocp.solve()
 
-ts1, xsol1 = sol.sample(stage1, x1[0], grid=stage1.grid_control)
-ts2, xsol2 = sol.sample(stage2, x2[0], grid=stage2.grid_control)
-ts3, xsol3 = sol.sample(stage3, x3[0], grid=stage3.grid_control)
-ts4, xsol4 = sol.sample(stage4, x4[0], grid=stage4.grid_control)
-ts5, xsol5 = sol.sample(stage5, x5[0], grid=stage5.grid_control)
-ts6, xsol6 = sol.sample(stage6, x6[0], grid=stage6.grid_control)
+ts1, xsol1 = sol.sample(stage1, x1[0], grid='control')
+ts2, xsol2 = sol.sample(stage2, x2[0], grid='control')
+ts3, xsol3 = sol.sample(stage3, x3[0], grid='control')
+ts4, xsol4 = sol.sample(stage4, x4[0], grid='control')
+ts5, xsol5 = sol.sample(stage5, x5[0], grid='control')
+ts6, xsol6 = sol.sample(stage6, x6[0], grid='control')
 
 plt.plot(ts1, xsol1, '-o')
 plt.plot(ts2, xsol2, '-o')
