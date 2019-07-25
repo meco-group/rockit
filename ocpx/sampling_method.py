@@ -1,7 +1,6 @@
 from casadi import integrator, Function, MX, hcat, vertcat
 
 
-
 class SamplingMethod:
     def __init__(self, N=50, M=1, intg='rk'):
         self.N = N
@@ -42,17 +41,11 @@ class SamplingMethod:
     def intg_rk(self, f, X, U, P):
         DT = MX.sym("DT")
         # A single Runge-Kutta 4 step
-        k1 = f(X, U, P)	
+        k1 = f(X, U, P)
         k2 = f(X + DT / 2 * k1, U, P)
         k3 = f(X + DT / 2 * k2, U, P)
         k4 = f(X + DT * k3, U, P)
-
-        f0 = k1
-        f1 = 2/DT*(k2-k1)
-        f2 = 4/DT**2*(k3-k2)
-        f3 = 4*(k4-2*k3+k1)/DT**3
-
-        poly_coeff = hcat([X, f0, f1, f2, f3])
+        poly_coeff = hcat([X, k1, k2, k3, k4])
         return Function('F', [X, U, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff], ['x0', 'u', 'DT', 'p'], ['xf', 'poly_coeff'])
 
     def intg_cvodes(self, f, X, U, P):

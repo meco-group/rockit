@@ -1,4 +1,4 @@
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian,vec, veccat
 from .freetime import FreeTime
 from .stage_options import GridControl, GridIntegrator
 
@@ -31,12 +31,15 @@ class Stage:
     def is_free_time(self):
         return isinstance(self._T, FreeTime)
 
-    def state(self, dim=1):
+    def get_jacobian(self,der,state):
+        return jacobian(der,state)
+        
+    def state(self, dimm=1, dimn=1):
         """
         Create a state
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x", dim)
+        x = MX.sym("x", dimm,dimn)
         self.states.append(x)
         return x
 
@@ -96,7 +99,7 @@ class Stage:
 
     @property
     def x(self):
-        return vcat(self.states)
+        return veccat(*self.states)
 
     @property
     def u(self):
@@ -123,7 +126,7 @@ class Stage:
 
     # Internal methods
     def _ode(self):
-        ode = vcat([self._state_der[k] for k in self.states])
+        ode = veccat(*[self._state_der[k] for k in self.states])
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
     def _bake(self, x0=None, xf=None, u0=None, uf=None):
