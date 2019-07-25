@@ -33,11 +33,11 @@ class MultipleShooting(SamplingMethod):
         self.X.append(opti.variable(stage.nx))
         if stage.is_free_time():
             self.T = opti.variable()
+            self.t0 = opti.variable()
             opti.set_initial(self.T, stage._T.T_init)
         else:
             self.T = stage.T
-
-        self.t0 = stage.t0
+            self.t0 = stage.t0
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
@@ -49,13 +49,13 @@ class MultipleShooting(SamplingMethod):
 
         # Create time grid (might be symbolic)
         self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T)
+            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
 
         self.poly_coeff = []
-        self.xk = [self.X[0]]
+        self.xk = []
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
@@ -74,6 +74,8 @@ class MultipleShooting(SamplingMethod):
                 opti.subject_to(stage._constr_apply(
                     c, x=self.X[k], u=self.U[k], T=self.T, p=self.P,
 					t=self.control_grid[k]))
+        
+        self.xk.append(self.X[-1])
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))

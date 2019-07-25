@@ -40,6 +40,9 @@ stage.method(MultipleShooting(N=20,M=4,intg='rk'))
 # solve
 sol = ocp.solve()
 
+# Show structure
+ocp.spy()
+
 tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
 tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
 

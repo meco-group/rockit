@@ -1,4 +1,4 @@
-from casadi import Opti
+from casadi import Opti, jacobian, dot, hessian
 
 
 class DirectMethod:
@@ -10,3 +10,16 @@ class DirectMethod:
     def __init__(self, solver):
         self.opti = Opti()
         self.opti.solver(solver)
+
+    def spy_jacobian(self):
+        import matplotlib.pylab as plt
+        J = jacobian(self.opti.g, self.opti.x).sparsity()
+        plt.spy(J)
+        plt.title("Constraint Jacobian: " + J.dim(True))
+
+    def spy_hessian(self):
+        import matplotlib.pylab as plt
+        lag = self.opti.f + dot(self.opti.lam_g, self.opti.g)
+        H = hessian(lag, self.opti.x)[0].sparsity()
+        plt.spy(H)
+        plt.title("Lagrange Hessian: " + H.dim(True))
