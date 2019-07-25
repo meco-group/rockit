@@ -1,6 +1,5 @@
 import numpy as np
 from casadi import vertcat
-from .stage_options import GridControl, GridIntegrator
 
 
 class OcpxSolution:
@@ -8,7 +7,7 @@ class OcpxSolution:
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
 
-    def sample(self, stage, expr, grid):
+    def sample(self, stage, expr, grid, refine=None):
         """Sample expression at solution on a given grid.
 
         Parameters
@@ -17,9 +16,13 @@ class OcpxSolution:
             An optimal control problem stage.
         expr : :obj:`casadi.MX`
             Arbitrary expression containing states, controls, ...
-        grid : :obj:`~ocpx.stage_options.GridOption`
-            Type of time grid to use for sampling,
-            options are available in ocpx.stage_options.
+        grid : `str`
+            At which points in time to sample, options are
+            'control' or 'integrator' (at integrator discretization
+            level).
+        refine : int, optional
+            Refine grid by evaluation the polynomal of the integrater at
+            intermediate points ("refine" points per interval).
 
         Returns
         -------
@@ -35,13 +38,18 @@ class OcpxSolution:
         >>> sol = ocp.solve()
         >>> tx, xs = sol.sample(stage, x, grid=stage.grid_control)
         """
-        if isinstance(grid, GridControl):
+        if grid == 'control':
             return self._grid_control(stage, expr, grid)
 
-        elif isinstance(grid, GridIntegrator):
-            return self._grid_integrator(stage, expr, grid)
+        elif grid == 'integrator':
+            if refine is None:
+                return self._grid_integrator(stage, expr, grid)
+            else:
+                raise Exception("TODO")
         else:
-            raise Exception("Unknown grid option: {}".format(grid))
+            msg = "Unknown grid option: {}\n".format(grid)
+            msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
+            raise Exception(msg)
 
     def _grid_control(self, stage, expr, grid):
         """Evaluate expression at (N + 1) control points."""
