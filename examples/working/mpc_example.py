@@ -111,9 +111,9 @@ stage.set_value(X_0, current_X)
 sol = ocp.solve()
 
 # # Plot the results from offline solution
-tsa, thetasol = sol.sample(stage, X[1], grid=stage.grid_control)
-tsb, possol = sol.sample(stage, X[0], grid=stage.grid_control)
-tsc, Fsol = sol.sample(stage, F, grid=stage.grid_control)
+tsa, thetasol = sol.sample(stage, X[1], grid='control')
+tsb, possol = sol.sample(stage, X[0], grid='control')
+tsc, Fsol = sol.sample(stage, F, grid='control')
 
 fig, ax = plt.subplots(1, 3, figsize=(10, 4))
 ax[0].plot(tsa, thetasol, '.-')
@@ -135,7 +135,7 @@ plt.show(block=True)
 # # -------------------------------
 # for i in range(Nsim):
 #     # Get the solution from sol
-#     tsa,Fsol = sol.sample(stage,F,grid=stage.grid_control)
+#     tsa,Fsol = sol.sample(stage,F,grid='control')
 #     # Simulate dynamics (applying the first control input) and update the current state
 #     current_X = Sim_pendulum_dyn(current_X, Fsol[0], dt)
 #     # Set the parameter X0 to the new current_X
