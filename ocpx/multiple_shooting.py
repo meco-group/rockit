@@ -10,7 +10,7 @@ class MultipleShooting(SamplingMethod):
         self.T = None
         self.t0 = None
         self.P = []
-        self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
+        self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
 
     def transcribe(self, stage, opti):
@@ -58,8 +58,12 @@ class MultipleShooting(SamplingMethod):
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
 
-        self.poly_coeff = []
         self.xk = []
+        # we only save polynomal coeffs for runge-kutta4
+        if stage._method.intg == 'rk':
+            self.poly_coeff = []
+        else:
+            self.poly_coeff = None
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
@@ -72,7 +76,8 @@ class MultipleShooting(SamplingMethod):
             xk_temp = FF["Xi"]
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
-            self.poly_coeff.extend([poly_coeff_temp[:, i] for i in range(self.M*5)])
+            if self.poly_coeff is not None:
+                self.poly_coeff.extend([poly_coeff_temp[:, i] for i in range(self.M*5)])
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.

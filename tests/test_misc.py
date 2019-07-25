@@ -14,7 +14,7 @@ class MiscTests(unittest.TestCase):
                         for x0 in [0, 1]:
                             for intg_method in ['rk', 'cvodes', 'idas']:
                                 sol, stage, x, u = integrator_control_problem(
-                                    T, u_max, x0, MultipleShooting(N=4,M=M,intg='rk'), t0
+                                    T, u_max, x0, MultipleShooting(N=4,M=M,intg=intg_method), t0
                                 )
 
                                 ts, xs = sol.sample(
@@ -31,7 +31,7 @@ class MiscTests(unittest.TestCase):
         for t0 in [0, 1]:
             for x0 in [0, 1]:
                 for b in [1, 2]:
-                    for intg_method in ['rk']: # ['rk', 'cvodes', 'idas']:
+                    for intg_method in ['rk', 'cvodes', 'idas']:
                         ocp = OcpMultiStage()
                         stage = ocp.stage(t0=t0, T=ocp.free(1))
 

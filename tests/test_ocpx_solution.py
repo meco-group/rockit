@@ -29,3 +29,6 @@ class OcpxSolutionTests(unittest.TestCase):
         assert_allclose(xs, x_exact, atol=tolerance)
         assert_allclose(us, u_exact, atol=tolerance)
         assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
+
+if __name__ == '__main__':
+    unittest.main()
