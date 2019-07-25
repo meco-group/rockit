@@ -43,11 +43,11 @@ sol = ocp.solve()
 # Show structure
 ocp.spy()
 
-tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
-tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
+tsa,x1a = sol.sample(stage,x1,grid='control')
+tsa,x2a = sol.sample(stage,x2,grid='control')
 
-tsb,x1b = sol.sample(stage,x1,grid=stage.grid_integrator)
-tsb,x2b = sol.sample(stage,x2,grid=stage.grid_integrator)
+tsb,x1b = sol.sample(stage,x1,grid='integrator')
+tsb,x2b = sol.sample(stage,x2,grid='integrator')
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
 ax[0].plot(tsb,  x1b,'.-')

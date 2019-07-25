@@ -16,7 +16,7 @@ class MethodTests(unittest.TestCase):
                      DirectCollocation(N=40)]:
         (sol, stage, x, u) = integrator_control_problem(T, b, x0, scheme, t0)
 
-        ts, xs = sol.sample(stage, x, grid=stage.grid_control)
+        ts, xs = sol.sample(stage, x, grid='control')
 
         self.assertAlmostEqual(xs[0],x0,places=6)
         self.assertAlmostEqual(xs[-1],x0-b*T,places=6)

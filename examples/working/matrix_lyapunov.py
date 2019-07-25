@@ -39,13 +39,13 @@ ocp.method(DirectMethod(solver='ipopt'))
 stage.method(MultipleShooting(N=40, M=6, intg='rk'))
 sol = ocp.solve()
 
-ts, xsol = sol.sample(stage, x[0], grid=stage.grid_control)
+ts, xsol = sol.sample(stage, x[0], grid='control')
 
 plt.plot(ts, xsol, '-o')
 plt.plot(ts, bound(ts))
 #
 # plt.plot(ts,xsol,'-o')
-#ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
+#ts,xsol = sol.sample(stage,x2,grid='integrator')
 plt.legend(["x1"])
 ts, Psol = sol.sample(stage,P,grid = stage.grid_control)
 

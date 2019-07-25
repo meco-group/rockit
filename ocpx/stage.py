@@ -1,7 +1,5 @@
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian,vec, veccat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat
 from .freetime import FreeTime
-from .stage_options import GridControl, GridIntegrator
-from copy import copy
 
 
 class Stage:
@@ -39,18 +37,18 @@ class Stage:
     def is_free_time(self):
         return isinstance(self._T, FreeTime)
 
-    def get_jacobian(self,der,state):
-        return jacobian(der,state)
-
     def is_free_starttime(self):
         return isinstance(self._t0, FreeTime)
+
+    def get_jacobian(self, der, state):
+        return jacobian(der, state)
 
     def state(self, dimm=1, dimn=1):
         """
         Create a state
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x", dimm,dimn)
+        x = MX.sym("x", dimm, dimn)
         self.states.append(x)
         return x
 
@@ -63,14 +61,14 @@ class Stage:
         self.parameters.append(p)
         return p
 
-    def control(self, dimm=1,dimn=1, order=0):
+    def control(self, dimm=1, dimn=1, order=0):
         if order >= 1:
-            u = self.state(dimm,dimn)
-            helper_u = self.control(dimm=dimm,dimn=dimn, order=order - 1)
+            u = self.state(dimm, dimn)
+            helper_u = self.control(dimm=dimm, dimn=dimn, order=order - 1)
             self.set_der(u, helper_u)
             return u
 
-        u = MX.sym("u", dimm,dimn)
+        u = MX.sym("u", dimm, dimn)
         self.controls.append(u)
         return u
 
@@ -212,19 +210,3 @@ class Stage:
 
     def _expr_to_function(self, expr):
         return Function('helper', [self.x, self.u], [expr], ["x", "u"], ["out"])
-
-    @property
-    def grid_control(self):
-        return GridControl()
-
-    @property
-    def grid_integrator(self):
-        return GridIntegrator()
-
-    def create_copy(self):
-        """Create a copy of the object, keep important links."""
-        cpy = copy(self)
-        # new T
-        # substitute objective & constraints
-        #
-        return 
