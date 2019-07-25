@@ -1,63 +1,94 @@
 from ocpx import MultipleShooting, DirectMethod, OcpMultiStage
-# import matplotlib.pyplot as plt
+from casadi import integrator, vertcat, sin, Function
 import numpy as np
+import matplotlib.pyplot as plt
 
-def pendulum_ode(x, u):
+def pendulum_ode(x, u, param):
     dx1 = x[1]
-    dx2 = (1/(I+m*L**2))*(-c*x[1] - g*m*L*sin(x[0]) + u[0])
-    return vcat(dx1, dx2)
+    dx2 = (1/(param['I']+param['m']*param['L']**2))*(-param['c']*x[1] - 9.81*param['m']*param['L']*sin(x[0]) + u[0])
+    return  vertcat(dx1, dx2)
 
-tgrid = np.linspace(0, 10, 100)
+def pendulum_simulator(x0, u, sim):
+    xsim = sim.call({'x0': x0, 'p': uval})['xf']
+    return {'xsim': xsim, 'ysim': np.squeeze(xsim[0, :])}
 
-# dyn = {'x': vertcat(x,lam), 'ode': f}
-# simulator = integrator('simulator', 'cvodes', dae, {'grid': tgrid, 'output_t0': True})
-# sol = simulator(x0 = V_sol[0:4])["xf"]
+#Define problem parameter
+plant_param = {'m': 1, 'I': 1, 'L':1, 'c':1}
+model_param = {'m': 1.2, 'I': 1.2, 'L':0.9, 'c':0.9}
+N = 100
+T = 10
+tgrid = np.linspace(0, T, N)
+yr = np.sin(tgrid)
+x0 = [0, 0]
 
 ocp = OcpMultiStage()
 stage = ocp.stage(t0=tgrid[0], T=tgrid[-1])
 
 # Define states
-x1 = stage.state()
-x2 = stage.state()
+x = stage.state(dim= 2)
 
-# Defince controls
+# Define controls
 u = stage.control()
 
 # Specify ODE
-stage.set_der(x1, (1-x2**2)*x1 - x2 + u)
-stage.set_der(x2, x1)
+model_rhs = pendulum_ode(x, u, model_param)
+stage.set_der(x[0], model_rhs[0])
+stage.set_der(x[1], model_rhs[1])
 
-# # Lagrange objective
-# stage.add_objective(stage.integral(x1**2 + x2**2 + u**2))
+# Set initial conditions
+stage.set_initial(x, x0)
+
+# Set corrected reference yc = y_r - y_i - P(u_i)
+yc = stage.parameter(grid=stage.grid_control)
+
+# Set previous control
+u_prev = stage.parameter(grid=stage.grid_control)
+
+# Set ILC objective
+stage.add_objective(stage.integral((yc-x[0])**2,grid=stage.control_grid)+stage.integral((u-u_prev,grid=stage.control_grid)**2))
+
+# Pick a solution method
+ocp.method(DirectMethod(solver='ipopt'))
+
+# Make it concrete for this stage
+stage.method(MultipleShooting(N=N,M=4,intg='cvodes'))
+
+#Define simulator for plant and model
+plant_rhs = pendulum_ode(x, u, plant_param)
+opts = {}
+opts['tf'] = T/N;
+ode = {'x': x, 'p': u, 'ode': plant_rhs}
+plant_sim = integrator('xkp1', 'cvodes', ode, opts).mapaccum('simulator', N)
+ode = {'x': x, 'p': u, 'ode': model_rhs}
+model_sim = integrator('xkp1', 'cvodes', ode, opts).mapaccum('simulator', N)
+
+# Run ILC algorithm
+u_prev_val = np.zeros(N)
+for i in range(10):
+    stage.set_value(u_prev = u_prev_val)
+    yi = pendulum_simulator(x0, u_prev_val, plant_sim)['ysim']
+    y_mod = pendulum_simulator(x0, u_prev_val, model_sim)['ysim']
+    stage.set_value(yc = yr - yi + y_mod)
+    sol = ocp.solve()
+    , u_prev_val = sol.sample(stage,u, grid=stage.grid_control)
+
+
+# Plot last result
+y_last = pendulum_simulator(x0, u_prev_val, plant_sim)['ysim']
+y_last = np.asarray(y_last)
+
+plt.plot(tgrid, yr,'.-')
+plt.plot(tgrid, y_last,'-')
+plt.legend(['reference', 'last measurement'])
+plt.show(block=True)
+
+# uval = np.zeros(N)
+# y_plant = pendulum_simulator(x0, uval, plant_sim)['ysim']
+# y_mod = pendulum_simulator(x0, uval, model_sim)['ysim']
 #
-# # Path constraints
-# stage.subject_to(u <= 1)
-# stage.subject_to(-1 <= u)
-# stage.subject_to(x1 >= -0.25)
+# y_mod = np.asarray(y_mod)
+# y_plant = np.asarray(y_plant)
 #
-# # Initial constraints
-# stage.subject_to(stage.at_t0(x1) == 0)
-# stage.subject_to(stage.at_t0(x2) == 1)
-#
-# # Pick a solution method
-# ocp.method(DirectMethod(solver='ipopt'))
-#
-# # Make it concrete for this stage
-# stage.method(MultipleShooting(N=20, M=4, intg='cvodes'))
-#
-# # solve
-# sol = ocp.solve()
-#
-# # solve
-# ts, xsol = sol.sample(stage, x1, grid=stage.grid_control)
-# plt.plot(ts, xsol, '-o')
-# ts, xsol = sol.sample(stage, x2, grid=stage.grid_control)
-# plt.plot(ts, xsol, '-o')
-#
-# #
-# # plt.plot(ts,xsol,'-o')
-# # ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
-# plt.plot(ts, xsol, '-o')
-# plt.legend(["x1", "x2"])
-#
+# plt.plot(tgrid, y_mod,'-')
+# plt.plot(tgrid, y_plant,'-')
 # plt.show(block=True)
