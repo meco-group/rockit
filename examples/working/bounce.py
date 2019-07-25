@@ -16,10 +16,14 @@ def create_bouncing_ball_stage(ocp):
     This function creates a stage of a bouncing ball that bounces no higher
     than 5 meters above the ground.
 
-    :return:
-        stage: An ocp stage describing the bouncing ball
-        p: position variable
-        v: velocity variable
+    Returns
+    -------
+    stage : :obj:`~ocpx.stage.Stage`
+        An ocp stage describing the bouncing ball
+    p : :obj:`~casadi.MX`
+        position variable
+    v : :obj:`~casadi.MX`
+        velocity variable
     """
     stage = ocp.stage(t0=ocp.free(0), T=ocp.free(1))
 
