@@ -31,7 +31,7 @@ class MiscTests(unittest.TestCase):
         for t0 in [0, 1]:
             for x0 in [0, 1]:
                 for b in [1, 2]:
-                    for intg_method in ['rk', 'cvodes', 'idas']:
+                    for intg_method in ['rk']: # ['rk', 'cvodes', 'idas']:
                         ocp = OcpMultiStage()
                         stage = ocp.stage(t0=t0, T=ocp.free(1))
 
