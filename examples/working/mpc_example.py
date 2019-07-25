@@ -3,25 +3,33 @@ from casadi import *
 from casadi.tools import *
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 # -------------------------------
 # Problem parameters
 # -------------------------------
 mcart = 0.5                 # cart mass [kg]
 m = 1                       # pendulum mass [kg]
-L = 0.2                     # pendulum length [m]
+L = 2                       # pendulum length [m]
 g = 9.81                    # gravitation [m/s^2]
 
 nx = 4                      # the system is composed of 4 states
 nu = 1                      # the system has 1 input
-Tf = 0.5                    # control horizon [s]
-Nhor = 50                   # number of control intervals
+Tf = 2                      # control horizon [s]
+Nhor = 100                  # number of control intervals
 dt = Tf/Nhor                # sample time
 
-current_X = [0, pi, 0, 0]   # initial state
-final_X = [0, 0, 0, 0]      # desired terminal state
+current_X = vertcat(0.5,0,0,0)   # initial state
+final_X = vertcat(0,0,0,0)      # desired terminal state
 
-Nsim = 10                   # how much samples to simulate
+Nsim = 100                  # how much samples to simulate
+
+# -------------------------------
+# Logging variables
+# -------------------------------
+pos_history = np.zeros(Nsim+1)
+theta_history = np.zeros(Nsim+1)
+F_history = np.zeros(Nsim)
 
 # -------------------------------
 # Continuous system dynamics
@@ -30,8 +38,10 @@ def pendulum_dynamics(x,u):
     # states: pos [m], theta [rad], dpos [m/s], dtheta [rad/s]
     dpos = x[2]
     dtheta = x[3]
-    ddpos = (u+m*L*x[3]*x[3]*sin(x[1])-m*g*sin(x[1])*cos(x[1]))/(mcart+m-m*cos(x[1])*cos(x[1]))
-    ddtheta = g/L*sin(x[1])-cos(x[1])*ddpos
+    # ddpos = (u+m*L*x[3]*x[3]*sin(x[1])-m*g*sin(x[1])*cos(x[1]))/(mcart+m-m*cos(x[1])*cos(x[1]))
+    # ddtheta = g/L*sin(x[1])-cos(x[1])*ddpos
+    ddpos = (-m*L*sin(x[1])*x[3]*x[3] + m*g*cos(x[1])*sin(x[1])+u)/(mcart + m - m*cos(x[1])*cos(x[1]))
+    ddtheta = (-m*L*cos(x[1])*sin(x[1])*x[3]*x[3] + u*cos(x[1])+(mcart+m)*g*sin(x[1]))/(L*(mcart + m - m*cos(x[1])*cos(x[1])))
     return vertcat(dpos, dtheta, ddpos, ddtheta)
 
 # -------------------------------
@@ -68,17 +78,18 @@ X_0 = stage.parameter(nx);
 stage.set_der(X, pendulum_dynamics(X,F))
 
 # Lagrange objective
-stage.add_objective(stage.integral(sumsqr(F) + 1e1*sumsqr(X[0]) + 1e2*sumsqr(X[1]) + 1e-1*sumsqr(X[2]) + 1e-1*sumsqr(X[3]))) # 1e1*X[0]**2 + 1e-3*X[1]**2 + 1e-1*X[2]**2 + 1e-3*X[3]**2
-stage.add_objective(1e2*sumsqr(stage.at_tf(X)-final_X))
+stage.add_objective(stage.integral(sumsqr(F) + 1000*sumsqr(X[0]))) # + 1e1*sumsqr(X[0]) + 1e-1*sumsqr(X[1]) + 1e-2*sumsqr(X[2]) + 1e-2*sumsqr(X[3])
+# stage.add_objective(1e2*sumsqr(stage.at_tf(X[1])))
 
 # Path constraints
-stage.subject_to(F<=5)
-stage.subject_to(F>=-5)
-stage.subject_to(X[0]>=-3)
-stage.subject_to(X[0]<=3)
+stage.subject_to(F<=2)
+stage.subject_to(F>=-2)
+stage.subject_to(-2<=X[0])
+stage.subject_to(X[0]<=2)
 
 # Initial constraints
 stage.subject_to(stage.at_t0(X)==X_0)
+stage.subject_to(stage.at_tf(X)==final_X)
 
 # Pick a solution method
 ocp.method(DirectMethod(solver='ipopt'))
@@ -94,10 +105,30 @@ stage.set_value(X_0, current_X)
 # Solve
 sol = ocp.solve()
 
+# # Plot the results from offline solution
+tsa,thetasol = sol.sample(stage,X[1],grid=stage.grid_control)
+tsb,possol = sol.sample(stage,X[0],grid=stage.grid_control)
+tsc,Fsol = sol.sample(stage,F,grid=stage.grid_control)
+
+fig, ax = plt.subplots(1, 3, figsize=(10, 4))
+ax[0].plot(tsa,thetasol,'.-')
+ax[1].plot(tsb,possol,'.-')
+ax[2].plot(tsc,Fsol,'.-')
+for i in range(2):
+    ax[i].set_xlabel('Time [s]', fontsize=14)
+ax[0].set_ylabel('Theta [rad]', fontsize=14)
+ax[1].set_ylabel('Pos [m]', fontsize=14)
+ax[2].set_ylabel('Force [N]', fontsize=14)
+plt.show(block=True)
+
+# Log data for post-processing
+pos_history[0] = current_X[0]
+theta_history[0] = current_X[1]
+
 # -------------------------------
 # Simulate the MPC solving the OCP (with the updated state) several times
 # -------------------------------
-for x in range(Nsim):
+for i in range(Nsim):
     # Get the solution from sol
     tsa,Fsol = sol.sample(stage,F,grid=stage.grid_control)
     # Simulate dynamics (applying the first control input) and update the current state
@@ -107,21 +138,23 @@ for x in range(Nsim):
     # Solve the optimization problem
     sol = ocp.solve()
 
-# -------------------------------
-# Get the final value of the state vector
-# -------------------------------
-# Get the solution from sol
-tsa,Fsol = sol.sample(stage,F,grid=stage.grid_control)
-# Simulate dynamics (applying the first control input) and update the current state
-current_X = Sim_pendulum_dyn(current_X, Fsol[0], dt)
+    # Log data for post-processing
+    pos_history[i+1] = current_X[0].full()
+    theta_history[i+1] = current_X[1].full()
+    F_history[i] = Fsol[0]
 
-print(current_X)
-# # # Plot the result
-# fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-# ax[0].plot(tsa,Fsol,'.-')
-# ax[1].plot(tsb,thetasol,'.-')
-# for i in range(2):
-#     ax[i].set_xlabel('Time [s]', fontsize=14)
-# ax[0].set_ylabel('F [N]', fontsize=14)
-# ax[1].set_ylabel('Theta [rad]', fontsize=14)
-# plt.show(block=True)
+
+
+print(pos_history)
+print(theta_history)
+print(F_history)
+#
+# # # # Plot the result
+# # fig, ax = plt.subplots(1, 2, figsize=(10, 4))
+# # ax[0].plot(tsa,Fsol,'.-')
+# # ax[1].plot(tsb,thetasol,'.-')
+# # for i in range(2):
+# #     ax[i].set_xlabel('Time [s]', fontsize=14)
+# # ax[0].set_ylabel('F [N]', fontsize=14)
+# # ax[1].set_ylabel('Theta [rad]', fontsize=14)
+# # plt.show(block=True)
