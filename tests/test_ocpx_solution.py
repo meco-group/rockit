@@ -12,11 +12,11 @@ class OcpxSolutionTests(unittest.TestCase):
         sol, stage, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
 
         ts, xs = sol.sample(
-            stage, x, grid=stage.grid_integrator)
+            stage, x, grid='integrator')
         ts, us = sol.sample(
-            stage, u, grid=stage.grid_integrator)
+            stage, u, grid='integrator')
         ts, uxs = sol.sample(
-            stage, u * x, grid=stage.grid_integrator)
+            stage, u * x, grid='integrator')
 
         t_exact = np.linspace(0, T, N * 3 + 1)
         x_exact = np.linspace(1, x0 - 10 * u_max, N * 3 + 1)

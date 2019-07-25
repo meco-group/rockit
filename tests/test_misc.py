@@ -18,7 +18,7 @@ class MiscTests(unittest.TestCase):
                                 )
 
                                 ts, xs = sol.sample(
-                                    stage, x, grid=stage.grid_control)
+                                    stage, x, grid='control')
 
                                 self.assertAlmostEqual(xs[0], x0, places=6)
                                 self.assertAlmostEqual(
@@ -53,7 +53,7 @@ class MiscTests(unittest.TestCase):
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(stage, x, grid=stage.grid_control)
+                        ts, xs = sol.sample(stage, x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)
