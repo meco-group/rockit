@@ -1,7 +1,7 @@
 # time optimal example for mass-spring-damper system
 
 from ocpx import *
-from casadi import sumsqr, vertcat, sin, cos, vec, diag
+from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt
 import math
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,25 +23,33 @@ stage.set_der(P,A@P+P@A.T)
 
 stage.subject_to(stage.at_t0(x) == vertcat(0.5,0))
 stage.subject_to(stage.at_t0(P)==diag([0.01**2,0.1**2]))
+stage.set_initial(P, diag([0.01**2,0.1**2]))
 stage.subject_to(u <= 40)
 stage.subject_to(u >= -40)
 bound = lambda t: 2 + 0.1*cos(10*t)
 stage.subject_to(x[0] >= -0.25)
-stage.subject_to(x[0] <= bound(stage.t))
+#import ipdb
+#ipdb.set_trace()
+sigma = sqrt(horzcat(1,0)@P@vertcat(1,0))
+stage.subject_to(x[0] <= bound(stage.t)-sigma)
 stage.add_objective(stage.integral(sumsqr(x[0]-3)))
 
 ocp.method(DirectMethod(solver='ipopt'))
 
-# Make it concrete for this stage
 stage.method(MultipleShooting(N=40, M=6, intg='rk'))
 sol = ocp.solve()
 
 ts, xsol = sol.sample(stage, x[0], grid='control')
 
-plt.plot(ts, bound(ts), '-o')
+plt.plot(ts, xsol, '-o')
+plt.plot(ts, bound(ts))
 #
 # plt.plot(ts,xsol,'-o')
 #ts,xsol = sol.sample(stage,x2,grid='integrator')
 plt.legend(["x1"])
+ts, Psol = sol.sample(stage,P,grid = stage.grid_control)
 
+o = np.array([[1,0]])
+variance =  np.sqrt(o*Psol*o.T)[:,0,0]
+plt.plot([ts,ts],[xsol-variance,xsol+variance],'k','linewidth',2)
 plt.show()
