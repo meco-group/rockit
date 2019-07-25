@@ -175,8 +175,6 @@ class Stage:
             subst_from.append(self.u)
             subst_to.append(kwargs["u"])
         if self.is_free_starttime() and "t0" in kwargs:
-            print("HELLO")
-            print(type(kwargs["t0"]))
             subst_from.append(self.t0)
             subst_to.append(kwargs["t0"])
 
