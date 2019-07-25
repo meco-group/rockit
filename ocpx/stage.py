@@ -16,13 +16,18 @@ class Stage:
         self._expr_tf = dict()  # Expressions defined at tf
         self._objective = 0
         self._initial = dict()
-        self.t0 = t0
         self._T = T
+        self._t0 = t0
 
         if self.is_free_time():
             self.T = MX.sym('T')
         else:
             self.T = T
+
+        if self.is_free_starttime():
+            self.t0 = MX.sym('t0')
+        else:
+            self.t0 = t0
 
         self.tf = self.t0 + self.T
 
@@ -30,6 +35,9 @@ class Stage:
 
     def is_free_time(self):
         return isinstance(self._T, FreeTime)
+
+    def is_free_starttime(self):
+        return isinstance(self._t0, FreeTime)
 
     def state(self, dim=1):
         """
@@ -145,6 +153,10 @@ class Stage:
         Substitute placeholder symbols with actual decision variables,
         or expressions involving decision variables
         """
+        subst_from, subst_to = self.get_subst_set(**kwargs)
+        return substitute([expr], subst_from, subst_to)[0]
+
+    def get_subst_set(self, **kwargs):
         subst_from = []
         subst_to = []
         for k, v in self._expr_t0.items():
@@ -162,6 +174,10 @@ class Stage:
         if "u" in kwargs:
             subst_from.append(self.u)
             subst_to.append(kwargs["u"])
+        if self.is_free_starttime() and "t0" in kwargs:
+            subst_from.append(self.t0)
+            subst_to.append(kwargs["t0"])
+
         if self.is_free_time() and "T" in kwargs:
             subst_from.append(self.T)
             subst_to.append(kwargs["T"])
@@ -170,7 +186,21 @@ class Stage:
             for i, p in enumerate(self.parameters):
                 subst_from.append(p)
                 subst_to.append(kwargs["p"][i])
-        return substitute([expr], subst_from, subst_to)[0]
+
+        return (subst_from, subst_to)
+
+    def subst_expr(self, expr):
+        for k in range(self._method.N):
+            subst_from, subst_to = self.get_subst_set(
+                x=self._method.X[k],
+                u=self._method.U[k],
+                T=self._method.T,
+                p=self._method.P,
+                t0=self._method.t0,
+            )
+            expr = substitute([expr], subst_from, subst_to)[0]
+
+        return expr
 
     _constr_apply = _expr_apply
 

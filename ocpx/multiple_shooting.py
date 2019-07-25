@@ -33,11 +33,11 @@ class MultipleShooting(SamplingMethod):
         self.X.append(opti.variable(stage.nx))
         if stage.is_free_time():
             self.T = opti.variable()
+            self.t0 = opti.variable()
             opti.set_initial(self.T, stage._T.T_init)
         else:
             self.T = stage.T
-
-        self.t0 = stage.t0
+            self.t0 = stage.t0
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
@@ -49,7 +49,7 @@ class MultipleShooting(SamplingMethod):
 
         # Create time grid (might be symbolic)
         self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T)
+            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
