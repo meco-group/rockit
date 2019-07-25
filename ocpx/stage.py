@@ -8,6 +8,7 @@ class Stage:
         self.states = []
         self.controls = []
         self.parameters = []
+        self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -52,12 +53,13 @@ class Stage:
         self.states.append(x)
         return x
 
-    def parameter(self, dim=1):
+    def parameter(self, dim=1, grid = ''):
         """
         Create a parameter
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", dim)
+        self._param_grid[p] = grid
         self.parameters.append(p)
         return p
 
