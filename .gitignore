@@ -1,6 +1,9 @@
 *.pyc
 .*
+!.gitignore
 !.gitlab-ci.yml
+public/
+cover/
 
 # Install files
 *.egg-info/
