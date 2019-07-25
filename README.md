@@ -27,3 +27,37 @@ Some recommendations for a productive setup:
   make sure to select 'ocpx' environment.
  * Add the `ocpx` cloned folder into PYTHONPATH with `export PYTHONPATH=$PYTHONPATH:/path/to/repo` (linux) or `set PYTHONPATH=%PYTHONPATH%;/path/to/repo` (windows)
  * Right-click the open file, select 'Run Python file in terminal'.
+
+ ### Documentation
+
+ Use the [NumPy docstring format](https://numpydoc.readthedocs.io/en/latest/format.html).
+ For example:
+ ```python
+def sample(self, stage, expr, grid):
+    """Sample expression at solution on a given grid.
+
+    Parameters
+    ----------
+    stage : :obj:`~ocpx.stage.Stage`
+        An optimal control problem stage.
+    expr : :obj:`casadi.MX`
+        Arbitrary expression containing states, controls, ...
+    grid : :obj:`~ocpx.stage_options.GridOption`
+        Type of time grid to use for sampling,
+        options are available in ocpx.stage_options.
+
+    Returns
+    -------
+    time : numpy.ndarray
+        Time from zero to final time, same length as res
+    res : numpy.ndarray
+        Numerical values of evaluated expression at points in time vector.
+
+    Examples
+    --------
+    Assume an ocp with a stage is already defined.
+
+    >>> sol = ocp.solve()
+    >>> tx, xs = sol.sample(stage, x, grid='control')
+    """
+```

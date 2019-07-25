@@ -40,14 +40,14 @@ stage.method(MultipleShooting(N=20, M=4, intg='cvodes'))
 sol = ocp.solve()
 
 # solve
-ts, xsol = sol.sample(stage, x1, grid=stage.grid_control)
+ts, xsol = sol.sample(stage, x1, grid='control')
 plt.plot(ts, xsol, '-o')
-ts, xsol = sol.sample(stage, x2, grid=stage.grid_control)
+ts, xsol = sol.sample(stage, x2, grid='control')
 plt.plot(ts, xsol, '-o')
 
 #
 # plt.plot(ts,xsol,'-o')
-# ts,xsol = sol.sample(stage,x2,grid=stage.grid_integrator)
+# ts,xsol = sol.sample(stage,x2,grid='integrator')
 plt.plot(ts, xsol, '-o')
 plt.legend(["x1", "x2"])
 

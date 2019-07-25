@@ -50,12 +50,12 @@ stage.method(MultipleShooting(N=20,M=1,intg='rk'))
 # solve
 sol = ocp.solve()
 
-tsa,x1a = sol.sample(stage,x1,grid=stage.grid_control)
-tsa,x2a = sol.sample(stage,x2,grid=stage.grid_control)
-tsa,ua = sol.sample(stage,u,grid=stage.grid_control)
+tsa,x1a = sol.sample(stage,x1,grid='control')
+tsa,x2a = sol.sample(stage,x2,grid='control')
+tsa,ua = sol.sample(stage,u,grid='control')
 
-tsb,x1b = sol.sample(stage,x1,grid=stage.grid_integrator)
-tsb,x2b = sol.sample(stage,x2,grid=stage.grid_integrator)
+tsb,x1b = sol.sample(stage,x1,grid='integrator')
+tsb,x2b = sol.sample(stage,x2,grid='integrator')
 
 fig, ax = plt.subplots(1, 2, figsize=(10, 4))
 ax[0].plot(tsb,  x1b,'.-')

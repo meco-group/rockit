@@ -14,11 +14,11 @@ class MiscTests(unittest.TestCase):
                         for x0 in [0, 1]:
                             for intg_method in ['rk', 'cvodes', 'idas']:
                                 sol, stage, x, u = integrator_control_problem(
-                                    4, M, T, u_max, x0, t0, intg_method
+                                    T, u_max, x0, MultipleShooting(N=4,M=M,intg='rk'), t0
                                 )
 
                                 ts, xs = sol.sample(
-                                    stage, x, grid=stage.grid_control)
+                                    stage, x, grid='control')
 
                                 self.assertAlmostEqual(xs[0], x0, places=6)
                                 self.assertAlmostEqual(
@@ -53,7 +53,7 @@ class MiscTests(unittest.TestCase):
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(stage, x, grid=stage.grid_control)
+                        ts, xs = sol.sample(stage, x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)

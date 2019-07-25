@@ -1,8 +1,6 @@
 from .stage import Stage
 from .freetime import FreeTime
-from casadi import hcat, substitute
 from .ocpx_solution import OcpxSolution
-from copy import deepcopy
 
 
 class OcpMultiStage:
@@ -17,7 +15,7 @@ class OcpMultiStage:
         if prev_stage is None:
             s = Stage(self, **kwargs)
         else:
-            s = deepcopy(prev_stage)
+            raise Exception("Not implemented yet!")
 
         self.stages.append(s)
         return s

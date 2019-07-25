@@ -1,6 +1,5 @@
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat
 from .freetime import FreeTime
-from .stage_options import GridControl, GridIntegrator, GridIntegratorFine
 
 
 class Stage:
@@ -18,7 +17,9 @@ class Stage:
         self._initial = dict()
         self._T = T
         self._t0 = t0
+        self._create_variables(t0, T)
 
+    def _create_variables(self, t0, T):
         if self.is_free_time():
             self.T = MX.sym('T')
         else:
@@ -39,12 +40,15 @@ class Stage:
     def is_free_starttime(self):
         return isinstance(self._t0, FreeTime)
 
-    def state(self, dim=1):
+    def get_jacobian(self, der, state):
+        return jacobian(der, state)
+
+    def state(self, dimm=1, dimn=1):
         """
         Create a state
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x", dim)
+        x = MX.sym("x", dimm, dimn)
         self.states.append(x)
         return x
 
@@ -57,14 +61,14 @@ class Stage:
         self.parameters.append(p)
         return p
 
-    def control(self, dim=1, order=0):
+    def control(self, dimm=1, dimn=1, order=0):
         if order >= 1:
-            u = self.state(dim)
-            helper_u = self.control(dim=dim, order=order - 1)
+            u = self.state(dimm, dimn)
+            helper_u = self.control(dimm=dimm, dimn=dimn, order=order - 1)
             self.set_der(u, helper_u)
             return u
 
-        u = MX.sym("u", dim)
+        u = MX.sym("u", dimm, dimn)
         self.controls.append(u)
         return u
 
@@ -104,7 +108,7 @@ class Stage:
 
     @property
     def x(self):
-        return vcat(self.states)
+        return veccat(*self.states)
 
     @property
     def u(self):
@@ -131,7 +135,7 @@ class Stage:
 
     # Internal methods
     def _ode(self):
-        ode = vcat([self._state_der[k] for k in self.states])
+        ode = veccat(*[self._state_der[k] for k in self.states])
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
     def _bake(self, x0=None, xf=None, u0=None, uf=None):
@@ -206,15 +210,3 @@ class Stage:
 
     def _expr_to_function(self, expr):
         return Function('helper', [self.x, self.u], [expr], ["x", "u"], ["out"])
-
-    @property
-    def grid_control(self):
-        return GridControl()
-
-    @property
-    def grid_integrator(self):
-        return GridIntegrator()
-
-    @property
-    def grid_intg_fine(self):
-        return GridIntegratorFine()
