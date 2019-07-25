@@ -55,7 +55,7 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(self.T >= 0)
 
         self.poly_coeff = []
-        self.xk = [self.X[0]]
+        self.xk = []
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
@@ -74,6 +74,8 @@ class MultipleShooting(SamplingMethod):
                 opti.subject_to(stage._constr_apply(
                     c, x=self.X[k], u=self.U[k], T=self.T, p=self.P,
 					t=self.control_grid[k]))
+        
+        self.xk.append(self.X[-1])
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))

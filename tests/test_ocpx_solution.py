@@ -18,12 +18,13 @@ class OcpxSolutionTests(unittest.TestCase):
             stage, u * x, grid=stage.grid_integrator)
 
         t_exact = np.linspace(0, T, N * 3 + 1)
-        x_exact = np.linspace(1, x0 - T * u_max, N * 3 + 1)
+        x_exact = np.linspace(1, x0 - 10 * u_max, N * 3 + 1)
         u_exact = np.ones(N * 3 + 1) * (-u_max)
 
-        # Note: index hack because of issue with sample function
-        # Fix this and run the correct version of this test!
+        print(xs)
+        print(x_exact)
+
         assert_allclose(ts, t_exact, atol=tolerance)
-        assert_allclose(xs[1:], x_exact[:-1], atol=tolerance)
+        assert_allclose(xs, x_exact, atol=tolerance)
         assert_allclose(us, u_exact, atol=tolerance)
-        assert_allclose(uxs[1:], u_exact[:-1] * x_exact[:-1], atol=tolerance)
+        assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
