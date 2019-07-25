@@ -39,13 +39,13 @@ stage.set_der(x[1], model_rhs[1])
 stage.set_initial(x, x0)
 
 # Set corrected reference yc = y_r - y_i - P(u_i)
-yc = stage.parameter(grid=stage.grid_control)
+yc = stage.parameter(grid='control')
 
 # Set previous control
-u_prev = stage.parameter(grid=stage.grid_control)
+u_prev = stage.parameter(grid='control')
 
 # Set ILC objective
-stage.add_objective(stage.integral((yc-x[0])**2,grid=stage.control_grid)+stage.integral((u-u_prev,grid=stage.control_grid)**2))
+stage.add_objective(stage.integral((yc-x[0])**2,grid='control')+stage.integral((u-u_prev)**2, grid='control'))
 
 # Pick a solution method
 ocp.method(DirectMethod(solver='ipopt'))
@@ -65,10 +65,10 @@ model_sim = integrator('xkp1', 'cvodes', ode, opts).mapaccum('simulator', N)
 # Run ILC algorithm
 u_prev_val = np.zeros(N)
 for i in range(10):
-    stage.set_value(u_prev = u_prev_val)
+    stage.set_value(u_prev, u_prev_val)
     yi = pendulum_simulator(x0, u_prev_val, plant_sim)['ysim']
     y_mod = pendulum_simulator(x0, u_prev_val, model_sim)['ysim']
-    stage.set_value(yc = yr - yi + y_mod)
+    stage.set_value(yc, yr - yi + y_mod)
     sol = ocp.solve()
     , u_prev_val = sol.sample(stage,u, grid=stage.grid_control)
 
