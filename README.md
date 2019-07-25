@@ -1,6 +1,13 @@
+# OCPx
+[![pipeline status](https://gitlab.mech.kuleuven.be/meco-software/ocpx/badges/master/pipeline.svg)](https://gitlab.mech.kuleuven.be/meco-software/ocpx/commits/master)
+[![coverage report](https://gitlab.mech.kuleuven.be/meco-software/ocpx/badges/master/coverage.svg)](https://meco-software.pages.mech.kuleuven.be/ocpx/coverage/index.html)
+[![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.mech.kuleuven.be/ocpx)
+[![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.mech.kuleuven.be/ocpx/documentation-ocpx.pdf)
+
+# Get started
 Some recommendations for a productive setup:
 
-# Python environment
+### Python environment
 
 * Install https://docs.conda.io/en/latest/miniconda.html
   This allows you to create an isolated Python environment.
@@ -8,10 +15,10 @@ Some recommendations for a productive setup:
 * `conda create --name ocpx python=3.6 matplotlib scipy ipython pylint`
 * `conda activate ocpx`
 
-# CasADi setup
+### CasADi setup
 * In your Python environment, do `pip install casadi`
 
-# IDE
+### IDE
 
  * Install https://code.visualstudio.com/
  * Install the Python extension.
