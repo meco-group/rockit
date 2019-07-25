@@ -7,7 +7,7 @@
 #   ^    ^   ^    ^   ^    ^
 #    integration interval
 #
-# grid=ocp.grid_control
+# grid='control'
 #     ocp.grid_intg
 #     ocp.grid_intg_roots
 #     ocp.grid_intg_fine(10)
@@ -26,7 +26,7 @@ dq = ocp.state(7)
 
 # Don't: ocp.sample_intg(x) # Get x1...x_N+1? Still placeholders
 
-ocp.subject_to(x <= inf)  # path constraint, by default on ocp.grid_control
+ocp.subject_to(x <= inf)  # path constraint, by default on 'control'
 ocp.subject_to(x >= -0.25)
 ocp.subject_to(y <= inf)
 # 10 finer than the integrator grid
@@ -45,7 +45,7 @@ ocp.add_objective(ocp.at_tf(x**2))                  # Mayer term
 ocp.add_objective(ocp.sum(ocp.convex_over_nonlinear('norm_2', sin(x)))
 
 # Slack variables
-l=ocp.variables(grid=ocp.grid_control)
+l=ocp.variables(grid='control')
 
 ocp.subject_to(ocp.convex_over_nonlinear('norm_2', sin(x)) <= rho + l)
 
@@ -109,7 +109,7 @@ sol=ocp.solve()
 
 # what to do with controls? drop the last.
 # Sample at the control boundaries (0.4s); default
-ts, xsol=sol.sample(x, grid=ocp.grid_control)
+ts, xsol=sol.sample(x, grid='control')
 # Sample at the integrator boundaries (0.1s)
 ts, xsol=sol.sample(x, grid=ocp.grid_intg)
 ts, xsol=sol.sample(x, grid=ocp.grid_intg_roots)  # Collocation grid

@@ -70,9 +70,9 @@ sol = ocp.solve()
 
 # Plot the 3 bounces
 plt.figure()
-ts1, ps1 = sol.sample(stage1, p1, grid=stage1.grid_control)
-ts2, ps2 = sol.sample(stage2, p2, grid=stage2.grid_control)
-ts3, ps3 = sol.sample(stage3, p3, grid=stage3.grid_control)
+ts1, ps1 = sol.sample(stage1, p1, grid='control')
+ts2, ps2 = sol.sample(stage2, p2, grid='control')
+ts3, ps3 = sol.sample(stage3, p3, grid='control')
 plt.plot(ts1, ps1)
 plt.plot(ts2, ps2)
 plt.plot(ts3, ps3)

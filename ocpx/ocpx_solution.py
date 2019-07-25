@@ -36,7 +36,7 @@ class OcpxSolution:
         Assume an ocp with a stage is already defined.
 
         >>> sol = ocp.solve()
-        >>> tx, xs = sol.sample(stage, x, grid=stage.grid_control)
+        >>> tx, xs = sol.sample(stage, x, grid='control')
         """
         if grid == 'control':
             return self._grid_control(stage, expr, grid)
