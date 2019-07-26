@@ -55,7 +55,7 @@ stage.add_objective(stage.integral((y_ref - beta -x[0])**2,grid='control')+1e-3*
 ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
-stage.method(MultipleShooting(N=N,M=4,intg='cvodes'))
+stage.method(MultipleShooting(N=N,M=4,intg='rk'))
 
 # Define simulator for plant and model
 plant_rhs = pendulum_ode(x, u, plant_param)
