@@ -33,39 +33,17 @@ theta_history   = np.zeros(Nsim+1)
 F_history       = np.zeros(Nsim)
 
 # -------------------------------
-# Continuous system dynamics
-# -------------------------------
-def pendulum_dynamics(x,u):
-    # states: pos [m], theta [rad], dpos [m/s], dtheta [rad/s]
-    dpos = x[2]
-    dtheta = x[3]
-    ddpos = (-m*L*sin(x[1])*x[3]*x[3] + m*g*cos(x[1])*sin(x[1])+u)/(mcart + m - m*cos(x[1])*cos(x[1]))
-    ddtheta = (-m*L*cos(x[1])*sin(x[1])*x[3]*x[3] + u*cos(x[1])+(mcart+m)*g*sin(x[1]))/(L*(mcart + m - m*cos(x[1])*cos(x[1])))
-    return vertcat(dpos, dtheta, ddpos, ddtheta)
-
-# -------------------------------
-# Discretized system dynamics (only used for dynamics simulation in the MPC loop)
-# -------------------------------
-def rk4_disc(f):
-    x = MX.sym('x',nx)
-    u = MX.sym('u',nu)
-    dt = MX.sym('dt')
-    k1 = f(x, u)
-    k2 = f(x + dt/2 * k1, u)
-    k3 = f(x + dt/2 * k2, u)
-    k4 = f(x + dt * k3, u)
-    return Function('F', [x, u, dt], [x + dt/6*(k1 + 2*k2 + 2*k3 + k4)], ['x0', 'u', 'DT'], ['xf'])
-Sim_pendulum_dyn = rk4_disc(pendulum_dynamics)
-
-# -------------------------------
 # Set OCP
 # -------------------------------
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0, T=Tf)
+stage = ocp.stage(T=Tf)
 
 # Define states
-X = stage.state(nx)
+pos    = stage.state()  # [m]
+theta  = stage.state()  # [rad]
+dpos   = stage.state()  # [m/s]
+dtheta = stage.state()  # [rad/s]
 
 # Defince controls
 F = stage.control(nu, order=0)
@@ -74,18 +52,22 @@ F = stage.control(nu, order=0)
 X_0 = stage.parameter(nx);
 
 # Specify ODE
-stage.set_der(X, pendulum_dynamics(X,F))
+stage.set_der(pos, dpos)
+stage.set_der(theta, dtheta)
+stage.set_der(dpos, (-m*L*sin(theta)*dtheta*dtheta + m*g*cos(theta)*sin(theta)+F)/(mcart + m - m*cos(theta)*cos(theta)) )
+stage.set_der(dtheta, (-m*L*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(mcart+m)*g*sin(theta))/(L*(mcart + m - m*cos(theta)*cos(theta))))
 
 # Lagrange objective
-stage.add_objective(stage.integral(sumsqr(F) + 100*sumsqr(X[0])))
+stage.add_objective(stage.integral(F*2 + 100*pos**2))
 
 # Path constraints
-stage.subject_to(F <= 2)
-stage.subject_to(F >= -2)
-stage.subject_to(-2 <= X[0])
-stage.subject_to(X[0] <= 2)
+stage.subject_to(      F <= 2  )
+stage.subject_to(-2 <= F       )
+stage.subject_to(-2 <= pos     )
+stage.subject_to(      pos <= 2)
 
 # Initial constraints
+X = vertcat(pos,theta,dpos,dtheta)
 stage.subject_to(stage.at_t0(X)==X_0)
 stage.subject_to(stage.at_tf(X)==final_X)
 
@@ -106,6 +88,9 @@ stage.set_value(X_0, current_X)
 # Solve
 sol = ocp.solve()
 
+# Get discretisd dynamics as CasADi function
+Sim_pendulum_dyn = stage._method.discrete_system(stage)
+
 # Log data for post-processing
 pos_history[0]   = current_X[0]
 theta_history[0] = current_X[1]
@@ -113,12 +98,18 @@ theta_history[0] = current_X[1]
 # -------------------------------
 # Simulate the MPC solving the OCP (with the updated state) several times
 # -------------------------------
+
+
 for i in range(Nsim):
     print("timestep", i+1, "of", Nsim)
     # Get the solution from sol
     tsa, Fsol = sol.sample(stage, F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
+
+    # Integral helper state: todo remove
+    current_X = vertcat(current_X, 0)
     current_X = Sim_pendulum_dyn(current_X, Fsol[0], dt)
+    current_X = current_X[:4]
     # Add disturbance at t = 2*Tf
     if add_disturbance:
         if i == round(2*Nhor)-1:
@@ -129,7 +120,7 @@ for i in range(Nsim):
         meas_noise = 5e-4*(vertcat(np.random.rand(nx,1))-vertcat(1,1,1,1)) # 4x1 vector with values in [-1e-3, 1e-3]
         current_X = current_X + meas_noise
     # Set the parameter X0 to the new current_X
-    stage.set_value(X_0, current_X)
+    stage.set_value(X_0, current_X[:4])
     # Solve the optimization problem
     sol = ocp.solve()
 
