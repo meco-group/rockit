@@ -97,7 +97,14 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(stage._constr_apply(c, p=self.P))
 
     def add_objective(self, stage, opti):
-        opti.minimize(opti.f + stage._expr_apply(stage._objective, T=self.T))
+
+        for k,v in stage._sum_control.items():
+            r = 0
+            for i in range(N):
+                dt = self.control_grid[k + 1] - self.control_grid[k]
+                r = r + stage._expr_apply(v,x=self.X[k],u=self.U[k])*dt
+            stage._objective = substitute(stage._objective,k,r)
+        opti.minimize(opti.f + stage._expr_apply(stage._objective, T=self.T)+r)
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():

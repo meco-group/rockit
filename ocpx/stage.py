@@ -8,6 +8,7 @@ class Stage:
         self.states = []
         self.controls = []
         self.parameters = []
+        self._sum_control = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -78,11 +79,16 @@ class Stage:
     def set_der(self, state, der):
         self._state_der[state] = der
 
-    def integral(self, expr):
-        I = self.state()
-        self.set_der(I, expr)
-        self.subject_to(self.at_t0(I) == 0)
-        return self.at_tf(I)
+    def integral(self, expr, grid='inf'):
+        if grid=='inf':
+            I = self.state()
+            self.set_der(I, expr)
+            self.subject_to(self.at_t0(I) == 0)
+            return self.at_tf(I)
+        else:
+            r = MX.sym("r", expr.sparsity())
+            self._sum_control[r] = expr
+            return r
 
     def subject_to(self, constr):
         self._constraints.append(constr)
@@ -167,6 +173,9 @@ class Stage:
             subst_from.append(k)
             subst_to.append(v)
         for k, v in self._expr_tf.items():
+            subst_from.append(k)
+            subst_to.append(v)
+        for k, v in self._sum_control.items():
             subst_from.append(k)
             subst_to.append(v)
         if "t" in kwargs:
