@@ -1,6 +1,5 @@
 from ocpx import *
 from casadi import *
-# from casadi.tools import *
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -9,20 +8,20 @@ import numpy as np
 # Problem parameters
 # -------------------------------
 mcart = 0.5                 # cart mass [kg]
-m = 1                       # pendulum mass [kg]
-L = 2                       # pendulum length [m]
-g = 9.81                    # gravitation [m/s^2]
+m     = 1                   # pendulum mass [kg]
+L     = 2                   # pendulum length [m]
+g     = 9.81                # gravitation [m/s^2]
 
-nx = 4                      # the system is composed of 4 states
-nu = 1                      # the system has 1 input
-Tf = 2                      # control horizon [s]
-Nhor = 100                  # number of control intervals
-dt = Tf/Nhor                # sample time
+nx    = 4                   # the system is composed of 4 states
+nu    = 1                   # the system has 1 input
+Tf    = 2                   # control horizon [s]
+Nhor  = 100                 # number of control intervals
+dt    = Tf/Nhor             # sample time
 
-current_X = vertcat(0.5,0,0,0)      # initial state
-final_X   = vertcat(0,0,0,0)        # desired terminal state
+current_X = vertcat(0.5,0,0,0)  # initial state
+final_X   = vertcat(0,0,0,0)    # desired terminal state
 
-Nsim = 200                  # how much samples to simulate
+Nsim  = 200                 # how much samples to simulate
 
 # -------------------------------
 # Logging variables
@@ -61,13 +60,13 @@ Sim_pendulum_dyn = rk4_disc(pendulum_dynamics)
 # -------------------------------
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0,T=Tf)
+stage = ocp.stage(t0=0, T=Tf)
 
 # Define states
 X = stage.state(nx)
 
 # Defince controls
-F = stage.control(nu,order=0)
+F = stage.control(nu, order=0)
 
 # Define parameter
 X_0 = stage.parameter(nx);
@@ -79,10 +78,10 @@ stage.set_der(X, pendulum_dynamics(X,F))
 stage.add_objective(stage.integral(sumsqr(F) + 100*sumsqr(X[0])))
 
 # Path constraints
-stage.subject_to(F<=2)
-stage.subject_to(F>=-2)
-stage.subject_to(-2<=X[0])
-stage.subject_to(X[0]<=2)
+stage.subject_to(F <= 2)
+stage.subject_to(F >= -2)
+stage.subject_to(-2 <= X[0])
+stage.subject_to(X[0] <= 2)
 
 # Initial constraints
 stage.subject_to(stage.at_t0(X)==X_0)
@@ -103,7 +102,7 @@ stage.set_value(X_0, current_X)
 sol = ocp.solve()
 
 # Log data for post-processing
-pos_history[0] = current_X[0]
+pos_history[0]   = current_X[0]
 theta_history[0] = current_X[1]
 
 # -------------------------------
@@ -111,7 +110,7 @@ theta_history[0] = current_X[1]
 # -------------------------------
 for i in range(Nsim):
     # Get the solution from sol
-    tsa,Fsol = sol.sample(stage,F,grid='control')
+    tsa, Fsol = sol.sample(stage, F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
     current_X = Sim_pendulum_dyn(current_X, Fsol[0], dt)
     # Set the parameter X0 to the new current_X
@@ -120,9 +119,9 @@ for i in range(Nsim):
     sol = ocp.solve()
 
     # Log data for post-processing
-    pos_history[i+1] = current_X[0].full()
+    pos_history[i+1]   = current_X[0].full()
     theta_history[i+1] = current_X[1].full()
-    F_history[i] = Fsol[0]
+    F_history[i]       = Fsol[0]
 
 # -------------------------------
 # Plot the result
@@ -130,13 +129,13 @@ for i in range(Nsim):
 time_sim = np.linspace(0, dt*Nsim, Nsim+1)
 
 fig, ax1 = plt.subplots()
-ax1.plot(time_sim,pos_history,'r-')
+ax1.plot(time_sim, pos_history, 'r-')
 ax1.set_xlabel('Time [s]')
 ax1.set_ylabel('Cart position [m]', color='r')
 ax1.tick_params('y', colors='r')
 
 ax2 = ax1.twinx()
-ax2.plot(time_sim,theta_history,'b-')
+ax2.plot(time_sim, theta_history, 'b-')
 ax2.set_ylabel('Pendulum angle [rad]', color='b')
 ax2.tick_params('y', colors='b')
 
