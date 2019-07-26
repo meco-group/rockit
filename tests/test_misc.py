@@ -60,6 +60,38 @@ class MiscTests(unittest.TestCase):
                         self.assertAlmostEqual(ts[0], t0)
                         self.assertAlmostEqual(ts[-1], t0 + (xf - x0) / b)
 
+    def test_param(self):
+      ocp = OcpMultiStage()
+      stage = ocp.stage(T=1)
+
+      x = stage.state()
+      u = stage.control()
+
+      p = stage.parameter()
+
+      stage.set_der(x, u)
+
+      stage.subject_to(u <= 1)
+      stage.subject_to(-1 <= u)
+
+      stage.add_objective(stage.at_tf(x))
+      stage.subject_to(stage.at_t0(x) == p)
+
+      ocp.method(DirectMethod(solver='ipopt'))
+
+      stage.method(MultipleShooting())
+
+      stage.set_value(p, 0)
+      sol = ocp.solve()
+
+      ts, xs = sol.sample(stage, x, grid='control')
+      self.assertAlmostEqual(xs[0], 0)
+
+      stage.set_value(p, 1)
+      sol = ocp.solve()
+
+      ts, xs = sol.sample(stage, x, grid='control')
+      self.assertAlmostEqual(xs[0], 1)
 
 if __name__ == '__main__':
     unittest.main()

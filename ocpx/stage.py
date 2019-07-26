@@ -52,6 +52,7 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x", dimm, dimn)
         self.states.append(x)
+        self.ocp.is_transcribed = False
         return x
 
     def parameter(self, dim=1, grid = ''):
@@ -62,6 +63,7 @@ class Stage:
         p = MX.sym("p", dim)
         self._param_grid[p] = grid
         self.parameters.append(p)
+        self.ocp.is_transcribed = False
         return p
 
     def control(self, dimm=1, dimn=1, order=0):
@@ -73,12 +75,17 @@ class Stage:
 
         u = MX.sym("u", dimm, dimn)
         self.controls.append(u)
+        self.ocp.is_transcribed = False
         return u
 
     def set_value(self, parameter, value):
-        self._param_vals[parameter] = value
+        if self.ocp.is_transcribed:
+            self._method.set_value(self, self.ocp._method.opti, parameter, value)            
+        else:
+            self._param_vals[parameter] = value
 
     def set_der(self, state, der):
+        self.ocp.is_transcribed = False
         self._state_der[state] = der
 
     def integral(self, expr, grid='inf'):
@@ -93,6 +100,7 @@ class Stage:
             return r
 
     def subject_to(self, constr):
+        self.ocp.is_transcribed = False
         self._constraints.append(constr)
 
     def set_initial(self, var, expr):
@@ -109,6 +117,7 @@ class Stage:
         return p
 
     def add_objective(self, term):
+        self.ocp.is_transcribed = False
         self._objective = self._objective + term
 
     def method(self, method):
