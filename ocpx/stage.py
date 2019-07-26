@@ -62,9 +62,6 @@ class Stage:
     def is_free_starttime(self):
         return isinstance(self._t0, FreeTime)
 
-    def get_jacobian(self, der, state):
-        return jacobian(der, state)
-
     def state(self, n_rows=1, n_cols=1):
         """
         Create a state
