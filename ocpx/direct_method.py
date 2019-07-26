@@ -49,12 +49,9 @@ class OptiWrapper(Opti):
 
     def solve(self, placeholders=None):
         if placeholders:
-            print(placeholders)
             ks = list(placeholders.keys())
             vs = [placeholders[k] for k in ks]
-            print(self.constraints[-3])
             res = substitute(self.constraints + [self.objective], ks, vs)
-            print(res[-4])
             for c in res[:-1]:
                 super().subject_to(c)
             super().minimize(res[-1])

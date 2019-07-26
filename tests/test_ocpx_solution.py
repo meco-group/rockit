@@ -22,9 +22,6 @@ class OcpxSolutionTests(unittest.TestCase):
         x_exact = np.linspace(1, x0 - 10 * u_max, N * 3 + 1)
         u_exact = np.ones(N * 3 + 1) * (-u_max)
 
-        print(xs)
-        print(x_exact)
-
         assert_allclose(ts, t_exact, atol=tolerance)
         assert_allclose(xs, x_exact, atol=tolerance)
         assert_allclose(us, u_exact, atol=tolerance)
