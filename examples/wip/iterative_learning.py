@@ -9,7 +9,7 @@ def pendulum_ode(x, u, param):
     return  vertcat(dx1, dx2)
 
 def pendulum_simulator(x0, u, sim):
-    xsim = sim.call({'x0': x0, 'p': uval})['xf']
+    xsim = sim.call({'x0': x0, 'p': u})['xf']
     return {'xsim': xsim, 'ysim': np.squeeze(xsim[0, :])}
 
 #Define problem parameter
@@ -25,15 +25,14 @@ ocp = OcpMultiStage()
 stage = ocp.stage(t0=tgrid[0], T=tgrid[-1])
 
 # Define states
-x = stage.state(dim= 2)
+x = stage.state(2)
 
 # Define controls
 u = stage.control()
 
 # Specify ODE
 model_rhs = pendulum_ode(x, u, model_param)
-stage.set_der(x[0], model_rhs[0])
-stage.set_der(x[1], model_rhs[1])
+stage.set_der(x, model_rhs)
 
 # Set initial conditions
 stage.set_initial(x, x0)
@@ -70,7 +69,7 @@ for i in range(10):
     y_mod = pendulum_simulator(x0, u_prev_val, model_sim)['ysim']
     stage.set_value(yc, yr - yi + y_mod)
     sol = ocp.solve()
-    , u_prev_val = sol.sample(stage,u, grid=stage.grid_control)
+    _, u_prev_val = sol.sample(stage,u, grid='control')
 
 
 # Plot last result

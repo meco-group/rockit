@@ -9,6 +9,7 @@ class Stage:
         self.controls = []
         self.parameters = []
         self._sum_control = dict()
+        self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -53,12 +54,13 @@ class Stage:
         self.states.append(x)
         return x
 
-    def parameter(self, dim=1):
+    def parameter(self, dim=1, grid = ''):
         """
         Create a parameter
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", dim)
+        self._param_grid[p] = grid
         self.parameters.append(p)
         return p
 
@@ -122,7 +124,7 @@ class Stage:
 
     @property
     def p(self):
-        return vcat(self.parameters)
+        return veccat(*self.parameters)
 
     @property
     def nx(self):
@@ -196,9 +198,8 @@ class Stage:
             subst_to.append(kwargs["T"])
 
         if "p" in kwargs:
-            for i, p in enumerate(self.parameters):
-                subst_from.append(p)
-                subst_to.append(kwargs["p"][i])
+            subst_from.append(self.p)
+            subst_to.append(kwargs["p"])
 
         return (subst_from, subst_to)
 
