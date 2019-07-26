@@ -90,4 +90,8 @@ bound = lambda t: 2 + 0.1*cos(10*t)
 plt.plot(ts1, bound(ts1))
 plt.plot(ts3, bound(ts3))
 
+plt.legend(('OCP trajectory, N= 1','OCP trajectory, N= 2','OCP trajectory, N= 3','OCP trajectory, N= 4', 'OCP trajectory, N= 5','OCP trajectory, N= 6'))
+plt.xlabel('Time [s]')
+plt.ylabel('x1')
+
 plt.show()
