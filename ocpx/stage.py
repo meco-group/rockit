@@ -45,35 +45,35 @@ class Stage:
     def get_jacobian(self, der, state):
         return jacobian(der, state)
 
-    def state(self, dimm=1, dimn=1):
+    def state(self, n_rows=1, n_cols=1):
         """
         Create a state
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x", dimm, dimn)
+        x = MX.sym("x", n_rows, n_cols)
         self.states.append(x)
         self.ocp.is_transcribed = False
         return x
 
-    def parameter(self, dim=1, grid = ''):
+    def parameter(self, n_rows=1, n_cols=1, grid = ''):
         """
         Create a parameter
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        p = MX.sym("p", dim)
+        p = MX.sym("p", n_rows, n_cols)
         self._param_grid[p] = grid
         self.parameters.append(p)
         self.ocp.is_transcribed = False
         return p
 
-    def control(self, dimm=1, dimn=1, order=0):
+    def control(self, n_rows=1, n_cols=1, order=0):
         if order >= 1:
-            u = self.state(dimm, dimn)
-            helper_u = self.control(dimm=dimm, dimn=dimn, order=order - 1)
+            u = self.state(n_rows, n_cols)
+            helper_u = self.control(n_rows=n_rows, n_cols=n_cols, order=order - 1)
             self.set_der(u, helper_u)
             return u
 
-        u = MX.sym("u", dimm, dimn)
+        u = MX.sym("u", n_rows, n_cols)
         self.controls.append(u)
         self.ocp.is_transcribed = False
         return u
@@ -129,7 +129,7 @@ class Stage:
 
     @property
     def u(self):
-        return vcat(self.controls)
+        return veccat(*self.controls)
 
     @property
     def p(self):
