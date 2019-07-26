@@ -20,48 +20,6 @@ class Stage:
         self._placeholder_callbacks = dict()
         self._create_variables(t0, T)
 
-    def _create_placeholder_expr(self, expr, callback_name):
-        r = MX.sym("r_" + callback_name, MX(expr).sparsity())
-        self._placeholders[r] = expr
-        self._placeholder_callbacks[r] = callback_name
-        return r
-
-    def bake_placeholders(self, method):
-        placeholders = dict()
-        ks = list(self._placeholders.keys())
-        vs = [self._placeholders[k] for k in ks]
-
-        #if depends_on(vcat(expr), vcat(subst_from)):
-
-        #vs = substitute(vs, subst_from, subs_to)
-
-        for k, v in zip(ks, vs):
-            callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
-            placeholders[k] = callback(self, v)
-
-        return placeholders
-
-    def _create_variables(self, t0, T):
-        if self.is_free_time():
-            self.T = self._create_placeholder_expr(0, 'T')
-        else:
-            self.T = T
-
-        if self.is_free_starttime():
-            self.t0 = self._create_placeholder_expr(0, 't0')
-        else:
-            self.t0 = t0
-
-        self.tf = self.t0 + self.T
-
-        self.t = MX.sym('t')
-
-    def is_free_time(self):
-        return isinstance(self._T, FreeTime)
-
-    def is_free_starttime(self):
-        return isinstance(self._t0, FreeTime)
-
     def state(self, n_rows=1, n_cols=1):
         """
         Create a state
@@ -134,6 +92,12 @@ class Stage:
     def method(self, method):
         self._method = method
 
+    def is_free_time(self):
+        return isinstance(self._T, FreeTime)
+
+    def is_free_starttime(self):
+        return isinstance(self._t0, FreeTime)
+
     @property
     def x(self):
         return veccat(*self.states)
@@ -161,6 +125,42 @@ class Stage:
     def is_trajectory(self, expr):
         return depends_on(expr, vertcat(self.x, self.u))
 
+    def _create_placeholder_expr(self, expr, callback_name):
+        r = MX.sym("r_" + callback_name, MX(expr).sparsity())
+        self._placeholders[r] = expr
+        self._placeholder_callbacks[r] = callback_name
+        return r
+
+    def _bake_placeholders(self, method):
+        placeholders = dict()
+        ks = list(self._placeholders.keys())
+        vs = [self._placeholders[k] for k in ks]
+
+        #if depends_on(vcat(expr), vcat(subst_from)):
+
+        #vs = substitute(vs, subst_from, subs_to)
+
+        for k, v in zip(ks, vs):
+            callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
+            placeholders[k] = callback(self, v)
+
+        return placeholders
+
+    def _create_variables(self, t0, T):
+        if self.is_free_time():
+            self.T = self._create_placeholder_expr(0, 'T')
+        else:
+            self.T = T
+
+        if self.is_free_starttime():
+            self.t0 = self._create_placeholder_expr(0, 't0')
+        else:
+            self.t0 = t0
+
+        self.tf = self.t0 + self.T
+
+        self.t = MX.sym('t')
+
     # Internal methods
     def _ode(self):
         ode = veccat(*[self._state_der[k] for k in self.states])
@@ -177,10 +177,10 @@ class Stage:
         Substitute placeholder symbols with actual decision variables,
         or expressions involving decision variables
         """
-        subst_from, subst_to = self.get_subst_set(**kwargs)
+        subst_from, subst_to = self._get_subst_set(**kwargs)
         return substitute([expr], subst_from, subst_to)[0]
 
-    def get_subst_set(self, **kwargs):
+    def _get_subst_set(self, **kwargs):
         subst_from = []
         subst_to = []
         if "t" in kwargs:
