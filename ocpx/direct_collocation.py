@@ -13,39 +13,14 @@ class DirectCollocation(SamplingMethod):
         self.degree = degree
         self.tau = collocation_points(degree, scheme)
         [self.C, self.D] = collocation_interpolators(self.tau)
-        self.X = []  # List that will hold N+1 decision variables for state vector
-        self.Z = []  # List that will hold helper collocation states
-        self.U = []  # List that will hold N decision variables for control vector
-        self.T = None
-        self.t0 = None
-        self.P = []
-        self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
-        self.xk = []  # List for intermediate integrator states
 
-    def transcribe(self, stage, opti):
-        """
-        Transcription is the process of going from a continous-time OCP to an NLP
-        """
-        self.add_variables(stage, opti)
-        self.add_parameter(stage, opti)
-        placeholders = stage.bake_placeholders(self)
-        self.add_constraints(stage, opti)
-        self.add_objective(stage, opti)
-        self.set_initial(stage, opti)
-        self.set_parameter(stage, opti)
-        return placeholders
+        self.Z = []  # List that will hold helper collocation states
 
     def add_variables(self, stage, opti):
+        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         self.X.append(opti.variable(stage.nx))
-        if stage.is_free_time():
-            self.T = opti.variable()
-            opti.set_initial(self.T, stage._T.T_init)
-        else:
-            self.T = stage.T
-
-        self.t0 = stage.t0
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
@@ -55,10 +30,6 @@ class DirectCollocation(SamplingMethod):
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         f = stage._ode()
-
-        # Create time grid (might be symbolic)
-        self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T)
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
@@ -80,27 +51,10 @@ class DirectCollocation(SamplingMethod):
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
-                opti.subject_to(stage._constr_apply(
-                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P))
+                opti.subject_to(self.eval_at_control(stage, c, k))
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))
 
     def add_objective(self, stage, opti):
-        opti.add_objective(stage._expr_apply(stage._objective, T=self.T))
-
-    def set_initial(self, stage, opti):
-        for var, expr in stage._initial.items():
-            for k in range(self.N):
-                opti.set_initial(stage._expr_apply(var, x=self.X[k], u=self.U[k]), opti.debug.value(
-                    stage._expr_apply(expr, t=self.control_grid[k]), opti.initial()))
-            opti.set_initial(stage._expr_apply(var, x=self.X[-1], u=self.U[-1]), opti.debug.value(
-                stage._expr_apply(expr, t=self.control_grid[-1]), opti.initial()))
-
-    def add_parameter(self, stage, opti):
-        for p in stage.parameters:
-            self.P.append(opti.parameter(p.shape[0], p.shape[1]))
-
-    def set_parameter(self, stage, opti):
-        for i, p in enumerate(stage.parameters):
-            opti.set_value(self.P[i], stage._param_vals[p])
+        opti.add_objective(stage._objective)

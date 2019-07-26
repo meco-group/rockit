@@ -1,4 +1,4 @@
-from casadi import integrator, Function, MX, hcat, vertcat, vcat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace
 
 
 class SamplingMethod:
@@ -6,6 +6,14 @@ class SamplingMethod:
         self.N = N
         self.M = M
         self.intg = intg
+
+        self.X = []  # List that will hold N+1 decision variables for state vector
+        self.U = []  # List that will hold N decision variables for control vector
+        self.T = None
+        self.t0 = None
+        self.P = []
+        self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
+        self.xk = []  # List for intermediate integrator states
 
     def discrete_system(self, stage):
         f = stage._ode()
@@ -76,6 +84,23 @@ class SamplingMethod:
 
         return (data, opts)
 
+
+    def transcribe(self, stage, opti):
+        """
+        Transcription is the process of going from a continous-time OCP to an NLP
+        """
+        self.add_variables(stage, opti)
+        self.add_parameter(stage, opti)
+
+        # Create time grid (might be symbolic)
+        self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
+        placeholders = stage.bake_placeholders(self)
+        self.add_constraints(stage, opti)
+        self.add_objective(stage, opti)
+        self.set_initial(stage, opti)
+        self.set_parameter(stage, opti)
+        return placeholders
+
     def fill_placeholders_integral_control(self, stage, expr):
         r = 0
         for k in range(self.N):
@@ -95,6 +120,19 @@ class SamplingMethod:
     def fill_placeholders_T(self, stage, expr):
         return self.T
 
+    def add_time_variables(self, stage, opti):
+        if stage.is_free_time():
+            self.T = opti.variable()
+            opti.set_initial(self.T, stage._T.T_init)
+        else:
+            self.T = stage.T
+
+        if stage.is_free_starttime():
+            self.t0 = opti.variable()
+            opti.set_initial(self.t0, stage._t0.T_init)
+        else:
+            self.t0 = stage.t0
+    
     def get_P_at(self,stage,k=-1):
         P = []
         for i, p in enumerate(stage.parameters):
@@ -104,3 +142,34 @@ class SamplingMethod:
                 P.append(self.P[i][:,k])
 
         return vcat(P)
+
+    def eval_at_control(self, stage, expr, k):
+        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p=self.get_P_at(stage, k), t=self.control_grid[k])
+
+    def set_initial(self, stage, opti):
+        for var, expr in stage._initial.items():
+            for k in range(self.N):
+                opti.set_initial(
+                    self.eval_at_control(stage, var, k),
+                    opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))
+            opti.set_initial(
+                self.eval_at_control(stage, var, -1),
+                opti.debug.value(self.eval_at_control(stage, expr, -1), opti.initial()))
+
+    def set_value(self, stage, opti, parameter, value):
+        for i, p in enumerate(stage.parameters):
+            if parameter is p:
+                opti.set_value(self.P[i], value)
+
+    def add_parameter(self, stage, opti):
+        for p in stage.parameters:
+            if stage._param_grid[p] == '':
+                self.P.append(opti.parameter(p.shape[0], p.shape[1]))
+            elif stage._param_grid[p] == 'control':
+                self.P.append(opti.parameter(p.shape[0], self.N*p.shape[1]))
+
+
+    def set_parameter(self, stage, opti):
+        for i, p in enumerate(stage.parameters):
+            opti.set_value(self.P[i], stage._param_vals[p])
+

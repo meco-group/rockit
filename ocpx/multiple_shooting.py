@@ -5,45 +5,12 @@ from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat
 class MultipleShooting(SamplingMethod):
     def __init__(self, *args, **kwargs):
         SamplingMethod.__init__(self, *args, **kwargs)
-        self.X = []  # List that will hold N+1 decision variables for state vector
-        self.U = []  # List that will hold N decision variables for control vector
-        self.T = None
-        self.t0 = None
-        self.P = []
-        self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
-        self.xk = []  # List for intermediate integrator states
-
-    def transcribe(self, stage, opti):
-        """
-        Transcription is the process of going from a continous-time OCP to an NLP
-        """
-        self.add_variables(stage, opti)
-        self.add_parameter(stage, opti)
-
-        # Create time grid (might be symbolic)
-        self.control_grid = linspace(MX(self.t0), self.t0+self.T, self.N + 1)
-        placeholders = stage.bake_placeholders(self)
-        self.add_constraints(stage, opti)
-        self.add_objective(stage, opti)
-        self.set_initial(stage, opti)
-        self.set_parameter(stage, opti)
-        return placeholders
 
     def add_variables(self, stage, opti):
+        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         self.X.append(opti.variable(stage.nx))
-        if stage.is_free_time():
-            self.T = opti.variable()
-            opti.set_initial(self.T, stage._T.T_init)
-        else:
-            self.T = stage.T
-
-        if stage.is_free_starttime():
-            self.t0 = opti.variable()
-            opti.set_initial(self.t0, stage._t0.T_init)
-        else:
-            self.t0 = stage.t0
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
@@ -52,7 +19,6 @@ class MultipleShooting(SamplingMethod):
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         F = self.discrete_system(stage)
-
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
@@ -80,15 +46,11 @@ class MultipleShooting(SamplingMethod):
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
-                opti.subject_to(stage._constr_apply(
-                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.get_P_at(stage, k),
-					t=self.control_grid[k]))
+                opti.subject_to(self.eval_at_control(stage, c, k))
         
         for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
-          opti.subject_to(stage._constr_apply(
-          c, x=self.X[-1], u=self.U[-1], T=self.T, p=self.get_P_at(stage, -1),
-          t=self.control_grid[-1]))
+          opti.subject_to(self.eval_at_control(stage, c, -1))
 		
         self.xk.append(self.X[-1])
 
@@ -96,30 +58,4 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(stage._constr_apply(c, p=self.get_P_at(stage)))
 
     def add_objective(self, stage, opti):
-        opti.add_objective(stage._expr_apply(stage._objective, T=self.T))
-
-    def set_initial(self, stage, opti):
-        for var, expr in stage._initial.items():
-            for k in range(self.N):
-                opti.set_initial(stage._expr_apply(var, x=self.X[k], u=self.U[k]), opti.debug.value(
-                    stage._expr_apply(expr, t=self.control_grid[k]), opti.initial()))
-            opti.set_initial(stage._expr_apply(var, x=self.X[-1], u=self.U[-1]), opti.debug.value(
-                stage._expr_apply(expr, t=self.control_grid[-1]), opti.initial()))
-
-    def set_value(self, stage, opti, parameter, value):
-        for i, p in enumerate(stage.parameters):
-            if parameter is p:
-                opti.set_value(self.P[i], value)
-
-    def add_parameter(self, stage, opti):
-        for p in stage.parameters:
-            if stage._param_grid[p] == '':
-                self.P.append(opti.parameter(p.shape[0], p.shape[1]))
-            elif stage._param_grid[p] == 'control':
-                self.P.append(opti.parameter(p.shape[0], self.N*p.shape[1]))
-
-
-    def set_parameter(self, stage, opti):
-        for i, p in enumerate(stage.parameters):
-            opti.set_value(self.P[i], stage._param_vals[p])
-
+        opti.add_objective(stage._objective)
