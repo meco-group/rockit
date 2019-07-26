@@ -1,6 +1,6 @@
 from ocpx import *
 from casadi import *
-from casadi.tools import *
+# from casadi.tools import *
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +22,7 @@ dt = Tf/Nhor                # sample time
 current_X = vertcat(0.5,0,0,0)      # initial state
 final_X   = vertcat(0,0,0,0)        # desired terminal state
 
-Nsim = 150                  # how much samples to simulate
+Nsim = 200                  # how much samples to simulate
 
 # -------------------------------
 # Logging variables
@@ -102,22 +102,6 @@ stage.set_value(X_0, current_X)
 # Solve
 sol = ocp.solve()
 
-# # Plot the results from offline solution
-tsa,thetasol = sol.sample(stage,X[1],grid='control')
-tsb,possol = sol.sample(stage,X[0],grid='control')
-tsc,Fsol = sol.sample(stage,F,grid='control')
-
-fig, ax = plt.subplots(1, 3, figsize=(10, 4))
-ax[0].plot(tsa,thetasol,'.-')
-ax[1].plot(tsb,possol,'.-')
-ax[2].plot(tsc,Fsol,'.-')
-for i in range(2):
-    ax[i].set_xlabel('Time [s]', fontsize=14)
-ax[0].set_ylabel('Theta [rad]', fontsize=14)
-ax[1].set_ylabel('Pos [m]', fontsize=14)
-ax[2].set_ylabel('Force [N]', fontsize=14)
-plt.show(block=True)
-
 # Log data for post-processing
 pos_history[0] = current_X[0]
 theta_history[0] = current_X[1]
@@ -140,18 +124,21 @@ for i in range(Nsim):
     theta_history[i+1] = current_X[1].full()
     F_history[i] = Fsol[0]
 
+# -------------------------------
+# Plot the result
+# -------------------------------
+time_sim = np.linspace(0, dt*Nsim, Nsim+1)
 
+fig, ax1 = plt.subplots()
+ax1.plot(time_sim,pos_history,'r-')
+ax1.set_xlabel('Time [s]')
+ax1.set_ylabel('Cart position [m]', color='r')
+ax1.tick_params('y', colors='r')
 
-print(pos_history)
-print(theta_history)
-print(F_history)
-#
-# # # # Plot the result
-# # fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-# # ax[0].plot(tsa,Fsol,'.-')
-# # ax[1].plot(tsb,thetasol,'.-')
-# # for i in range(2):
-# #     ax[i].set_xlabel('Time [s]', fontsize=14)
-# # ax[0].set_ylabel('F [N]', fontsize=14)
-# # ax[1].set_ylabel('Theta [rad]', fontsize=14)
-# # plt.show(block=True)
+ax2 = ax1.twinx()
+ax2.plot(time_sim,theta_history,'b-')
+ax2.set_ylabel('Pendulum angle [rad]', color='b')
+ax2.tick_params('y', colors='b')
+
+fig.tight_layout()
+plt.show()
