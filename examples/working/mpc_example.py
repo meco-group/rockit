@@ -88,7 +88,10 @@ stage.subject_to(stage.at_t0(X)==X_0)
 stage.subject_to(stage.at_tf(X)==final_X)
 
 # Pick a solution method
-ocp.method(DirectMethod(solver='ipopt'))
+options = {"ipopt": {"print_level": 0}}
+options["expand"] = True
+options["print_time"] = False
+ocp.method(DirectMethod(solver='ipopt',solver_options=options))
 
 # Make it concrete for this stage
 stage.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
@@ -109,6 +112,7 @@ theta_history[0] = current_X[1]
 # Simulate the MPC solving the OCP (with the updated state) several times
 # -------------------------------
 for i in range(Nsim):
+    print("timestep", i, "of", Nsim)
     # Get the solution from sol
     tsa, Fsol = sol.sample(stage, F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
