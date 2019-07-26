@@ -195,34 +195,10 @@ class Stage:
         if "u" in kwargs:
             subst_from.append(self.u)
             subst_to.append(kwargs["u"])
-        if self.is_free_starttime() and "t0" in kwargs:
-            subst_from.append(self.t0)
-            subst_to.append(kwargs["t0"])
-
-        if self.is_free_time() and "T" in kwargs:
-            subst_from.append(self.T)
-            subst_to.append(kwargs["T"])
-
         if "p" in kwargs:
             subst_from.append(self.p)
             subst_to.append(kwargs["p"])
 
         return (subst_from, subst_to)
 
-    def subst_expr(self, expr):
-        for k in range(self._method.N):
-            subst_from, subst_to = self.get_subst_set(
-                x=self._method.X[k],
-                u=self._method.U[k],
-                T=self._method.T,
-                p=self._method.P,
-                t0=self._method.t0,
-            )
-            expr = substitute([expr], subst_from, subst_to)[0]
-
-        return expr
-
     _constr_apply = _expr_apply
-
-    def _expr_to_function(self, expr):
-        return Function('helper', [self.x, self.u], [expr], ["x", "u"], ["out"])

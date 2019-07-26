@@ -21,8 +21,7 @@ class MultipleShooting(SamplingMethod):
         self.add_parameter(stage, opti)
 
         # Create time grid (might be symbolic)
-        self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
+        self.control_grid = linspace(MX(self.t0), self.t0+self.T, self.N + 1)
         placeholders = stage.bake_placeholders(self)
         self.add_constraints(stage, opti)
         self.add_objective(stage, opti)
