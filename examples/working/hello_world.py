@@ -1,18 +1,15 @@
 from ocpx import *
 import matplotlib.pyplot as plt
-import numpy as np
-
-# Inspired from https://github.com/casadi/casadi/blob/master/docs/examples/python/direct_multiple_shooting.py
 
 ocp = OcpMultiStage()
 
-stage = ocp.stage(t0=0, T=10)
+stage = ocp.stage(T=10)
 
-# Define states
+# Define 2 states
 x1 = stage.state()
 x2 = stage.state()
 
-# Defince controls
+# Define 1 control
 u = stage.control()
 
 # Specify ODE
@@ -23,9 +20,9 @@ stage.set_der(x2, x1)
 stage.add_objective(stage.integral(x1**2 + x2**2 + u**2))
 
 # Path constraints
-stage.subject_to(u <= 1)
-stage.subject_to(-1 <= u)
-stage.subject_to(x1 >= -0.25)
+stage.subject_to(      u <= 1)
+stage.subject_to(-1 <= u     )
+stage.subject_to(x1 >= -0.25 )
 
 # Initial constraints
 stage.subject_to(stage.at_t0(x1) == 0)
@@ -35,7 +32,9 @@ stage.subject_to(stage.at_t0(x2) == 1)
 ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
-stage.method(MultipleShooting(N=20, M=4, intg='rk'))
+method = MultipleShooting(N=10, M=1, intg='rk')
+method = DirectCollocation(N=20)
+stage.method(method)
 
 # solve
 sol = ocp.solve()
@@ -43,25 +42,51 @@ sol = ocp.solve()
 # Show structure
 ocp.spy()
 
+
+# Post-processing
 tsa, x1a = sol.sample(stage, x1, grid='control')
 tsa, x2a = sol.sample(stage, x2, grid='control')
 
 tsb, x1b = sol.sample(stage, x1, grid='integrator')
 tsb, x2b = sol.sample(stage, x2, grid='integrator')
 
-tsc, x1c = sol.sample(stage, x1, grid='integrator', refine=10)
 
-fig, ax = plt.subplots(1, 2, figsize=(10, 4))
-ax[0].plot(tsb, x1b, '.-')
-ax[0].plot(tsa, x1a, 'o')
-ax[1].plot(tsb, x2b, '.-')
-ax[1].plot(tsa, x2a, 'o')
-ax[1].legend(['grid_integrator', 'grid_control'])
-for i in range(2):
-    ax[i].set_xlabel('Time [s]', fontsize=14)
-    ax[i].set_ylabel('State {}'.format(i + 1), fontsize=14)
+from pylab import *
 
-fig, ax = plt.subplots(figsize=(15, 4))
-ax.plot(tsc, x1c, '.-')
-ax.plot(tsa, x1a, 'o')
+figure(figsize=(10, 4))
+subplot(1, 2, 1)
+plot(tsb, x1b, '.-')
+plot(tsa, x1a, 'o')
+xlabel("Times [s]", fontsize=14)
+grid(True)
+title('State x1')
+
+subplot(1, 2, 2)
+plot(tsb, x2b, '.-')
+plot(tsa, x2a, 'o')
+legend(['grid_integrator', 'grid_control'])
+xlabel("Times [s]", fontsize=14)
+title('State x2')
+grid(True)
+
+tsol, usol = sol.sample(stage, u, grid='control')
+
+figure()
+step(tsol,usol,where='post')
+title("Control signal")
+xlabel("Times [s]")
+grid(True)
+
+
+try:
+  tsc, x1c = sol.sample(stage, x1, grid='integrator', refine=10)
+
+  figure(figsize=(15, 4))
+  plot(tsc, x1c, '.-')
+  plot(tsa, x1a, 'o')
+  xlabel("Times [s]")
+  grid(True)
+except:
+  pass
+
 plt.show(block=True)

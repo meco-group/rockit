@@ -8,6 +8,8 @@ class Stage:
         self.states = []
         self.controls = []
         self.parameters = []
+        self._sum_control = dict()
+        self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -52,12 +54,13 @@ class Stage:
         self.states.append(x)
         return x
 
-    def parameter(self, dim=1):
+    def parameter(self, dim=1, grid = ''):
         """
         Create a parameter
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", dim)
+        self._param_grid[p] = grid
         self.parameters.append(p)
         return p
 
@@ -78,11 +81,16 @@ class Stage:
     def set_der(self, state, der):
         self._state_der[state] = der
 
-    def integral(self, expr):
-        I = self.state()
-        self.set_der(I, expr)
-        self.subject_to(self.at_t0(I) == 0)
-        return self.at_tf(I)
+    def integral(self, expr, grid='inf'):
+        if grid=='inf':
+            I = self.state()
+            self.set_der(I, expr)
+            self.subject_to(self.at_t0(I) == 0)
+            return self.at_tf(I)
+        else:
+            r = MX.sym("r", expr.sparsity())
+            self._sum_control[r] = expr
+            return r
 
     def subject_to(self, constr):
         self._constraints.append(constr)
@@ -116,7 +124,7 @@ class Stage:
 
     @property
     def p(self):
-        return vcat(self.parameters)
+        return veccat(*self.parameters)
 
     @property
     def nx(self):
@@ -169,6 +177,9 @@ class Stage:
         for k, v in self._expr_tf.items():
             subst_from.append(k)
             subst_to.append(v)
+        for k, v in self._sum_control.items():
+            subst_from.append(k)
+            subst_to.append(v)
         if "t" in kwargs:
             subst_from.append(self.t)
             subst_to.append(kwargs["t"])
@@ -187,9 +198,8 @@ class Stage:
             subst_to.append(kwargs["T"])
 
         if "p" in kwargs:
-            for i, p in enumerate(self.parameters):
-                subst_from.append(p)
-                subst_to.append(kwargs["p"][i])
+            subst_from.append(self.p)
+            subst_to.append(kwargs["p"])
 
         return (subst_from, subst_to)
 

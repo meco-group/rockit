@@ -67,7 +67,7 @@ class MultipleShooting(SamplingMethod):
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=vcat(self.P))
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_P_at(stage, k))
             # Dynamic constraints a.k.a. gap-closing constraints
             opti.subject_to(self.X[k + 1] == FF["xf"])
 
@@ -82,7 +82,7 @@ class MultipleShooting(SamplingMethod):
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(stage._constr_apply(
-                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.P,
+                    c, x=self.X[k], u=self.U[k], T=self.T, p=self.get_P_at(stage, k),
 					t=self.control_grid[k]))
         
         for c in stage._path_constraints_expr():  # for each constraint expression
@@ -94,9 +94,16 @@ class MultipleShooting(SamplingMethod):
         self.xk.append(self.X[-1])
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
-            opti.subject_to(stage._constr_apply(c, p=self.P))
+            opti.subject_to(stage._constr_apply(c, p=self.get_P_at(stage)))
 
     def add_objective(self, stage, opti):
+
+        for rp, v in stage._sum_control.items():
+            r = 0
+            for k in range(self.N):
+                dt = self.control_grid[k + 1] - self.control_grid[k]
+                r = r + stage._expr_apply(v,x=self.X[k],u=self.U[k],p=self.get_P_at(stage, k))*dt
+            stage._objective = substitute(stage._objective,rp,r)
         opti.minimize(opti.f + stage._expr_apply(stage._objective, T=self.T))
 
     def set_initial(self, stage, opti):
@@ -109,8 +116,22 @@ class MultipleShooting(SamplingMethod):
 
     def add_parameter(self, stage, opti):
         for p in stage.parameters:
-            self.P.append(opti.parameter(p.shape[0], p.shape[1]))
+            if stage._param_grid[p] == '':
+                self.P.append(opti.parameter(p.shape[0], p.shape[1]))
+            elif stage._param_grid[p] == 'control':
+                self.P.append(opti.parameter(p.shape[0], self.N*p.shape[1]))
+
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters):
             opti.set_value(self.P[i], stage._param_vals[p])
+
+    def get_P_at(self,stage,k=-1):
+        P = []
+        for i, p in enumerate(stage.parameters):
+            if stage._param_grid[p] == '':
+                P.append(self.P[i])
+            elif stage._param_grid[p] == 'control':
+                P.append(self.P[i][:,k])
+
+        return vcat(P)

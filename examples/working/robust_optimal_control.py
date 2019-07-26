@@ -4,7 +4,7 @@ from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt
 import matplotlib.pyplot as plt
 import numpy as np
 
-def robust_control_stages(ocp,delta):
+def robust_control_stages(ocp,delta,t0):
   """
   Returns
   -------
@@ -12,7 +12,7 @@ def robust_control_stages(ocp,delta):
   x : :obj: `~casadi.MX
 
   """
-  stage = ocp.stage(t0=ocp.free(0), T=ocp.free(1))
+  stage = ocp.stage(t0=t0, T=1)
   x = stage.state(2)
   u = stage.state()
   der_state = vertcat(x[1],-0.1*(1-x[0]**2 + delta)*x[1] - x[0] + u + delta)
@@ -35,36 +35,24 @@ delta = 1
 ocp = OcpMultiStage()
 ocp.method(DirectMethod(solver='ipopt'))
  
-stage1, x1, ut1 = robust_control_stages(ocp,delta)
-ocp.subject_to(stage1.t0==0)
-ocp.subject_to(stage1.tf==1.0)
+stage1, x1, ut1 = robust_control_stages(ocp,delta,0)
 ocp.subject_to(stage1.at_t0(x1)==(1.0,0))
 
-stage2, x2, ut2 = robust_control_stages(ocp,-delta)
-ocp.subject_to(stage2.t0==0)
-ocp.subject_to(stage2.tf==1.0)
+stage2, x2, ut2 = robust_control_stages(ocp,-delta,0)
 ocp.subject_to(stage2.at_t0(x2)==(1.0,0))
 ocp.subject_to(ut1 == ut2)
 
-stage3, x3, ut3 = robust_control_stages(ocp,delta)
-ocp.subject_to(stage3.t0==1.0)
-ocp.subject_to(stage3.tf==2.0)
+stage3, x3, ut3 = robust_control_stages(ocp,delta,1)
 ocp.subject_to(stage3.at_t0(x3)==stage1.at_tf(x1))
 
-stage4, x4, ut4 = robust_control_stages(ocp,-delta)
-ocp.subject_to(stage4.t0==1.0)
-ocp.subject_to(stage4.tf==2.0)
+stage4, x4, ut4 = robust_control_stages(ocp,-delta,1)
 ocp.subject_to(stage4.at_t0(x4)==stage1.at_tf(x1))
 ocp.subject_to(ut3 == ut4)
 
-stage5, x5, ut5 = robust_control_stages(ocp,delta)
-ocp.subject_to(stage5.t0==1.0)
-ocp.subject_to(stage5.tf==2.0)
+stage5, x5, ut5 = robust_control_stages(ocp,delta,1)
 ocp.subject_to(stage5.at_t0(x5)==stage2.at_tf(x2))
 
-stage6, x6, ut6 = robust_control_stages(ocp,-delta)
-ocp.subject_to(stage6.t0==1.0)
-ocp.subject_to(stage6.tf==2.0)
+stage6, x6, ut6 = robust_control_stages(ocp,-delta,1)
 ocp.subject_to(stage6.at_t0(x6)==stage2.at_tf(x2))
 ocp.subject_to(ut5 == ut6)
 
