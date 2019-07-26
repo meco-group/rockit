@@ -8,27 +8,47 @@ class Stage:
         self.states = []
         self.controls = []
         self.parameters = []
-        self._sum_control = dict()
         self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
-        self._expr_t0 = dict()  # Expressions defined at t0
-        self._expr_tf = dict()  # Expressions defined at tf
         self._objective = 0
         self._initial = dict()
         self._T = T
         self._t0 = t0
+        self._placeholders = dict()
+        self._placeholder_callbacks = dict()
         self._create_variables(t0, T)
+
+    def _create_placeholder_expr(self, expr, callback_name):
+        r = MX.sym("r_" + callback_name, MX(expr).sparsity())
+        self._placeholders[r] = expr
+        self._placeholder_callbacks[r] = callback_name
+        return r
+
+    def bake_placeholders(self, method):
+        placeholders = dict()
+        ks = list(self._placeholders.keys())
+        vs = [self._placeholders[k] for k in ks]
+
+        #if depends_on(vcat(expr), vcat(subst_from)):
+
+        #vs = substitute(vs, subst_from, subs_to)
+
+        for k, v in zip(ks, vs):
+            callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
+            placeholders[k] = callback(self, v)
+
+        return placeholders
 
     def _create_variables(self, t0, T):
         if self.is_free_time():
-            self.T = MX.sym('T')
+            self.T = self._create_placeholder_expr(0, 'T')
         else:
             self.T = T
 
         if self.is_free_starttime():
-            self.t0 = MX.sym('t0')
+            self.t0 = self._create_placeholder_expr(0, 't0')
         else:
             self.t0 = t0
 
@@ -95,9 +115,7 @@ class Stage:
             self.subject_to(self.at_t0(I) == 0)
             return self.at_tf(I)
         else:
-            r = MX.sym("r", expr.sparsity())
-            self._sum_control[r] = expr
-            return r
+            return self._create_placeholder_expr(expr, 'integral_control')
 
     def subject_to(self, constr):
         self.ocp.is_transcribed = False
@@ -107,14 +125,10 @@ class Stage:
         self._initial[var] = expr
 
     def at_t0(self, expr):
-        p = MX.sym("p_t0", expr.sparsity())
-        self._expr_t0[p] = expr
-        return p
+        return self._create_placeholder_expr(expr, 'at_t0')
 
     def at_tf(self, expr):
-        p = MX.sym("p_tf", expr.sparsity())
-        self._expr_tf[p] = expr
-        return p
+        return self._create_placeholder_expr(expr, 'at_tf')
 
     def add_objective(self, term):
         self.ocp.is_transcribed = False
@@ -155,14 +169,6 @@ class Stage:
         ode = veccat(*[self._state_der[k] for k in self.states])
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
-    def _bake(self, x0=None, xf=None, u0=None, uf=None):
-        for k in self._expr_t0.keys():
-            self._expr_t0[k] = substitute(
-                [self._expr_t0[k]], [self.x, self.u], [x0, u0])[0]
-        for k in self._expr_tf.keys():
-            self._expr_tf[k] = substitute(
-                [self._expr_tf[k]], [self.x, self.u], [xf, uf])[0]
-
     def _boundary_constraints_expr(self):
         return [c for c in self._constraints if not self.is_trajectory(c)]
 
@@ -180,15 +186,6 @@ class Stage:
     def get_subst_set(self, **kwargs):
         subst_from = []
         subst_to = []
-        for k, v in self._expr_t0.items():
-            subst_from.append(k)
-            subst_to.append(v)
-        for k, v in self._expr_tf.items():
-            subst_from.append(k)
-            subst_to.append(v)
-        for k, v in self._sum_control.items():
-            subst_from.append(k)
-            subst_to.append(v)
         if "t" in kwargs:
             subst_from.append(self.t)
             subst_to.append(kwargs["t"])

@@ -10,6 +10,7 @@ class OcpMultiStage:
         # (e.g. with different parameter values)
         self.is_transcribed = False
         self._constraints = []
+        self.placeholders = {}
 
     def stage(self, prev_stage=None, **kwargs):
         if prev_stage is None:
@@ -22,6 +23,7 @@ class OcpMultiStage:
 
     def method(self, method):
         self._method = method
+        method.opti.set_ocp(self)
 
     def spy_jacobian(self):
         self._method.spy_jacobian()
@@ -40,17 +42,23 @@ class OcpMultiStage:
     def solve(self):
         opti = self._method.opti
         if not self.is_transcribed:
+            self.placeholders = {}
+            opti.subject_to()
+            opti.clear_objective()
             constraints = self._constraints
             for s in self.stages:
-                s._method.transcribe(s, opti)
-                constraints = [s.subst_expr(c) for c in constraints]
+                stage_placeholders = s._method.transcribe(s, opti)
+                self.placeholders.update(stage_placeholders)
 
             for c in constraints:
                 opti.subject_to(c)
 
             self.is_transcribed = True
 
-        return OcpxSolution(opti.solve())
+            return OcpxSolution(opti.solve(placeholders=self.placeholders))
+        else:
+            return OcpxSolution(opti.solve())
+
 
     def free(self, T_init):
         return FreeTime(T_init)

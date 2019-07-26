@@ -19,13 +19,16 @@ class MultipleShooting(SamplingMethod):
         """
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
-        # Now that decision variables exist, we can bake the at_t0(...)/at_tf(...) expressions
-        stage._bake(x0=self.X[0], xf=self.X[-1],
-                    u0=self.U[0], uf=self.U[-1])
+
+        # Create time grid (might be symbolic)
+        self.control_grid = stage._expr_apply(
+            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
+        placeholders = stage.bake_placeholders(self)
         self.add_constraints(stage, opti)
         self.add_objective(stage, opti)
         self.set_initial(stage, opti)
         self.set_parameter(stage, opti)
+        return placeholders
 
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian
@@ -51,9 +54,6 @@ class MultipleShooting(SamplingMethod):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
-        # Create time grid (might be symbolic)
-        self.control_grid = stage._expr_apply(
-            linspace(MX(stage.t0), stage.tf, self.N + 1), T=self.T, t0=self.t0)
 
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
@@ -97,14 +97,7 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(stage._constr_apply(c, p=self.get_P_at(stage)))
 
     def add_objective(self, stage, opti):
-
-        for rp, v in stage._sum_control.items():
-            r = 0
-            for k in range(self.N):
-                dt = self.control_grid[k + 1] - self.control_grid[k]
-                r = r + stage._expr_apply(v,x=self.X[k],u=self.U[k],p=self.get_P_at(stage, k))*dt
-            stage._objective = substitute(stage._objective,rp,r)
-        opti.minimize(opti.f + stage._expr_apply(stage._objective, T=self.T))
+        opti.add_objective(stage._expr_apply(stage._objective, T=self.T))
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():
@@ -131,12 +124,3 @@ class MultipleShooting(SamplingMethod):
         for i, p in enumerate(stage.parameters):
             opti.set_value(self.P[i], stage._param_vals[p])
 
-    def get_P_at(self,stage,k=-1):
-        P = []
-        for i, p in enumerate(stage.parameters):
-            if stage._param_grid[p] == '':
-                P.append(self.P[i])
-            elif stage._param_grid[p] == 'control':
-                P.append(self.P[i][:,k])
-
-        return vcat(P)

@@ -1,7 +1,8 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
-                   vcat, collocation_points, collocation_interpolators
-
+                   vcat, collocation_points, collocation_interpolators, hcat,\
+                   repmat
+import numpy as np
 
 class DirectCollocation(SamplingMethod):
     def __init__(self, *args, degree=4, scheme='radau', **kwargs):
@@ -27,13 +28,12 @@ class DirectCollocation(SamplingMethod):
         """
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
-        # Now that decision variables exist, we can bake the at_t0(...)/at_tf(...) expressions
-        stage._bake(x0=self.X[0], xf=self.X[-1],
-                    u0=self.U[0], uf=self.U[-1])
+        placeholders = stage.bake_placeholders(self)
         self.add_constraints(stage, opti)
         self.add_objective(stage, opti)
         self.set_initial(stage, opti)
         self.set_parameter(stage, opti)
+        return placeholders
 
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian
@@ -87,7 +87,7 @@ class DirectCollocation(SamplingMethod):
             opti.subject_to(stage._constr_apply(c, p=self.P))
 
     def add_objective(self, stage, opti):
-        opti.minimize(opti.f + stage._expr_apply(stage._objective, T=self.T))
+        opti.add_objective(stage._expr_apply(stage._objective, T=self.T))
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():

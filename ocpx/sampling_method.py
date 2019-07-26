@@ -1,4 +1,4 @@
-from casadi import integrator, Function, MX, hcat, vertcat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat
 
 
 class SamplingMethod:
@@ -75,3 +75,32 @@ class SamplingMethod:
         # data = {'x': X, 't',t, 'p': U, 'ode': substitute(DT*f(X,U),t,t*DT)}
 
         return (data, opts)
+
+    def fill_placeholders_integral_control(self, stage, expr):
+        r = 0
+        for k in range(self.N):
+            dt = self.control_grid[k + 1] - self.control_grid[k]
+            r = r + stage._expr_apply(expr,x=self.X[k],u=self.U[k],p=self.get_P_at(stage, k))*dt
+        return r
+
+    def fill_placeholders_at_t0(self, stage, expr):
+        return stage._expr_apply(expr,x=self.X[0],u=self.U[0],p=self.get_P_at(stage, 0))
+
+    def fill_placeholders_at_tf(self, stage, expr):
+        return stage._expr_apply(expr,x=self.X[-1],u=self.U[-1],p=self.get_P_at(stage, -1))
+
+    def fill_placeholders_t0(self, stage, expr):
+        return self.t0
+
+    def fill_placeholders_T(self, stage, expr):
+        return self.T
+
+    def get_P_at(self,stage,k=-1):
+        P = []
+        for i, p in enumerate(stage.parameters):
+            if stage._param_grid[p] == '':
+                P.append(self.P[i])
+            elif stage._param_grid[p] == 'control':
+                P.append(self.P[i][:,k])
+
+        return vcat(P)
