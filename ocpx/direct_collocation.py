@@ -55,6 +55,3 @@ class DirectCollocation(SamplingMethod):
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.P))
-
-    def add_objective(self, stage, opti):
-        opti.add_objective(stage._objective)

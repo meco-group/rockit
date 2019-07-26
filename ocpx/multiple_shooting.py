@@ -56,6 +56,3 @@ class MultipleShooting(SamplingMethod):
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(stage._constr_apply(c, p=self.get_P_at(stage)))
-
-    def add_objective(self, stage, opti):
-        opti.add_objective(stage._objective)

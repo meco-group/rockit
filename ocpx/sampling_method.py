@@ -120,6 +120,9 @@ class SamplingMethod:
     def fill_placeholders_T(self, stage, expr):
         return self.T
 
+    def add_objective(self, stage, opti):
+        opti.add_objective(stage._objective)
+
     def add_time_variables(self, stage, opti):
         if stage.is_free_time():
             self.T = opti.variable()
