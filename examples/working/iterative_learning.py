@@ -73,7 +73,7 @@ u_prev_val = np.zeros(N)
 
 y_meas = []
 
-num_its = 3
+num_its = 10
 
 for i in range(num_its):
     # Compute correction
