@@ -54,9 +54,6 @@ class OcpMultiStage:
                 opti.subject_to(c)
 
             self.is_transcribed = True
-        else:
-            for s in self.stages:
-                s._method.set_parameter(s, opti)
 
             return OcpxSolution(opti.solve(placeholders=self.placeholders))
         else:
