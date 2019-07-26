@@ -49,8 +49,8 @@ class MultipleShooting(SamplingMethod):
                 opti.subject_to(self.eval_at_control(stage, c, k))
         
         for c in stage._path_constraints_expr():  # for each constraint expression
-                # Add it to the optimizer, but first make x,u concrete.
-          opti.subject_to(self.eval_at_control(stage, c, -1))
+            # Add it to the optimizer, but first make x,u concrete.
+            opti.subject_to(self.eval_at_control(stage, c, -1))
 		
         self.xk.append(self.X[-1])
 
