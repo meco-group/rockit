@@ -106,14 +106,14 @@ class SamplingMethod(DirectMethod):
         r = 0
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
-            r = r + stage._expr_apply(expr,x=self.X[k],u=self.U[k],p=self.get_P_at(stage, k))*dt
+            r = r + self.eval_at_control(stage, expr, k)*dt
         return r
 
     def fill_placeholders_at_t0(self, stage, expr):
-        return stage._expr_apply(expr,x=self.X[0],u=self.U[0],p=self.get_P_at(stage, 0))
+        return self.eval_at_control(stage, expr, 0)
 
     def fill_placeholders_at_tf(self, stage, expr):
-        return stage._expr_apply(expr,x=self.X[-1],u=self.U[-1],p=self.get_P_at(stage, -1))
+        return self.eval_at_control(stage, expr, -1)
 
     def fill_placeholders_t0(self, stage, expr):
         return self.t0
