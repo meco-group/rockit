@@ -108,7 +108,7 @@ for i in range(Nsim):
 
     # Integral helper state: todo remove
     current_X = vertcat(current_X, 0)
-    current_X = Sim_pendulum_dyn(current_X, Fsol[0], dt)
+    current_X = Sim_pendulum_dyn(x0=current_X, u=Fsol[0], T=dt)["xf"]
     current_X = current_X[:4]
     # Add disturbance at t = 2*Tf
     if add_disturbance:
