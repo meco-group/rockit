@@ -10,7 +10,7 @@ x1 = stage.state()
 x2 = stage.state()
 
 # Define 1 control
-u = stage.control()
+u = stage.control(order=0)
 
 # Specify ODE
 stage.set_der(x1, (1 - x2**2) * x1 - x2 + u)
@@ -33,7 +33,7 @@ ocp.method(DirectMethod(solver='ipopt'))
 
 # Make it concrete for this stage
 method = MultipleShooting(N=10, M=1, intg='rk')
-method = DirectCollocation(N=20)
+#method = DirectCollocation(N=20)
 stage.method(method)
 
 # solve
@@ -69,14 +69,13 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
-tsol, usol = sol.sample(stage, u, grid='control')
+tsol, usol = sol.sample(stage, u, grid='integrator',refine=100)
 
 figure()
-step(tsol,usol,where='post')
+plot(tsol,usol)
 title("Control signal")
 xlabel("Times [s]")
 grid(True)
-
 
 try:
   tsc, x1c = sol.sample(stage, x1, grid='integrator', refine=10)
