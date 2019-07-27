@@ -1,5 +1,5 @@
 import numpy as np
-from casadi import vertcat
+from casadi import vertcat, vcat, DM, Function, hcat
 
 
 class OcpxSolution:
@@ -82,25 +82,24 @@ class OcpxSolution:
             msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
             raise Exception(msg)
         N, M, T = stage._method.N, stage._method.M, stage._method.T
+
+        expr_f = Function('expr', [stage.x, stage.u], [expr])
+
         sub_expr = []
-        res = []
-        ts = np.linspace(0, self.sol.value(T) / N / M, refine + 1)[0:-1]
+        tlocal = np.linspace(0, self.sol.value(T) / N / M, refine + 1) 
+        ts = DM(tlocal[:-1]).T
         for k in range(N):
-            for l in range(5 * M):
-                sub_expr.append(stage._constr_apply(
-                    expr, x=stage._method.poly_coeff[k * 5 * M + l], u=stage._method.U[k]))
-            cf = [self.sol.value(elem) for elem in sub_expr]
+            for l in range(M):
+                coeff = stage._method.poly_coeff[k * M + l]
+                tpower = vcat([ts**i for i in range(coeff.shape[1])])
+                sub_expr.append(expr_f(stage._method.poly_coeff[k * M + l] @ tpower, stage._method.U[k]))
 
-            for d in range(M):
-                res.extend(cf[d * 5] * ts**0 + cf[d * 5 + 1] * ts**1 + cf[d * 5 + 2] *
-                           ts**2 + cf[d * 5 + 3] * ts**3 + cf[d * 5 + 4] * ts**4)
-            sub_expr = []
+        ts = tlocal[-1]
+        tpower = vcat([ts**i for i in range(coeff.shape[1])])
+        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, stage._method.U[-1]))
 
-        ts = self.sol.value(T) / N / M
-        d = M - 1
-        final_value = cf[d * 5] * ts**0 + cf[d * 5 + 1] * ts**1 + \
-            cf[d * 5 + 2] * ts**2 + cf[d * 5 + 3] * ts**3 + cf[d * 5 + 4] * ts**4
-        res.append(final_value)
+        res = self.sol.value(hcat(sub_expr))
 
-        time = np.linspace(stage.t0, self.sol.value(T), refine * N * M + 1)
+        time = self.sol.value(stage._method.control_grid)
+        time = np.linspace(time[0], time[-1], refine * N * M + 1)
         return time, res

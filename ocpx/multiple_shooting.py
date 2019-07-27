@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit
 
 
 class MultipleShooting(SamplingMethod):
@@ -42,7 +42,7 @@ class MultipleShooting(SamplingMethod):
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
             if self.poly_coeff is not None:
-                self.poly_coeff.extend([poly_coeff_temp[:, i] for i in range(self.M*5)])
+                self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
 
             for c in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
