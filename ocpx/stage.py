@@ -1,7 +1,7 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes
 from .freetime import FreeTime
 from .direct_method import DirectMethod
-
+from .multiple_shooting import MultipleShooting
 
 class Stage:
     def __init__(self, ocp, t0=0, T=1):
@@ -28,7 +28,7 @@ class Stage:
         if prev_stage is None:
             s = Stage(self._ocp, **kwargs)
         else:
-            raise Exception("Not implemented yet!")
+            s = self._clone(prev_stage, **kwargs)
 
         self._stages.append(s)
         return s
@@ -231,3 +231,45 @@ class Stage:
             stage_placeholders = s._method.transcribe(s, opti)
             placeholders.update(stage_placeholders)
         return placeholders
+
+    def _clone(self, ref, **kwargs):
+        ret = Stage(self._ocp, **kwargs)
+        from copy import copy, deepcopy
+
+        # Placeholders need to be updated
+        subst_from = list(ref._placeholders.keys())
+        subst_to = [MX.sym(k.name(), k.sparsity()) for k in ref._placeholders.keys()]
+        for k_old, k_new in zip(subst_from, subst_to):
+            ret._placeholder_callbacks[k_new] = ref._placeholder_callbacks[k_old]
+            ret._placeholders[k_new] = ref._placeholders[k_old] 
+
+        subst_from.append(ref.t)
+        subst_to.append(ret.t)
+
+        ret.states = copy(ref.states)
+        ret.controls = copy(ref.controls)
+        ret.parameters = copy(ref.parameters)
+
+        ret._param_grid = copy(ref._param_grid)
+        ret._param_vals = copy(ref._param_vals)
+        ret._state_der = copy(ref._state_der)
+        orig = ref._constraints + [ref._objective]
+        res = substitute(orig, subst_from, subst_to)
+        ret._constraints = res[:-1]
+        ret._objective = res[-1]
+        ret._initial = copy(ref._initial)
+
+        ret._T = copy(ref._T)
+        ret._t0 = copy(ref._t0)
+        ret.T = substitute([ref.T], subst_from, subst_to)[0]
+        ret.t0 = substitute([ref.t0], subst_from, subst_to)[0]
+        ret.tf = substitute([ref.tf], subst_from, subst_to)[0]
+        ret.t = ref.t
+        ret._method = deepcopy(ref._method)
+        return ret
+
+    def iter_stages(self, include_self=False):
+        if include_self:
+            yield self
+        for s in self._stages:
+            yield from s.iter_stages(include_self=True)

@@ -33,9 +33,9 @@ def create_bouncing_ball_stage(ocp):
     stage.set_der(p, v)
     stage.set_der(v, -9.81)
 
-    stage.subject_to(p <= 5)
+    stage.subject_to(stage.at_t0(v) >= 0)
     stage.subject_to(p >= 0)
-    stage.method(MultipleShooting(N=20, M=1, intg='rk'))
+    stage.method(MultipleShooting(N=1, M=20, intg='rk'))
 
     return stage, p, v
 
@@ -70,9 +70,9 @@ sol = ocp.solve()
 
 # Plot the 3 bounces
 plt.figure()
-ts1, ps1 = sol.sample(stage1, p1, grid='control')
-ts2, ps2 = sol.sample(stage2, p2, grid='control')
-ts3, ps3 = sol.sample(stage3, p3, grid='control')
+ts1, ps1 = sol.sample(stage1, p1, grid='integrator')
+ts2, ps2 = sol.sample(stage2, p2, grid='integrator')
+ts3, ps3 = sol.sample(stage3, p3, grid='integrator')
 plt.plot(ts1, ps1)
 plt.plot(ts2, ps2)
 plt.plot(ts3, ps3)
