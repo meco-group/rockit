@@ -6,25 +6,27 @@ class DirectMethod:
     Base class for 'direct' solution methods for Optimal Control Problems:
       'first discretize, then optimize'
     """
+    
+    def configure(self, opti):
+        opti.solver(self.solver, self.solver_options)
 
-    def __init__(self, solver, solver_options={}):
-        self.opti = OptiWrapper()
-        self.opti.solver(solver, solver_options)
-
-    def spy_jacobian(self):
+    def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
-        J = jacobian(self.opti.g, self.opti.x).sparsity()
+        J = jacobian(opti.g, opti.x).sparsity()
         plt.spy(J)
         plt.title("Constraint Jacobian: " + J.dim(True))
 
-    def spy_hessian(self):
+    def spy_hessian(self, opti):
         import matplotlib.pylab as plt
-        lag = self.opti.f + dot(self.opti.lam_g, self.opti.g)
-        H = hessian(lag, self.opti.x)[0].sparsity()
+        lag = opti.f + dot(opti.lam_g, opti.g)
+        H = hessian(lag, opti.x)[0].sparsity()
         plt.spy(H)
         plt.title("Lagrange Hessian: " + H.dim(True))
-
-
+    
+    def transcribe(self, stage, opti):
+        for c in stage._constraints:
+            opti.subject_to(c)
+        return {}
 
 from casadi import substitute
 

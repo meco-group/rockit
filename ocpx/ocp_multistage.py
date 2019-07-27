@@ -1,35 +1,20 @@
 from .stage import Stage
-from .freetime import FreeTime
 from .ocpx_solution import OcpxSolution
+from .direct_method import OptiWrapper
 
-
-class OcpMultiStage:
-    def __init__(self):
-        self.stages = []
+class OcpMultiStage(Stage):
+    def __init__(self, **kwargs):
+        Stage.__init__(self, self, **kwargs)
         # Flag to make solve() faster when solving a second time
         # (e.g. with different parameter values)
         self.is_transcribed = False
-        self._constraints = []
-        self.placeholders = {}
-
-    def stage(self, prev_stage=None, **kwargs):
-        if prev_stage is None:
-            s = Stage(self, **kwargs)
-        else:
-            raise Exception("Not implemented yet!")
-
-        self.stages.append(s)
-        return s
-
-    def method(self, method):
-        self._method = method
-        method.opti.set_ocp(self)
+        self.opti = OptiWrapper()
 
     def spy_jacobian(self):
-        self._method.spy_jacobian()
+        self._method.spy_jacobian(self.opti)
 
     def spy_hessian(self):
-        self._method.spy_hessian()
+        self._method.spy_hessian(self.opti)
 
     def spy(self):
         import matplotlib.pylab as plt
@@ -40,29 +25,14 @@ class OcpMultiStage:
         self.spy_hessian()
 
     def solve(self):
-        opti = self._method.opti
         if not self.is_transcribed:
-            self.placeholders = {}
-            opti.subject_to()
-            opti.clear_objective()
-            constraints = self._constraints
-            for s in self.stages:
-                stage_placeholders = s._method.transcribe(s, opti)
-                self.placeholders.update(stage_placeholders)
-
-            for c in constraints:
-                opti.subject_to(c)
-
+            self.opti.subject_to()
+            self.opti.clear_objective()
+            placeholders = self._transcribe()
             self.is_transcribed = True
-
-            return OcpxSolution(opti.solve(placeholders=self.placeholders))
+            return OcpxSolution(self.opti.solve(placeholders=placeholders))
         else:
-            return OcpxSolution(opti.solve())
+            return OcpxSolution(self.opti.solve())
 
-
-    def free(self, T_init):
-        return FreeTime(T_init)
-
-    def subject_to(self, constr):
-        """Set the constraint."""
-        self._constraints.append(constr)
+    def solver(self, solver, solver_options={}):
+        self.opti.solver(solver, solver_options)

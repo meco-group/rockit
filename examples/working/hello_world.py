@@ -1,40 +1,37 @@
 from ocpx import *
 import matplotlib.pyplot as plt
 
-ocp = OcpMultiStage()
-
-stage = ocp.stage(T=10)
+ocp = OcpMultiStage(T=10)
 
 # Define 2 states
-x1 = stage.state()
-x2 = stage.state()
+x1 = ocp.state()
+x2 = ocp.state()
 
 # Define 1 control
-u = stage.control(order=0)
+u = ocp.control(order=0)
 
 # Specify ODE
-stage.set_der(x1, (1 - x2**2) * x1 - x2 + u)
-stage.set_der(x2, x1)
+ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+ocp.set_der(x2, x1)
 
 # Lagrange objective
-stage.add_objective(stage.integral(x1**2 + x2**2 + u**2))
+ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 
 # Path constraints
-stage.subject_to(      u <= 1)
-stage.subject_to(-1 <= u     )
-stage.subject_to(x1 >= -0.25 )
+ocp.subject_to(      u <= 1)
+ocp.subject_to(-1 <= u     )
+ocp.subject_to(x1 >= -0.25 )
 
 # Initial constraints
-stage.subject_to(stage.at_t0(x1) == 0)
-stage.subject_to(stage.at_t0(x2) == 1)
+ocp.subject_to(ocp.at_t0(x1) == 0)
+ocp.subject_to(ocp.at_t0(x2) == 1)
+
+ocp.solver('ipopt')
 
 # Pick a solution method
-ocp.method(DirectMethod(solver='ipopt'))
-
-# Make it concrete for this stage
 method = MultipleShooting(N=10, M=1, intg='rk')
 #method = DirectCollocation(N=20)
-stage.method(method)
+ocp.method(method)
 
 # solve
 sol = ocp.solve()
@@ -42,13 +39,12 @@ sol = ocp.solve()
 # Show structure
 ocp.spy()
 
-
 # Post-processing
-tsa, x1a = sol.sample(stage, x1, grid='control')
-tsa, x2a = sol.sample(stage, x2, grid='control')
+tsa, x1a = sol.sample(ocp, x1, grid='control')
+tsa, x2a = sol.sample(ocp, x2, grid='control')
 
-tsb, x1b = sol.sample(stage, x1, grid='integrator')
-tsb, x2b = sol.sample(stage, x2, grid='integrator')
+tsb, x1b = sol.sample(ocp, x1, grid='integrator')
+tsb, x2b = sol.sample(ocp, x2, grid='integrator')
 
 
 from pylab import *
@@ -69,7 +65,7 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
-tsol, usol = sol.sample(stage, u, grid='integrator',refine=100)
+tsol, usol = sol.sample(ocp, u, grid='integrator',refine=100)
 
 figure()
 plot(tsol,usol)
@@ -78,7 +74,7 @@ xlabel("Times [s]")
 grid(True)
 
 try:
-  tsc, x1c = sol.sample(stage, x1, grid='integrator', refine=10)
+  tsc, x1c = sol.sample(ocp, x1, grid='integrator', refine=10)
 
   figure(figsize=(15, 4))
   plot(tsc, x1c, '.-')

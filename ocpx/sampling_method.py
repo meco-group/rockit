@@ -1,8 +1,9 @@
 from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace
+from .direct_method import DirectMethod
 
-
-class SamplingMethod:
-    def __init__(self, N=50, M=1, intg='rk'):
+class SamplingMethod(DirectMethod):
+    def __init__(self, N=50, M=1, intg='rk', **kwargs):
+        DirectMethod.__init__(self, **kwargs)
         self.N = N
         self.M = M
         self.intg = intg

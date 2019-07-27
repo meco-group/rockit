@@ -1,50 +1,48 @@
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
+from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
 
 
 def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting(), t0=0):
-    ocp = OcpMultiStage()
-    stage = ocp.stage(t0=t0, T=T)
+    ocp = OcpMultiStage(t0=t0, T=T)
 
-    x = stage.state()
-    u = stage.control()
+    x = ocp.state()
+    u = ocp.control()
 
-    stage.set_der(x, u)
+    ocp.set_der(x, u)
 
-    stage.subject_to(u <= u_max)
-    stage.subject_to(-u_max <= u)
+    ocp.subject_to(u <= u_max)
+    ocp.subject_to(-u_max <= u)
 
-    stage.add_objective(stage.at_tf(x))
-    stage.subject_to(stage.at_t0(x) == x0)
+    ocp.add_objective(ocp.at_tf(x))
+    ocp.subject_to(ocp.at_t0(x) == x0)
 
-    ocp.method(DirectMethod(solver='ipopt'))
+    ocp.solver('ipopt')
 
-    stage.method(stage_method)
+    ocp.method(stage_method)
 
-    return (ocp, ocp.solve(), stage, x, u)
+    return (ocp, ocp.solve(), x, u)
 
 def bang_bang_problem(stage_method):
-    ocp = OcpMultiStage()
-    stage = ocp.stage(T=ocp.free(1))
+    ocp = OcpMultiStage(T=FreeTime(1))
 
-    p = stage.state()
-    v = stage.state()
-    u = stage.control()
+    p = ocp.state()
+    v = ocp.state()
+    u = ocp.control()
 
-    stage.set_der(p, v)
-    stage.set_der(v, u)
+    ocp.set_der(p, v)
+    ocp.set_der(v, u)
 
-    stage.subject_to(u <= 1)
-    stage.subject_to(-1 <= u)
+    ocp.subject_to(u <= 1)
+    ocp.subject_to(-1 <= u)
 
-    stage.add_objective(stage.T)
-    stage.subject_to(stage.at_t0(p) == 0)
-    stage.subject_to(stage.at_t0(v) == 0)
-    stage.subject_to(stage.at_tf(p) == 1)
-    stage.subject_to(stage.at_tf(v) == 0)
+    ocp.add_objective(ocp.T)
+    ocp.subject_to(ocp.at_t0(p) == 0)
+    ocp.subject_to(ocp.at_t0(v) == 0)
+    ocp.subject_to(ocp.at_tf(p) == 1)
+    ocp.subject_to(ocp.at_tf(v) == 0)
 
-    ocp.method(DirectMethod(solver='ipopt'))
+    ocp.solver('ipopt')
 
-    stage.method(stage_method)
+    ocp.method(stage_method)
 
-    return (ocp, ocp.solve(), stage, p, v, u)
+    return (ocp, ocp.solve(), p, v, u)
     

@@ -1,13 +1,13 @@
 import unittest
 
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
+from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
 from problems import integrator_control_problem
 
 
 class MiscTests(unittest.TestCase):
 
     def test_spy(self):
-      ocp, _, _, _, _ = integrator_control_problem()
+      ocp, _, _, _ = integrator_control_problem()
       ocp.spy()
       import matplotlib.pylab as plt
       self.assertEqual(plt.gca().title._text, "Lagrange Hessian: 101x101,0nz")
@@ -20,12 +20,11 @@ class MiscTests(unittest.TestCase):
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
                             for intg_method in ['rk', 'cvodes', 'idas']:
-                                _, sol, stage, x, u = integrator_control_problem(
+                                ocp, sol, x, u = integrator_control_problem(
                                     T, u_max, x0, MultipleShooting(N=4,M=M,intg=intg_method), t0
                                 )
 
-                                ts, xs = sol.sample(
-                                    stage, x, grid='control')
+                                ts, xs = sol.sample(ocp, x, grid='control')
 
                                 self.assertAlmostEqual(xs[0], x0, places=6)
                                 self.assertAlmostEqual(
@@ -39,29 +38,28 @@ class MiscTests(unittest.TestCase):
         b = 1
         t0 = 0
         x0 = 0
-        ocp = OcpMultiStage()
-        stage = ocp.stage(t0=t0,T=T)
+        ocp = OcpMultiStage(t0=t0,T=T)
 
-        x = stage.state()
-        u = stage.control()
+        x = ocp.state()
+        u = ocp.control()
 
-        stage.set_der(x,u)
+        ocp.set_der(x,u)
 
         y = 2*x
 
-        stage.subject_to(stage.der(y)<=2*b)
-        stage.subject_to(-2*b<=stage.der(y))
+        ocp.subject_to(ocp.der(y)<=2*b)
+        ocp.subject_to(-2*b<=ocp.der(y))
        
-        stage.add_objective(stage.at_tf(x))
-        stage.subject_to(stage.at_t0(x)==x0)
+        ocp.add_objective(ocp.at_tf(x))
+        ocp.subject_to(ocp.at_t0(x)==x0)
 
-        ocp.method(DirectMethod(solver='ipopt'))
+        ocp.solver('ipopt')
 
-        stage.method(MultipleShooting(N=4,M=M,intg='rk'))
+        ocp.method(MultipleShooting(N=4,M=M,intg='rk'))
        
         sol = ocp.solve()
 
-        ts, xs = sol.sample(stage,x,grid='control')
+        ts, xs = sol.sample(ocp,x,grid='control')
 
         self.assertAlmostEqual(xs[0],x0,places=6)
         self.assertAlmostEqual(xs[-1],x0-b*T,places=6)
@@ -75,28 +73,27 @@ class MiscTests(unittest.TestCase):
             for x0 in [0, 1]:
                 for b in [1, 2]:
                     for intg_method in ['rk', 'cvodes', 'idas']:
-                        ocp = OcpMultiStage()
-                        stage = ocp.stage(t0=t0, T=ocp.free(1))
+                        ocp = OcpMultiStage(t0=t0, T=FreeTime(1))
 
-                        x = stage.state()
-                        u = stage.control()
+                        x = ocp.state()
+                        u = ocp.control()
 
-                        stage.set_der(x, u)
+                        ocp.set_der(x, u)
 
-                        stage.subject_to(u <= b)
-                        stage.subject_to(-b <= u)
+                        ocp.subject_to(u <= b)
+                        ocp.subject_to(-b <= u)
 
-                        stage.add_objective(stage.T)
-                        stage.subject_to(stage.at_t0(x) == x0)
-                        stage.subject_to(stage.at_tf(x) == xf)
+                        ocp.add_objective(ocp.T)
+                        ocp.subject_to(ocp.at_t0(x) == x0)
+                        ocp.subject_to(ocp.at_tf(x) == xf)
 
-                        ocp.method(DirectMethod(solver='ipopt'))
+                        ocp.solver('ipopt')
 
-                        stage.method(MultipleShooting(N=4, intg=intg_method))
+                        ocp.method(MultipleShooting(N=4, intg=intg_method))
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(stage, x, grid='control')
+                        ts, xs = sol.sample(ocp, x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)
@@ -110,28 +107,27 @@ class MiscTests(unittest.TestCase):
             for x0 in [0, 1]:
                 for b in [1, 2]:
                     for intg_method in ['rk', 'cvodes', 'idas']:
-                        ocp = OcpMultiStage()
-                        stage = ocp.stage(t0=ocp.free(2),T=T)
+                        ocp = OcpMultiStage(t0=FreeTime(2),T=T)
 
-                        x = stage.state()
-                        u = stage.control()
+                        x = ocp.state()
+                        u = ocp.control()
 
-                        stage.set_der(x, u)
-                        stage.subject_to(u <= b)
-                        stage.subject_to(-b <= u)
+                        ocp.set_der(x, u)
+                        ocp.subject_to(u <= b)
+                        ocp.subject_to(-b <= u)
 
-                        stage.add_objective(stage.tf)
-                        stage.subject_to(stage.at_t0(x) == x0)
-                        stage.subject_to(stage.at_tf(x) == xf)
-                        stage.subject_to(stage.t0 >= 0)
+                        ocp.add_objective(ocp.tf)
+                        ocp.subject_to(ocp.at_t0(x) == x0)
+                        ocp.subject_to(ocp.at_tf(x) == xf)
+                        ocp.subject_to(ocp.t0 >= 0)
 
-                        ocp.method(DirectMethod(solver='ipopt'))
+                        ocp.solver('ipopt')
 
-                        stage.method(MultipleShooting(N=4, intg=intg_method))
+                        ocp.method(MultipleShooting(N=4, intg=intg_method))
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(stage, x, grid='control')
+                        ts, xs = sol.sample(ocp, x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)
@@ -139,36 +135,35 @@ class MiscTests(unittest.TestCase):
                         self.assertAlmostEqual(ts[-1], t0 + T)
 
     def test_param(self):
-      ocp = OcpMultiStage()
-      stage = ocp.stage(T=1)
+      ocp = OcpMultiStage(T=1)
 
-      x = stage.state()
-      u = stage.control()
+      x = ocp.state()
+      u = ocp.control()
 
-      p = stage.parameter()
+      p = ocp.parameter()
 
-      stage.set_der(x, u)
+      ocp.set_der(x, u)
 
-      stage.subject_to(u <= 1)
-      stage.subject_to(-1 <= u)
+      ocp.subject_to(u <= 1)
+      ocp.subject_to(-1 <= u)
 
-      stage.add_objective(stage.at_tf(x))
-      stage.subject_to(stage.at_t0(x) == p)
+      ocp.add_objective(ocp.at_tf(x))
+      ocp.subject_to(ocp.at_t0(x) == p)
 
-      ocp.method(DirectMethod(solver='ipopt'))
+      ocp.solver('ipopt')
 
-      stage.method(MultipleShooting())
+      ocp.method(MultipleShooting())
 
-      stage.set_value(p, 0)
+      ocp.set_value(p, 0)
       sol = ocp.solve()
 
-      ts, xs = sol.sample(stage, x, grid='control')
+      ts, xs = sol.sample(ocp, x, grid='control')
       self.assertAlmostEqual(xs[0], 0)
 
-      stage.set_value(p, 1)
+      ocp.set_value(p, 1)
       sol = ocp.solve()
 
-      ts, xs = sol.sample(stage, x, grid='control')
+      ts, xs = sol.sample(ocp, x, grid='control')
       self.assertAlmostEqual(xs[0], 1)
 
 if __name__ == '__main__':

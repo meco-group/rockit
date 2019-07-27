@@ -21,41 +21,40 @@ tgrid = np.linspace(0, T, N)
 y_ref_val = np.sin(tgrid)
 x0 = [0, 0]
 
-ocp = OcpMultiStage()
-stage = ocp.stage(t0=tgrid[0], T=tgrid[-1])
+ocp = OcpMultiStage(t0=tgrid[0], T=tgrid[-1])
 
 # Define states
-x = stage.state(2)
+x = ocp.state(2)
 
 # Define controls
-u = stage.control()
+u = ocp.control()
 
 # Specify ODE
 model_rhs = pendulum_ode(x, u, model_param)
-stage.set_der(x, model_rhs)
+ocp.set_der(x, model_rhs)
 
 # Set initial conditions
-stage.subject_to(stage.at_t0(x) == x0)
+ocp.subject_to(ocp.at_t0(x) == x0)
 
 # Define reference
-y_ref = stage.parameter(grid='control')
-stage.set_value(y_ref, y_ref_val)
+y_ref = ocp.parameter(grid='control')
+ocp.set_value(y_ref, y_ref_val)
 
 # Define output correction
-beta = stage.parameter(grid='control')
+beta = ocp.parameter(grid='control')
 
 # Define previous control
-u_prev = stage.parameter(grid='control')
+u_prev = ocp.parameter(grid='control')
 
 
 # Set ILC objective
-stage.add_objective(stage.integral((y_ref - beta -x[0])**2,grid='control')+1e-3*stage.integral((u-u_prev)**2, grid='control'))
+ocp.add_objective(ocp.integral((y_ref - beta -x[0])**2,grid='control')+1e-3*ocp.integral((u-u_prev)**2, grid='control'))
 
 # Pick a solution method
-ocp.method(DirectMethod(solver='ipopt'))
+ocp.solver('ipopt')
 
-# Make it concrete for this stage
-stage.method(MultipleShooting(N=N,M=4,intg='rk'))
+# Pick a solution method
+ocp.method(MultipleShooting(N=N,M=4,intg='rk'))
 
 # Define simulator for plant and model
 plant_rhs = pendulum_ode(x, u, plant_param)
@@ -82,13 +81,13 @@ for i in range(num_its):
     beta_val = y_meas[-1] - y_model
 
     # Set parameters for the current ILC iteration
-    stage.set_value(u_prev, u_prev_val)
-    stage.set_value(beta, beta_val)
+    ocp.set_value(u_prev, u_prev_val)
+    ocp.set_value(beta, beta_val)
 
     # Solve ILC problem
     sol = ocp.solve()
-    t, u_prev_val = sol.sample(stage, u.T, grid='control')
-    t, x_val= sol.sample(stage, x, grid='control')
+    t, u_prev_val = sol.sample(ocp, u.T, grid='control')
+    t, x_val= sol.sample(ocp, x, grid='control')
     u_prev_val = u_prev_val[:-1]
 
 

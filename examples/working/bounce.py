@@ -5,7 +5,7 @@ In this example, we want to shoot a ball from the ground up so that after 2
 bounces, it will reach the height of 0.5 meter.
 """
 
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
+from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
 import matplotlib.pyplot as plt
 
 
@@ -25,7 +25,7 @@ def create_bouncing_ball_stage(ocp):
     v : :obj:`~casadi.MX`
         velocity variable
     """
-    stage = ocp.stage(t0=ocp.free(0), T=ocp.free(1))
+    stage = ocp.stage(t0=FreeTime(0), T=FreeTime(1))
 
     p = stage.state()
     v = stage.state()
@@ -41,8 +41,6 @@ def create_bouncing_ball_stage(ocp):
 
 
 ocp = OcpMultiStage()
-ocp.method(DirectMethod(solver='ipopt'))
-
 
 # Shoot up the ball
 stage1, p1, v1 = create_bouncing_ball_stage(ocp)
@@ -64,6 +62,8 @@ ocp.subject_to(stage3.at_t0(p3) == stage2.at_tf(p2))
 ocp.subject_to(stage3.t0 == stage2.tf)
 ocp.subject_to(stage3.at_tf(v3) == 0)
 ocp.subject_to(stage3.at_tf(p3) == 0.5)  # Stop at a half meter!
+
+ocp.solver('ipopt')
 
 # Solve
 sol = ocp.solve()

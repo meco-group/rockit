@@ -21,8 +21,7 @@ def robust_control_stages(ocp,delta,t0):
   stage.subject_to(u <= 40)
   stage.subject_to(u >= -40)
   stage.subject_to(x[0] >= -0.25)
-  opti = ocp._method.opti
-  L = opti.variable()
+  L = ocp.variable()
   stage.add_objective(L)
   stage.subject_to(L>= sumsqr(x[0]-3))
   bound = lambda t: 2 + 0.1*cos(10*t)
@@ -33,8 +32,7 @@ def robust_control_stages(ocp,delta,t0):
   return stage,x,stage.at_t0(u)
 delta = 1
 ocp = OcpMultiStage()
-ocp.method(DirectMethod(solver='ipopt'))
- 
+
 stage1, x1, ut1 = robust_control_stages(ocp,delta,0)
 ocp.subject_to(stage1.at_t0(x1)==(1.0,0))
 
@@ -56,6 +54,7 @@ stage6, x6, ut6 = robust_control_stages(ocp,-delta,1)
 ocp.subject_to(stage6.at_t0(x6)==stage2.at_tf(x2))
 ocp.subject_to(ut5 == ut6)
 
+ocp.solver('ipopt')
 
 sol = ocp.solve()
 

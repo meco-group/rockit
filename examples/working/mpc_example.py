@@ -35,61 +35,59 @@ F_history       = np.zeros(Nsim)
 # -------------------------------
 # Set OCP
 # -------------------------------
-ocp = OcpMultiStage()
-
-stage = ocp.stage(T=Tf)
+ocp = OcpMultiStage(T=Tf)
 
 # Define states
-pos    = stage.state()  # [m]
-theta  = stage.state()  # [rad]
-dpos   = stage.state()  # [m/s]
-dtheta = stage.state()  # [rad/s]
+pos    = ocp.state()  # [m]
+theta  = ocp.state()  # [rad]
+dpos   = ocp.state()  # [m/s]
+dtheta = ocp.state()  # [rad/s]
 
 # Defince controls
-F = stage.control(nu, order=0)
+F = ocp.control(nu, order=0)
 
 # Define parameter
-X_0 = stage.parameter(nx);
+X_0 = ocp.parameter(nx);
 
 # Specify ODE
-stage.set_der(pos, dpos)
-stage.set_der(theta, dtheta)
-stage.set_der(dpos, (-m*L*sin(theta)*dtheta*dtheta + m*g*cos(theta)*sin(theta)+F)/(mcart + m - m*cos(theta)*cos(theta)) )
-stage.set_der(dtheta, (-m*L*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(mcart+m)*g*sin(theta))/(L*(mcart + m - m*cos(theta)*cos(theta))))
+ocp.set_der(pos, dpos)
+ocp.set_der(theta, dtheta)
+ocp.set_der(dpos, (-m*L*sin(theta)*dtheta*dtheta + m*g*cos(theta)*sin(theta)+F)/(mcart + m - m*cos(theta)*cos(theta)) )
+ocp.set_der(dtheta, (-m*L*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(mcart+m)*g*sin(theta))/(L*(mcart + m - m*cos(theta)*cos(theta))))
 
 # Lagrange objective
-stage.add_objective(stage.integral(F*2 + 100*pos**2))
+ocp.add_objective(ocp.integral(F*2 + 100*pos**2))
 
 # Path constraints
-stage.subject_to(      F <= 2  )
-stage.subject_to(-2 <= F       )
-stage.subject_to(-2 <= pos     )
-stage.subject_to(      pos <= 2)
+ocp.subject_to(      F <= 2  )
+ocp.subject_to(-2 <= F       )
+ocp.subject_to(-2 <= pos     )
+ocp.subject_to(      pos <= 2)
 
 # Initial constraints
 X = vertcat(pos,theta,dpos,dtheta)
-stage.subject_to(stage.at_t0(X)==X_0)
-stage.subject_to(stage.at_tf(X)==final_X)
+ocp.subject_to(ocp.at_t0(X)==X_0)
+ocp.subject_to(ocp.at_tf(X)==final_X)
 
 # Pick a solution method
 options = {"ipopt": {"print_level": 0}}
 options["expand"] = True
 options["print_time"] = False
-ocp.method(DirectMethod(solver='ipopt',solver_options=options))
+ocp.solver('ipopt',options)
 
-# Make it concrete for this stage
-stage.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
+# Make it concrete for this ocp
+ocp.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
 
 # -------------------------------
 # Solve the OCP wrt a parameter value (for the first time)
 # -------------------------------
 # Set initial value for parameters
-stage.set_value(X_0, current_X)
+ocp.set_value(X_0, current_X)
 # Solve
 sol = ocp.solve()
 
 # Get discretisd dynamics as CasADi function
-Sim_pendulum_dyn = stage._method.discrete_system(stage)
+Sim_pendulum_dyn = ocp._method.discrete_system(ocp)
 
 # Log data for post-processing
 pos_history[0]   = current_X[0]
@@ -103,7 +101,7 @@ theta_history[0] = current_X[1]
 for i in range(Nsim):
     print("timestep", i+1, "of", Nsim)
     # Get the solution from sol
-    tsa, Fsol = sol.sample(stage, F, grid='control')
+    tsa, Fsol = sol.sample(ocp, F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
 
     # Integral helper state: todo remove
@@ -120,7 +118,7 @@ for i in range(Nsim):
         meas_noise = 5e-4*(vertcat(np.random.rand(nx,1))-vertcat(1,1,1,1)) # 4x1 vector with values in [-1e-3, 1e-3]
         current_X = current_X + meas_noise
     # Set the parameter X0 to the new current_X
-    stage.set_value(X_0, current_X[:4])
+    ocp.set_value(X_0, current_X[:4])
     # Solve the optimization problem
     sol = ocp.solve()
 

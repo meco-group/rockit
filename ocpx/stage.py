@@ -1,13 +1,15 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes
 from .freetime import FreeTime
+from .direct_method import DirectMethod
 
 
 class Stage:
     def __init__(self, ocp, t0=0, T=1):
-        self.ocp = ocp
         self.states = []
         self.controls = []
         self.parameters = []
+
+        self._ocp = ocp
         self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
@@ -19,6 +21,17 @@ class Stage:
         self._placeholders = dict()
         self._placeholder_callbacks = dict()
         self._create_variables(t0, T)
+        self._stages = []
+        self._method = DirectMethod()
+
+    def stage(self, prev_stage=None, **kwargs):
+        if prev_stage is None:
+            s = Stage(self._ocp, **kwargs)
+        else:
+            raise Exception("Not implemented yet!")
+
+        self._stages.append(s)
+        return s
 
     def state(self, n_rows=1, n_cols=1):
         """
@@ -27,8 +40,11 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x", n_rows, n_cols)
         self.states.append(x)
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         return x
+
+    def variable(self, n_rows=1, n_cols=1):
+        return self._ocp.opti.variable()
 
     def parameter(self, n_rows=1, n_cols=1, grid = ''):
         """
@@ -38,7 +54,7 @@ class Stage:
         p = MX.sym("p", n_rows, n_cols)
         self._param_grid[p] = grid
         self.parameters.append(p)
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         return p
 
     def control(self, n_rows=1, n_cols=1, order=0):
@@ -50,17 +66,17 @@ class Stage:
 
         u = MX.sym("u", n_rows, n_cols)
         self.controls.append(u)
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         return u
 
     def set_value(self, parameter, value):
-        if self.ocp.is_transcribed:
-            self._method.set_value(self, self.ocp._method.opti, parameter, value)            
+        if self._ocp.is_transcribed:
+            self._method.set_value(self, self._ocp.opti, parameter, value)            
         else:
             self._param_vals[parameter] = value
 
     def set_der(self, state, der):
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         self._state_der[state] = der
 
     def der(self, expr):
@@ -79,7 +95,7 @@ class Stage:
             return self._create_placeholder_expr(expr, 'integral_control')
 
     def subject_to(self, constr):
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         self._constraints.append(constr)
 
     def set_initial(self, var, expr):
@@ -92,7 +108,7 @@ class Stage:
         return self._create_placeholder_expr(expr, 'at_tf')
 
     def add_objective(self, term):
-        self.ocp.is_transcribed = False
+        self._ocp.is_transcribed = False
         self._objective = self._objective + term
 
     def method(self, method):
@@ -205,3 +221,13 @@ class Stage:
         return (subst_from, subst_to)
 
     _constr_apply = _expr_apply
+
+    def _transcribe(self):
+        opti = self._ocp.opti
+        placeholders = {}
+        if self._method is not None:
+            placeholders.update(self._method.transcribe(self, opti))
+        for s in self._stages:
+            stage_placeholders = s._method.transcribe(s, opti)
+            placeholders.update(stage_placeholders)
+        return placeholders
