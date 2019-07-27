@@ -14,7 +14,7 @@ stages:
     - pip --cache-dir=.pip install casadi
     - pip --cache-dir=.pip install sphinx_rtd_theme
     - pip --cache-dir=.pip install coverage
-    - export PYTHONPATH=$PYTHONPATH:$(pwd)
+    - python setup.py install
   cache:
     paths:
       - .pip
