@@ -1,4 +1,4 @@
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat
 from .direct_method import DirectMethod
 
 class SamplingMethod(DirectMethod):
@@ -13,6 +13,8 @@ class SamplingMethod(DirectMethod):
         self.T = None
         self.t0 = None
         self.P = []
+        self.V = None
+        self.V_control = []
         self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
 
@@ -102,27 +104,27 @@ class SamplingMethod(DirectMethod):
         self.set_parameter(stage, opti)
         return placeholders
 
-    def fill_placeholders_integral_control(self, stage, expr):
+    def fill_placeholders_integral_control(self, stage, expr, *args):
         r = 0
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
             r = r + self.eval_at_control(stage, expr, k)*dt
         return r
 
-    def fill_placeholders_at_t0(self, stage, expr):
+    def fill_placeholders_at_t0(self, stage, expr, *args):
         return self.eval_at_control(stage, expr, 0)
 
-    def fill_placeholders_at_tf(self, stage, expr):
+    def fill_placeholders_at_tf(self, stage, expr, *args):
         return self.eval_at_control(stage, expr, -1)
 
-    def fill_placeholders_t0(self, stage, expr):
+    def fill_placeholders_t0(self, stage, expr, *args):
         return self.t0
 
-    def fill_placeholders_T(self, stage, expr):
+    def fill_placeholders_T(self, stage, expr, *args):
         return self.T
 
     def add_objective(self, stage, opti):
-        opti.add_objective(stage._objective)
+        opti.add_objective(self.eval(stage, stage._objective))
 
     def add_time_variables(self, stage, opti):
         if stage.is_free_time():
@@ -147,8 +149,21 @@ class SamplingMethod(DirectMethod):
 
         return vcat(P)
 
+    def get_v_control_at(self,stage,k=-1):
+        V = []
+        i = 0
+        for v in stage.variables:
+            if stage._var_grid[v] == 'control':
+                V.append(self.V_control[i][k])
+                i += 1
+
+        return veccat(*V)
+
+    def eval(self, stage, expr):
+        return stage._expr_apply(expr, p=self.get_P_at(stage), v=self.V)
+
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p=self.get_P_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p=self.get_P_at(stage, k), v=self.V, v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():

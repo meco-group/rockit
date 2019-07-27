@@ -8,8 +8,10 @@ class Stage:
         self.states = []
         self.controls = []
         self.parameters = []
+        self.variables = []
 
         self._ocp = ocp
+        self._var_grid = dict()
         self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
@@ -43,8 +45,13 @@ class Stage:
         self._ocp.is_transcribed = False
         return x
 
-    def variable(self, n_rows=1, n_cols=1):
-        return self._ocp.opti.variable()
+    def variable(self, n_rows=1, n_cols=1, grid = ''):
+        # Create a placeholder symbol with a dummy name (see #25)
+        v = MX.sym("v", n_rows, n_cols)
+        self._var_grid[v] = grid
+        self.variables.append(v)
+        self._ocp.is_transcribed = False
+        return v
 
     def parameter(self, n_rows=1, n_cols=1, grid = ''):
         """
@@ -200,7 +207,7 @@ class Stage:
         or expressions involving decision variables
         """
         subst_from, subst_to = self._get_subst_set(**kwargs)
-        return substitute([expr], subst_from, subst_to)[0]
+        return substitute([MX(expr)], subst_from, subst_to)[0]
 
     def _get_subst_set(self, **kwargs):
         subst_from = []
@@ -217,7 +224,14 @@ class Stage:
         if "p" in kwargs:
             subst_from.append(self.p)
             subst_to.append(kwargs["p"])
-
+        if "v" in kwargs:
+            v = veccat(*[v for v in self.variables if self._var_grid[v]==''])
+            subst_from.append(v)
+            subst_to.append(kwargs["v"])
+        if "v_control" in kwargs:
+            v = veccat(*[v for v in self.variables if self._var_grid[v]=='control'])
+            subst_from.append(v)
+            subst_to.append(kwargs["v_control"])
         return (subst_from, subst_to)
 
     _constr_apply = _expr_apply
@@ -249,8 +263,10 @@ class Stage:
         ret.states = copy(ref.states)
         ret.controls = copy(ref.controls)
         ret.parameters = copy(ref.parameters)
+        ret.variables = copy(ref.variables)
 
         ret._param_grid = copy(ref._param_grid)
+        ret._var_grid = copy(ref._var_grid)
         ret._param_vals = copy(ref._param_vals)
         ret._state_der = copy(ref._state_der)
         orig = ref._constraints + [ref._objective]

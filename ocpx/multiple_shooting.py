@@ -1,5 +1,5 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat
 
 
 class MultipleShooting(SamplingMethod):
@@ -12,9 +12,23 @@ class MultipleShooting(SamplingMethod):
         # is block-sparse
         self.X.append(opti.variable(stage.nx))
 
+        V = []
+        for v in stage.variables:
+            if stage._var_grid[v] == '':
+                V.append(opti.variable(v.shape[0], v.shape[1]))
+            elif stage._var_grid[v] == 'control':
+                self.V_control.append([])
+        self.V = veccat(*V)
+
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
             self.X.append(opti.variable(stage.nx))
+
+            for v in stage.variables:
+                i = 0
+                if stage._var_grid[v] == 'control':
+                    self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
+                    i += 1
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
@@ -55,4 +69,4 @@ class MultipleShooting(SamplingMethod):
         self.xk.append(self.X[-1])
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
-            opti.subject_to(stage._constr_apply(c, p=self.get_P_at(stage)))
+            opti.subject_to(self.eval(stage, c))
