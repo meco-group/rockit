@@ -1,4 +1,4 @@
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes
 from .freetime import FreeTime
 
 
@@ -62,6 +62,12 @@ class Stage:
     def set_der(self, state, der):
         self.ocp.is_transcribed = False
         self._state_der[state] = der
+
+    def der(self, expr):
+        if depends_on(expr, self.u):
+            raise Exception("Dependency on controls not supported yet for stage.der")
+        ode = self._ode()
+        return jtimes(expr, self.x, ode(self.x, self.u, self.p))
 
     def integral(self, expr, grid='inf'):
         if grid=='inf':

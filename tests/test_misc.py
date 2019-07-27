@@ -26,6 +26,42 @@ class MiscTests(unittest.TestCase):
                                 self.assertAlmostEqual(ts[0], t0)
                                 self.assertAlmostEqual(ts[-1], t0 + T)
 
+    def test_der(self):
+        T = 1
+        M = 1
+        b = 1
+        t0 = 0
+        x0 = 0
+        ocp = OcpMultiStage()
+        stage = ocp.stage(t0=t0,T=T)
+
+        x = stage.state()
+        u = stage.control()
+
+        stage.set_der(x,u)
+
+        y = 2*x
+
+        stage.subject_to(stage.der(y)<=2*b)
+        stage.subject_to(-2*b<=stage.der(y))
+       
+        stage.add_objective(stage.at_tf(x))
+        stage.subject_to(stage.at_t0(x)==x0)
+
+        ocp.method(DirectMethod(solver='ipopt'))
+
+        stage.method(MultipleShooting(N=4,M=M,intg='rk'))
+       
+        sol = ocp.solve()
+
+        ts, xs = sol.sample(stage,x,grid='control')
+
+        self.assertAlmostEqual(xs[0],x0,places=6)
+        self.assertAlmostEqual(xs[-1],x0-b*T,places=6)
+        self.assertAlmostEqual(ts[0],t0)
+        self.assertAlmostEqual(ts[-1],t0+T)
+
+
     def test_basic_time_free(self):
         xf = 2
         for t0 in [0, 1]:
