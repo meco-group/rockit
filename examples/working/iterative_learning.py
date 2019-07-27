@@ -1,4 +1,4 @@
-from ocpx import MultipleShooting, DirectMethod, OcpMultiStage
+from ocpx import MultipleShooting, DirectMethod, Ocp
 from casadi import integrator, vertcat, sin, Function, vcat, norm_2, horzcat
 import numpy as np
 import matplotlib.pyplot as plt
@@ -21,7 +21,7 @@ tgrid = np.linspace(0, T, N)
 y_ref_val = np.sin(tgrid)
 x0 = [0, 0]
 
-ocp = OcpMultiStage(t0=tgrid[0], T=tgrid[-1])
+ocp = Ocp(t0=tgrid[0], T=tgrid[-1])
 
 # Define states
 x = ocp.state(2)

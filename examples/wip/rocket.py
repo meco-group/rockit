@@ -1,6 +1,6 @@
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
+from ocpx import Ocp, DirectMethod, MultipleShooting
 
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 # Rocket example
 

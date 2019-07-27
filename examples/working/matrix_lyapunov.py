@@ -3,7 +3,7 @@ from ocpx import *
 from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt, jacobian
 import numpy as np
 
-ocp = OcpMultiStage(T=1.0)
+ocp = Ocp(T=1.0)
 
 x = ocp.state(2) # two states
 u = ocp.control()

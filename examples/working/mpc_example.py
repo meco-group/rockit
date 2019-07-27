@@ -35,7 +35,7 @@ F_history       = np.zeros(Nsim)
 # -------------------------------
 # Set OCP
 # -------------------------------
-ocp = OcpMultiStage(T=Tf)
+ocp = Ocp(T=Tf)
 
 # Define states
 pos    = ocp.state()  # [m]

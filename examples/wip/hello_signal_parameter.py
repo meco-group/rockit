@@ -4,7 +4,7 @@ import numpy as np
 
 # Inspired from https://github.com/casadi/casadi/blob/master/docs/examples/python/direct_multiple_shooting.py
 
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 stage = ocp.stage(t0=0,T=10)
 

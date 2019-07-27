@@ -31,7 +31,7 @@ def robust_control_stages(ocp,delta,t0):
   
   return stage,x,stage.at_t0(u)
 delta = 1
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 stage1, x1, ut1 = robust_control_stages(ocp,delta,0)
 ocp.subject_to(stage1.at_t0(x1)==(1.0,0))

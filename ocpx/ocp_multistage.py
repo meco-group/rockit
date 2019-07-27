@@ -2,7 +2,7 @@ from .stage import Stage
 from .ocpx_solution import OcpxSolution
 from .direct_method import OptiWrapper
 
-class OcpMultiStage(Stage):
+class Ocp(Stage):
     def __init__(self, **kwargs):
         Stage.__init__(self, self, **kwargs)
         # Flag to make solve() faster when solving a second time

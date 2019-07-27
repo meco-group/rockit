@@ -1,4 +1,4 @@
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 stage = ocp.stage()
 

@@ -1,8 +1,8 @@
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
+from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
 
 
 def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting(), t0=0):
-    ocp = OcpMultiStage(t0=t0, T=T)
+    ocp = Ocp(t0=t0, T=T)
 
     x = ocp.state()
     u = ocp.control()
@@ -22,7 +22,7 @@ def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting
     return (ocp, ocp.solve(), x, u)
 
 def bang_bang_problem(stage_method):
-    ocp = OcpMultiStage(T=FreeTime(1))
+    ocp = Ocp(T=FreeTime(1))
 
     p = ocp.state()
     v = ocp.state()

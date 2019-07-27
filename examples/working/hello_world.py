@@ -1,7 +1,7 @@
 from ocpx import *
 import matplotlib.pyplot as plt
 
-ocp = OcpMultiStage(T=10)
+ocp = Ocp(T=10)
 
 # Define 2 states
 x1 = ocp.state()

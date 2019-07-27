@@ -1,6 +1,6 @@
 import unittest
 
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
+from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
 from problems import integrator_control_problem
 
 
@@ -38,7 +38,7 @@ class MiscTests(unittest.TestCase):
         b = 1
         t0 = 0
         x0 = 0
-        ocp = OcpMultiStage(t0=t0,T=T)
+        ocp = Ocp(t0=t0,T=T)
 
         x = ocp.state()
         u = ocp.control()
@@ -73,7 +73,7 @@ class MiscTests(unittest.TestCase):
             for x0 in [0, 1]:
                 for b in [1, 2]:
                     for intg_method in ['rk', 'cvodes', 'idas']:
-                        ocp = OcpMultiStage(t0=t0, T=FreeTime(1))
+                        ocp = Ocp(t0=t0, T=FreeTime(1))
 
                         x = ocp.state()
                         u = ocp.control()
@@ -107,7 +107,7 @@ class MiscTests(unittest.TestCase):
             for x0 in [0, 1]:
                 for b in [1, 2]:
                     for intg_method in ['rk', 'cvodes', 'idas']:
-                        ocp = OcpMultiStage(t0=FreeTime(2),T=T)
+                        ocp = Ocp(t0=FreeTime(2),T=T)
 
                         x = ocp.state()
                         u = ocp.control()
@@ -135,7 +135,7 @@ class MiscTests(unittest.TestCase):
                         self.assertAlmostEqual(ts[-1], t0 + T)
 
     def test_param(self):
-      ocp = OcpMultiStage(T=1)
+      ocp = Ocp(T=1)
 
       x = ocp.state()
       u = ocp.control()

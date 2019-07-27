@@ -5,7 +5,7 @@ In this example, we want to shoot a ball from the ground up so that after 2
 bounces, it will reach the height of 0.5 meter.
 """
 
-from ocpx import OcpMultiStage, DirectMethod, MultipleShooting, FreeTime
+from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
 import matplotlib.pyplot as plt
 
 
@@ -40,7 +40,7 @@ def create_bouncing_ball_stage(ocp):
     return stage, p, v
 
 
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 # Shoot up the ball
 stage1, p1, v1 = create_bouncing_ball_stage(ocp)

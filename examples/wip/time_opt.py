@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
 
-ocp = OcpMultiStage()
+ocp = Ocp()
 
 stage = ocp.stage(t0=0, T=ocp.free(1.0))  # T initialised at 1, T>=0
 m = 10

@@ -11,4 +11,4 @@ L = 0.5
 
 g = 9.81
 
-ocp = OcpMultistage()
+ocp = Ocp()
