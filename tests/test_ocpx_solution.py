@@ -8,7 +8,7 @@ class OcpxSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
         N, T, u_max, x0 = 10, 10, 2, 1
         tolerance = 1e-6
-        sol, stage, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
+        _, sol, stage, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
 
         ts, xs = sol.sample(
             stage, x, grid='integrator')
@@ -27,7 +27,7 @@ class OcpxSolutionTests(unittest.TestCase):
         assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
 
     def test_intg_refine(self):
-        sol, stage, p, v, u = bang_bang_problem(MultipleShooting(N=2,intg='rk'))
+        ocp, sol, stage, p, v, u = bang_bang_problem(MultipleShooting(N=2,intg='rk'))
         tolerance = 1e-6
 
         ts, ps = sol.sample(stage, p, grid='integrator', refine=10)

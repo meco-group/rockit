@@ -1,7 +1,7 @@
 from ocpx import OcpMultiStage, DirectMethod, MultipleShooting
 
 
-def integrator_control_problem(T, u_max, x0, stage_method, t0=0):
+def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting(), t0=0):
     ocp = OcpMultiStage()
     stage = ocp.stage(t0=t0, T=T)
 
@@ -20,7 +20,7 @@ def integrator_control_problem(T, u_max, x0, stage_method, t0=0):
 
     stage.method(stage_method)
 
-    return (ocp.solve(), stage, x, u)
+    return (ocp, ocp.solve(), stage, x, u)
 
 def bang_bang_problem(stage_method):
     ocp = OcpMultiStage()
@@ -46,5 +46,5 @@ def bang_bang_problem(stage_method):
 
     stage.method(stage_method)
 
-    return (ocp.solve(), stage, p, v, u)
+    return (ocp, ocp.solve(), stage, p, v, u)
     

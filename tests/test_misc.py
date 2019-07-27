@@ -6,6 +6,13 @@ from problems import integrator_control_problem
 
 class MiscTests(unittest.TestCase):
 
+    def test_spy(self):
+      ocp, _, _, _, _ = integrator_control_problem()
+      ocp.spy()
+      import matplotlib.pylab as plt
+      self.assertEqual(plt.gca().title._text, "Lagrange Hessian: 101x101,0nz")
+
+
     def test_basic(self):
         for T in [1, 3.2]:
             for M in [1, 2]:
@@ -13,7 +20,7 @@ class MiscTests(unittest.TestCase):
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
                             for intg_method in ['rk', 'cvodes', 'idas']:
-                                sol, stage, x, u = integrator_control_problem(
+                                _, sol, stage, x, u = integrator_control_problem(
                                     T, u_max, x0, MultipleShooting(N=4,M=M,intg=intg_method), t0
                                 )
 
