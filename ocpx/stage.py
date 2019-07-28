@@ -270,9 +270,9 @@ class Stage:
         subst_from = list(self._placeholders.keys())
         subst_to = []
         for k in self._placeholders.keys():
-            if k == self.T:
+            if k is self.T and ret.is_free_time():
                 subst_to.append(ret.T)
-            elif k == self.t0:
+            elif k is self.t0 and ret.is_free_starttime():
                 subst_to.append(ret.t0)
             else:
                 subst_to.append(MX.sym(k.name(), k.sparsity()))
@@ -295,6 +295,11 @@ class Stage:
 
         ret._T = copy(self._T)
         ret._t0 = copy(self._t0)
+
+        if 'T' not in kwargs:
+            ret.T = substitute([MX(self.T)], subst_from, subst_to)[0]
+        if 't0' not in kwargs:
+            ret.t0 = substitute([MX(self.t0)], subst_from, subst_to)[0]
         ret.tf = substitute([MX(self.tf)], subst_from, subst_to)[0]
         ret.t = self.t
         ret._method = deepcopy(self._method)
