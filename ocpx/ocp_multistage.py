@@ -4,10 +4,11 @@ from .direct_method import OptiWrapper
 
 class Ocp(Stage):
     def __init__(self, **kwargs):
-        Stage.__init__(self, self, **kwargs)
+        Stage.__init__(self, **kwargs)
+        self.master = self
         # Flag to make solve() faster when solving a second time
         # (e.g. with different parameter values)
-        self.is_transcribed = False
+        self._is_transcribed = False
         self.opti = OptiWrapper()
 
     def spy_jacobian(self):
@@ -29,7 +30,7 @@ class Ocp(Stage):
             self.opti.subject_to()
             self.opti.clear_objective()
             placeholders = self._transcribe()
-            self.is_transcribed = True
+            self._set_transcribed(True)
             return OcpxSolution(self.opti.solve(placeholders=placeholders))
         else:
             return OcpxSolution(self.opti.solve())

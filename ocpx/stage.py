@@ -5,13 +5,15 @@ from .multiple_shooting import MultipleShooting
 from collections import defaultdict
 
 class Stage:
-    def __init__(self, ocp, t0=0, T=1):
+    def __init__(self, parent=None, t0=0, T=1):
         self.states = []
         self.controls = []
         self.parameters = defaultdict(list)
         self.variables = defaultdict(list)
 
-        self._ocp = ocp
+        self.master = parent.master if parent else None
+        self.parent = parent
+
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -25,13 +27,13 @@ class Stage:
         self._stages = []
         self._method = DirectMethod()
 
-    def stage(self, prev_stage=None, **kwargs):
-        if prev_stage is None:
-            s = Stage(self._ocp, **kwargs)
+    def stage(self, template=None, **kwargs):
+        if template:
+            s = template.clone(self, **kwargs)
         else:
-            s = self._clone(prev_stage, **kwargs)
-
+            s = Stage(self, **kwargs)
         self._stages.append(s)
+        self._set_transcribed(False)
         return s
 
     def state(self, n_rows=1, n_cols=1):
@@ -41,14 +43,14 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x", n_rows, n_cols)
         self.states.append(x)
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         return x
 
     def variable(self, n_rows=1, n_cols=1, grid = ''):
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v", n_rows, n_cols)
         self.variables[grid].append(v)
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         return v
 
     def parameter(self, n_rows=1, n_cols=1, grid = ''):
@@ -58,7 +60,7 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
         self.parameters[grid].append(p)
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         return p
 
     def control(self, n_rows=1, n_cols=1, order=0):
@@ -70,17 +72,17 @@ class Stage:
 
         u = MX.sym("u", n_rows, n_cols)
         self.controls.append(u)
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         return u
 
     def set_value(self, parameter, value):
-        if self._ocp.is_transcribed:
-            self._method.set_value(self, self._ocp.opti, parameter, value)            
+        if self.master.is_transcribed:
+            self._method.set_value(self, self.master.opti, parameter, value)            
         else:
             self._param_vals[parameter] = value
 
     def set_der(self, state, der):
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         self._state_der[state] = der
 
     def der(self, expr):
@@ -99,7 +101,7 @@ class Stage:
             return self._create_placeholder_expr(expr, 'integral_control')
 
     def subject_to(self, constr):
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         self._constraints.append(constr)
 
     def set_initial(self, var, expr):
@@ -112,7 +114,7 @@ class Stage:
         return self._create_placeholder_expr(expr, 'at_tf')
 
     def add_objective(self, term):
-        self._ocp.is_transcribed = False
+        self._set_transcribed(False)
         self._objective = self._objective + term
 
     def method(self, method):
@@ -238,50 +240,66 @@ class Stage:
 
     _constr_apply = _expr_apply
 
+    def _set_transcribed(self, val):
+        if self.master:
+            self.master._is_transcribed = val
+
+    @property
+    def is_transcribed(self):
+        if self.master:
+            return self.master._is_transcribed
+        else:
+            return False
+
     def _transcribe(self):
-        opti = self._ocp.opti
+        opti = self.master.opti
         placeholders = {}
         if self._method is not None:
             placeholders.update(self._method.transcribe(self, opti))
+
         for s in self._stages:
-            stage_placeholders = s._method.transcribe(s, opti)
+            stage_placeholders = s._transcribe()
             placeholders.update(stage_placeholders)
         return placeholders
 
-    def _clone(self, ref, **kwargs):
-        ret = Stage(self._ocp, **kwargs)
+    def clone(self, parent, **kwargs):
+        ret = Stage(parent, **kwargs)
         from copy import copy, deepcopy
 
         # Placeholders need to be updated
-        subst_from = list(ref._placeholders.keys())
-        subst_to = [MX.sym(k.name(), k.sparsity()) for k in ref._placeholders.keys()]
+        subst_from = list(self._placeholders.keys())
+        subst_to = []
+        for k in self._placeholders.keys():
+            if k == self.T:
+                subst_to.append(ret.T)
+            elif k == self.t0:
+                subst_to.append(ret.t0)
+            else:
+                subst_to.append(MX.sym(k.name(), k.sparsity()))
         for k_old, k_new in zip(subst_from, subst_to):
-            ret._placeholder_callbacks[k_new] = ref._placeholder_callbacks[k_old]
-            ret._placeholders[k_new] = ref._placeholders[k_old] 
+            ret._placeholder_callbacks[k_new] = self._placeholder_callbacks[k_old]
+            ret._placeholders[k_new] = self._placeholders[k_old]
 
-        subst_from.append(ref.t)
-        subst_to.append(ret.t)
+        ret.states = copy(self.states)
+        ret.controls = copy(self.controls)
+        ret.parameters = deepcopy(self.parameters)
+        ret.variables = deepcopy(self.variables)
 
-        ret.states = copy(ref.states)
-        ret.controls = copy(ref.controls)
-        ret.parameters = deepcopy(ref.parameters)
-        ret.variables = deepcopy(ref.variables)
-
-        ret._param_vals = copy(ref._param_vals)
-        ret._state_der = copy(ref._state_der)
-        orig = ref._constraints + [ref._objective]
+        ret._param_vals = copy(self._param_vals)
+        ret._state_der = copy(self._state_der)
+        orig = self._constraints + [self._objective]
         res = substitute(orig, subst_from, subst_to)
         ret._constraints = res[:-1]
         ret._objective = res[-1]
-        ret._initial = copy(ref._initial)
+        ret._initial = copy(self._initial)
 
-        ret._T = copy(ref._T)
-        ret._t0 = copy(ref._t0)
-        ret.T = substitute([ref.T], subst_from, subst_to)[0]
-        ret.t0 = substitute([ref.t0], subst_from, subst_to)[0]
-        ret.tf = substitute([ref.tf], subst_from, subst_to)[0]
-        ret.t = ref.t
-        ret._method = deepcopy(ref._method)
+        ret._T = copy(self._T)
+        ret._t0 = copy(self._t0)
+        ret.tf = substitute([MX(self.tf)], subst_from, subst_to)[0]
+        ret.t = self.t
+        ret._method = deepcopy(self._method)
+
+        ret._is_transcribed = False
         return ret
 
     def iter_stages(self, include_self=False):

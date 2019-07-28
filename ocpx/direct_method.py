@@ -50,7 +50,7 @@ class OptiWrapper(Opti):
         self.objective = 0
 
     def solve(self, placeholders=None):
-        if placeholders:
+        if placeholders is not None:
             ks = list(placeholders.keys())
             vs = [placeholders[k] for k in ks]
             res = substitute(self.constraints + [self.objective], ks, vs)
