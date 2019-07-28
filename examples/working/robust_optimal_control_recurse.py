@@ -31,6 +31,8 @@ bound = lambda t: 2 + 0.1*cos(10*t)
 template.subject_to(x1 <= bound(template.t))
 template.method(MultipleShooting(N=20, M=1, intg='rk'))
 
+branchings = [[-1,1]]*3
+
 def recurse(parent_stage, branching_var, branchings, current_depth=0):
   if len(branchings)==0: return
 
@@ -51,7 +53,7 @@ def recurse(parent_stage, branching_var, branchings, current_depth=0):
 
 
 
-branchings = [[-1,1]]*3
+
 recurse(ocp, delta, branchings)
 
 ocp.solver('ipopt',{"expand":True})
@@ -66,6 +68,7 @@ for s in ocp.iter_stages():
 
   plt.plot(ts, bound(ts),'r-')
 
+plt.grid(True)
 plt.xlabel('Time [s]')
 plt.ylabel('x1')
 
