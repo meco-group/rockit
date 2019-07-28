@@ -13,22 +13,21 @@ class MultipleShooting(SamplingMethod):
         self.X.append(opti.variable(stage.nx))
 
         V = []
-        for v in stage.variables:
-            if stage._var_grid[v] == '':
-                V.append(opti.variable(v.shape[0], v.shape[1]))
-            elif stage._var_grid[v] == 'control':
-                self.V_control.append([])
+        for v in stage.variables['']:
+            V.append(opti.variable(v.shape[0], v.shape[1]))
         self.V = veccat(*V)
+
+        V = []
+        for v in stage.variables['control']:
+            self.V_control.append([opti.variable(v.shape[0], v.shape[1])])
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
             self.X.append(opti.variable(stage.nx))
 
-            for v in stage.variables:
-                i = 0
-                if stage._var_grid[v] == 'control':
-                    self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
-                    i += 1
+            for i, v in enumerate(stage.variables['control']):
+                self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
+
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
@@ -46,7 +45,7 @@ class MultipleShooting(SamplingMethod):
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_P_at(stage, k))
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=vertcat(veccat(*self.P), self.get_p_control_at(stage, k)))
             # Dynamic constraints a.k.a. gap-closing constraints
             opti.subject_to(self.X[k + 1] == FF["xf"])
 

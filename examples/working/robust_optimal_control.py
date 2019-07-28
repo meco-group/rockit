@@ -21,7 +21,7 @@ def robust_control_stages(ocp,delta,t0):
   stage.subject_to(u <= 40)
   stage.subject_to(u >= -40)
   stage.subject_to(x[0] >= -0.25)
-  L = ocp.variable()
+  L = stage.variable()
   stage.add_objective(L)
   stage.subject_to(L>= sumsqr(x[0]-3))
   bound = lambda t: 2 + 0.1*cos(10*t)

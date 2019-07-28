@@ -44,7 +44,7 @@ class DirectCollocation(SamplingMethod):
                 Pidot_j = Z @ vcat(self.C[j + 1]) / dt
                 # Collocation constraints
                 opti.subject_to(Pidot_j == f(
-                    x=self.Z[k][:, j], u=self.U[k], p=vcat(self.P))["ode"])
+                    x=self.Z[k][:, j], u=self.U[k], p=self.P)["ode"])
 
             # Continuity constraints
             opti.subject_to(Z @ vcat(self.D) == self.X[k + 1])
@@ -54,4 +54,4 @@ class DirectCollocation(SamplingMethod):
                 opti.subject_to(self.eval_at_control(stage, c, k))
 
         for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
-            opti.subject_to(stage._constr_apply(c, p=self.P))
+            opti.subject_to(self.eval(stage, c))

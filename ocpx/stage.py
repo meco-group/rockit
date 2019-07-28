@@ -2,17 +2,16 @@ from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
+from collections import defaultdict
 
 class Stage:
     def __init__(self, ocp, t0=0, T=1):
         self.states = []
         self.controls = []
-        self.parameters = []
-        self.variables = []
+        self.parameters = defaultdict(list)
+        self.variables = defaultdict(list)
 
         self._ocp = ocp
-        self._var_grid = dict()
-        self._param_grid = dict()
         self._param_vals = dict()
         self._state_der = dict()
         self._constraints = []
@@ -48,8 +47,7 @@ class Stage:
     def variable(self, n_rows=1, n_cols=1, grid = ''):
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v", n_rows, n_cols)
-        self._var_grid[v] = grid
-        self.variables.append(v)
+        self.variables[grid].append(v)
         self._ocp.is_transcribed = False
         return v
 
@@ -59,8 +57,7 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
-        self._param_grid[p] = grid
-        self.parameters.append(p)
+        self.parameters[grid].append(p)
         self._ocp.is_transcribed = False
         return p
 
@@ -137,7 +134,7 @@ class Stage:
 
     @property
     def p(self):
-        return veccat(*self.parameters)
+        return veccat((*self.parameters['']+self.parameters['control']))
 
     @property
     def nx(self):
@@ -221,15 +218,20 @@ class Stage:
         if "u" in kwargs:
             subst_from.append(self.u)
             subst_to.append(kwargs["u"])
-        if "p" in kwargs:
-            subst_from.append(self.p)
+        if "p" in kwargs and self.parameters['']:
+            p = veccat(*self.parameters[''])
+            subst_from.append(p)
             subst_to.append(kwargs["p"])
-        if "v" in kwargs:
-            v = veccat(*[v for v in self.variables if self._var_grid[v]==''])
+        if "p_control" in kwargs and self.parameters['control']:
+            p = veccat(*self.parameters['control'])
+            subst_from.append(p)
+            subst_to.append(kwargs["p_control"])
+        if "v" in kwargs and self.variables['']:
+            v = veccat(*self.variables[''])
             subst_from.append(v)
             subst_to.append(kwargs["v"])
-        if "v_control" in kwargs:
-            v = veccat(*[v for v in self.variables if self._var_grid[v]=='control'])
+        if "v_control" in kwargs and self.variables['control']:
+            v = veccat(*self.variables['control'])
             subst_from.append(v)
             subst_to.append(kwargs["v_control"])
         return (subst_from, subst_to)
@@ -262,11 +264,9 @@ class Stage:
 
         ret.states = copy(ref.states)
         ret.controls = copy(ref.controls)
-        ret.parameters = copy(ref.parameters)
-        ret.variables = copy(ref.variables)
+        ret.parameters = deepcopy(ref.parameters)
+        ret.variables = deepcopy(ref.variables)
 
-        ret._param_grid = copy(ref._param_grid)
-        ret._var_grid = copy(ref._var_grid)
         ret._param_vals = copy(ref._param_vals)
         ret._state_der = copy(ref._state_der)
         orig = ref._constraints + [ref._objective]

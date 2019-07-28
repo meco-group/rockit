@@ -15,6 +15,8 @@ class SamplingMethod(DirectMethod):
         self.P = []
         self.V = None
         self.V_control = []
+        self.P_control = []
+
         self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
 
@@ -138,32 +140,18 @@ class SamplingMethod(DirectMethod):
             opti.set_initial(self.t0, stage._t0.T_init)
         else:
             self.t0 = stage.t0
-    
-    def get_P_at(self,stage,k=-1):
-        P = []
-        for i, p in enumerate(stage.parameters):
-            if stage._param_grid[p] == '':
-                P.append(self.P[i])
-            elif stage._param_grid[p] == 'control':
-                P.append(self.P[i][:,k])
 
-        return vcat(P)
+    def get_p_control_at(self, stage, k=-1):
+        return veccat(*[p[:,k] for p in self.P_control])
 
-    def get_v_control_at(self,stage,k=-1):
-        V = []
-        i = 0
-        for v in stage.variables:
-            if stage._var_grid[v] == 'control':
-                V.append(self.V_control[i][k])
-                i += 1
-
-        return veccat(*V)
+    def get_v_control_at(self, stage, k=-1):
+        return veccat(*[v[k] for v in self.V_control])
 
     def eval(self, stage, expr):
-        return stage._expr_apply(expr, p=self.get_P_at(stage), v=self.V)
+        return stage._expr_apply(expr, p=veccat(*self.P), v=self.V)
 
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p=self.get_P_at(stage, k), v=self.V, v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():
@@ -176,19 +164,20 @@ class SamplingMethod(DirectMethod):
                 opti.debug.value(self.eval_at_control(stage, expr, -1), opti.initial()))
 
     def set_value(self, stage, opti, parameter, value):
-        for i, p in enumerate(stage.parameters):
+        for i, p in enumerate(stage.parameters['']):
             if parameter is p:
                 opti.set_value(self.P[i], value)
-
+        for i, p in enumerate(stage.parameters['control']):
+            if parameter is p:
+                opti.set_value(self.P_control[i], value)
     def add_parameter(self, stage, opti):
-        for p in stage.parameters:
-            if stage._param_grid[p] == '':
-                self.P.append(opti.parameter(p.shape[0], p.shape[1]))
-            elif stage._param_grid[p] == 'control':
-                self.P.append(opti.parameter(p.shape[0], self.N*p.shape[1]))
-
+        for p in stage.parameters['']:
+            self.P.append(opti.parameter(p.shape[0], p.shape[1]))
+        for p in stage.parameters['control']:
+            self.P_control.append(opti.parameter(p.shape[0], self.N * p.shape[1]))
 
     def set_parameter(self, stage, opti):
-        for i, p in enumerate(stage.parameters):
+        for i, p in enumerate(stage.parameters['']):
             opti.set_value(self.P[i], stage._param_vals[p])
-
+        for i, p in enumerate(stage.parameters['control']):
+            opti.set_value(self.P_control[i], stage._param_vals[p])
