@@ -2,12 +2,13 @@ import unittest
 
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
 from problems import integrator_control_problem
-
+from numpy import sin, pi
 
 class MiscTests(unittest.TestCase):
 
     def test_spy(self):
-      ocp, _, _, _ = integrator_control_problem()
+      ocp, _, _ = integrator_control_problem()
+      ocp.solve()
       ocp.spy()
       import matplotlib.pylab as plt
       self.assertEqual(plt.gca().title._text, "Lagrange Hessian: 101x101,0nz")
@@ -20,9 +21,10 @@ class MiscTests(unittest.TestCase):
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
                             for intg_method in ['rk', 'cvodes', 'idas']:
-                                ocp, sol, x, u = integrator_control_problem(
+                                ocp, x, u = integrator_control_problem(
                                     T, u_max, x0, MultipleShooting(N=4,M=M,intg=intg_method), t0
                                 )
+                                sol = ocp.solve()
 
                                 ts, xs = sol.sample(ocp, x, grid='control')
 
@@ -165,6 +167,20 @@ class MiscTests(unittest.TestCase):
 
       ts, xs = sol.sample(ocp, x, grid='control')
       self.assertAlmostEqual(xs[0], 1)
+
+    def test_initial(self):
+      ocp, x, u = integrator_control_problem(x0=None)
+      v = ocp.variable()
+      ocp.subject_to(ocp.at_t0(x)==v)
+      ocp.subject_to(0==sin(v))
+      sol = ocp.solve()
+      ts, xs = sol.sample(ocp, x, grid='control')
+      self.assertAlmostEqual(xs[0], 0, places=6)
+
+      ocp.set_initial(v, 2*pi)
+      sol = ocp.solve()
+      ts, xs = sol.sample(ocp, x, grid='control')
+      self.assertAlmostEqual(xs[0], 2*pi, places=6)
 
 if __name__ == '__main__':
     unittest.main()

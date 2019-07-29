@@ -1,7 +1,9 @@
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
 
 
-def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting(), t0=0):
+def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=None, t0=0):
+    if stage_method is None:
+      stage_method = MultipleShooting()
     ocp = Ocp(t0=t0, T=T)
 
     x = ocp.state()
@@ -13,13 +15,14 @@ def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=MultipleShooting
     ocp.subject_to(-u_max <= u)
 
     ocp.add_objective(ocp.at_tf(x))
-    ocp.subject_to(ocp.at_t0(x) == x0)
+    if x0 is not None:
+        ocp.subject_to(ocp.at_t0(x) == x0)
 
     ocp.solver('ipopt')
 
     ocp.method(stage_method)
 
-    return (ocp, ocp.solve(), x, u)
+    return (ocp, x, u)
 
 def bang_bang_problem(stage_method):
     ocp = Ocp(T=FreeTime(1))

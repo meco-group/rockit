@@ -1,7 +1,6 @@
 import unittest
 
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
-from problems import integrator_control_problem
 import numpy as np
 
 class StageTests(unittest.TestCase):

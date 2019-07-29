@@ -8,8 +8,8 @@ class OcpxSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
         N, T, u_max, x0 = 10, 10, 2, 1
         tolerance = 1e-6
-        ocp, sol, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
-
+        ocp, x, u = integrator_control_problem(T, u_max, x0, MultipleShooting(N=N,M=3,intg='rk'))
+        sol = ocp.solve()
         ts, xs = sol.sample(
             ocp, x, grid='integrator')
         ts, us = sol.sample(

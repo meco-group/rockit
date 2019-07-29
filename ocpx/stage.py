@@ -81,6 +81,11 @@ class Stage:
         else:
             self._param_vals[parameter] = value
 
+    def set_initial(self, var, value):
+        self._initial[var] = value
+        if self.master.is_transcribed:
+            self._method.set_initial(self, self.master.opti)
+
     def set_der(self, state, der):
         self._set_transcribed(False)
         self._state_der[state] = der
@@ -104,8 +109,6 @@ class Stage:
         self._set_transcribed(False)
         self._constraints.append(constr)
 
-    def set_initial(self, var, expr):
-        self._initial[var] = expr
 
     def at_t0(self, expr):
         return self._create_placeholder_expr(expr, 'at_t0')
