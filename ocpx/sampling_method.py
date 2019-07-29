@@ -133,13 +133,13 @@ class SamplingMethod(DirectMethod):
             self.T = opti.variable()
             opti.set_initial(self.T, stage._T.T_init)
         else:
-            self.T = stage.T
+            self.T = stage._T
 
         if stage.is_free_starttime():
             self.t0 = opti.variable()
             opti.set_initial(self.t0, stage._t0.T_init)
         else:
-            self.t0 = stage.t0
+            self.t0 = stage._t0
 
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[:,k] for p in self.P_control])

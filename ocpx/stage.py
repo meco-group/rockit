@@ -175,16 +175,8 @@ class Stage:
         return placeholders
 
     def _create_variables(self, t0, T):
-        if self.is_free_time():
-            self.T = self._create_placeholder_expr(0, 'T')
-        else:
-            self.T = T
-
-        if self.is_free_starttime():
-            self.t0 = self._create_placeholder_expr(0, 't0')
-        else:
-            self.t0 = t0
-
+        self.T = self._create_placeholder_expr(0, 'T')
+        self.t0 = self._create_placeholder_expr(0, 't0')
         self.tf = self.t0 + self.T
 
         self.t = MX.sym('t')
@@ -270,9 +262,9 @@ class Stage:
         subst_from = list(self._placeholders.keys())
         subst_to = []
         for k in self._placeholders.keys():
-            if k is self.T and ret.is_free_time():
+            if k is self.T:  # T and t0 already have new placeholder symbols
                 subst_to.append(ret.T)
-            elif k is self.t0 and ret.is_free_starttime():
+            elif k is self.t0:
                 subst_to.append(ret.t0)
             else:
                 subst_to.append(MX.sym(k.name(), k.sparsity()))
@@ -293,12 +285,11 @@ class Stage:
         ret._objective = res[-1]
         ret._initial = copy(self._initial)
 
-        ret._T = copy(self._T)
-        ret._t0 = copy(self._t0)
-
         if 'T' not in kwargs:
+            ret._T = copy(self._T)
             ret.T = substitute([MX(self.T)], subst_from, subst_to)[0]
         if 't0' not in kwargs:
+            ret._t0 = copy(self._t0)
             ret.t0 = substitute([MX(self.t0)], subst_from, subst_to)[0]
         ret.tf = substitute([MX(self.tf)], subst_from, subst_to)[0]
         ret.t = self.t
