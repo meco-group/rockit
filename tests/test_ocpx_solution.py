@@ -4,7 +4,7 @@ from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
 from ocpx import MultipleShooting
 
-class OcpxSolutionTests(unittest.TestCase):
+class OcpSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
         N, T, u_max, x0 = 10, 10, 2, 1
         tolerance = 1e-6

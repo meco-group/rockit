@@ -13,7 +13,7 @@ class Stage:
         """Create an Optimal Control Problem stage.
         
         Only call this constructer when you need abstract stages,
-        ie stages that are not associated with an :obj:`~ocpx.ocp_multistage.Ocp`.
+        ie stages that are not associated with an :obj:`~ocpx.ocp.Ocp`.
         For other uses, see :obj:`~ocpx.stage.Stage.stage`.
 
         Parameters
@@ -55,7 +55,7 @@ class Stage:
         self._method = DirectMethod()
 
     def stage(self, template=None, **kwargs):
-        """Create a new :obj:`~ocpx.stage.Stage` and add it as to the :obj:`~ocpx.ocp_multistage.Ocp`.
+        """Create a new :obj:`~ocpx.stage.Stage` and add it as to the :obj:`~ocpx.ocp.Ocp`.
 
         Parameters
         ----------

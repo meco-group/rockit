@@ -1,5 +1,5 @@
 from .stage import Stage
-from .ocpx_solution import OcpxSolution
+from .solution import OcpSolution
 from .direct_method import OptiWrapper
 
 class Ocp(Stage):
@@ -47,9 +47,9 @@ class Ocp(Stage):
             self.opti.clear_objective()
             placeholders = self._transcribe()
             self._set_transcribed(True)
-            return OcpxSolution(self.opti.solve(placeholders=placeholders), self)
+            return OcpSolution(self.opti.solve(placeholders=placeholders), self)
         else:
-            return OcpxSolution(self.opti.solve(), self)
+            return OcpSolution(self.opti.solve(), self)
 
     def solver(self, solver, solver_options={}):
         self.opti.solver(solver, solver_options)

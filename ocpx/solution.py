@@ -2,7 +2,7 @@ import numpy as np
 from casadi import vertcat, vcat, DM, Function, hcat
 
 
-class OcpxSolution:
+class OcpSolution:
     def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
@@ -16,7 +16,7 @@ class OcpxSolution:
         stage : :obj:`~ocpx.stage.Stage`
             An optimal control problem stage.
         """
-        return OcpxSolution(self.sol, stage=stage)
+        return OcpSolution(self.sol, stage=stage)
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression at solution on a given grid.
