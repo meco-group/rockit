@@ -170,6 +170,7 @@ class SamplingMethod(DirectMethod):
         for i, p in enumerate(stage.parameters['control']):
             if parameter is p:
                 opti.set_value(self.P_control[i], value)
+
     def add_parameter(self, stage, opti):
         for p in stage.parameters['']:
             self.P.append(opti.parameter(p.shape[0], p.shape[1]))
@@ -178,10 +179,6 @@ class SamplingMethod(DirectMethod):
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
-            try:
-                opti.set_value(self.P[i], stage._param_vals[p])
-            except:
-                import ipdb
-                ipdb._set_trace()
+            opti.set_value(self.P[i], stage._param_vals[p])
         for i, p in enumerate(stage.parameters['control']):
             opti.set_value(self.P_control[i], stage._param_vals[p])
