@@ -1,4 +1,0 @@
-# Non-uniform time grids?
-
-# How much code should already be there?
-# There should be a minimally function piece of code; multi-stage
