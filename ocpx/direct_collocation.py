@@ -34,12 +34,27 @@ class DirectCollocation(SamplingMethod):
         if stage.is_free_time():
             opti.subject_to(self.T >= 0)
 
+        ps = []
+        tau_root = [0] + self.tau
+        # Construct polynomial basis
+        for j in range(self.degree + 1):
+            # Construct Lagrange polynomials to get the polynomial basis at the collocation point
+            p = np.poly1d([1])
+            for r in range(self.degree + 1):
+                if r != j:
+                    p *= np.poly1d([1, -tau_root[r]]) / (tau_root[j] - tau_root[r])
+            ps.append(hcat(p.coef[::-1]))
+        poly = vcat(ps)
+
+        
         self.poly_coeff = []
         self.xk = self.X
 
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
+            S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
             Z = horzcat(self.X[k], self.Z[k])
+            self.poly_coeff.append(Z @ (poly*S))
             for j in range(self.degree):
                 Pidot_j = Z @ vcat(self.C[j + 1]) / dt
                 # Collocation constraints
