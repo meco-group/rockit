@@ -30,7 +30,7 @@ ocp.solver('ipopt')
 
 # Pick a solution method
 method = MultipleShooting(N=10, M=1, intg='rk')
-method = DirectCollocation(N=20)
+#method = DirectCollocation(N=20)
 ocp.method(method)
 
 # Solve
