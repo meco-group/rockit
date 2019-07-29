@@ -4,6 +4,22 @@ from .direct_method import OptiWrapper
 
 class Ocp(Stage):
     def __init__(self, **kwargs):
+        """Create an Optimal Control Problem environment
+
+        Parameters
+        ----------
+        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Starting time of the optimal control horizon
+            Default: 0
+        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Total horizon of the optimal control horizon
+            Default: 1
+
+        Examples
+        --------
+        
+        >>> ocp = Ocp()
+        """
         Stage.__init__(self, **kwargs)
         self.master = self
         # Flag to make solve() faster when solving a second time

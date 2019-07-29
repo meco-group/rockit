@@ -5,7 +5,34 @@ from .multiple_shooting import MultipleShooting
 from collections import defaultdict
 
 class Stage:
+    """
+        A stage is defined on a time domain and has particular system dynamics
+        associated with it.
+    """
     def __init__(self, parent=None, t0=0, T=1):
+        """Create an Optimal Control Problem stage.
+        
+        Only call this constructer when you need abstract stages,
+        ie stages that are not associated with an :obj:`~ocpx.ocp_multistage.Ocp`.
+        For other uses, see :obj:`~ocpx.stage.Stage.stage`.
+
+        Parameters
+        ----------
+        parent : float or :obj:`~ocpx.stage.Stage`, optional
+            Parent Stage to which 
+            Default: None
+        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Starting time of the stage
+            Default: 0
+        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Total horizon of the stage
+            Default: 1
+
+        Examples
+        --------
+
+        >>> stage = Stage()
+        """
         self.states = []
         self.controls = []
         self.parameters = defaultdict(list)
@@ -28,6 +55,24 @@ class Stage:
         self._method = DirectMethod()
 
     def stage(self, template=None, **kwargs):
+        """Create a new :obj:`~ocpx.stage.Stage` and add it as to the :obj:`~ocpx.ocp_multistage.Ocp`.
+
+        Parameters
+        ----------
+        template : :obj:`~ocpx.stage.Stage`, optional
+            A stage to copy from. Will not be modified.
+        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Starting time of the stage
+            Default: 0
+        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+            Total horizon of the stage
+            Default: 1
+
+        Returns
+        -------
+        s : :obj:`~ocpx.stage.Stage`
+            New stage
+        """
         if template:
             s = template.clone(self, **kwargs)
         else:
@@ -37,8 +82,32 @@ class Stage:
         return s
 
     def state(self, n_rows=1, n_cols=1):
-        """
-        Create a state
+        """Create a state.
+        You must supply a derivative for the state with `~ocpx.stage.Stage.set_der`
+
+        Parameters
+        ----------
+        n_rows : int, optional
+            Number of rows
+            Default: 1
+        n_cols : int, optional
+            Number of columns
+            Default: 1
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing a state
+
+        Examples
+        --------
+
+        Defining the first-order ODE :  :math:`\dot(x) = -x`
+        
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        >>> ocp.set_initial(x, sin(ocp.t)) # Optional: give initial guess
         """
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x", n_rows, n_cols)
@@ -64,6 +133,34 @@ class Stage:
         return p
 
     def control(self, n_rows=1, n_cols=1, order=0):
+        """Create a control signal to optimize for
+
+        A control signal is parametrized as a piecewise polynomial.
+        By default (order=0), it is piecewise constant.
+
+        Parameters
+        ----------
+        n_rows : int, optional
+            Number of rows
+        n_cols : int, optional
+            Number of columns
+        order : int, optional
+            Order of polynomial. order=0 denotes a constant.
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing a control signal
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> u = ocp.control()
+        >>> ocp.set_der(x, u)
+        >>> ocp.set_initial(u, sin(ocp.t)) # Optional: give initial guess
+        """
+
         if order >= 1:
             u = self.state(n_rows, n_cols)
             helper_u = self.control(n_rows=n_rows, n_cols=n_cols, order=order - 1)
@@ -106,27 +203,142 @@ class Stage:
             return self._create_placeholder_expr(expr, 'integral_control')
 
     def subject_to(self, constr):
+        """Adds a constraint to the problem
+
+        The nature of the constraint is determined by its depencies.
+        If it depends on states or controls, it is taken a path-constraint
+        (ie should hold over the entire horizon).
+        Otherwise, if it depends only on the value of states/control
+        at the boundaries of the horizon (`~ocp.stage.Stage.at_t0`/`~ocp.stage.Stage.at_tf`), it is taken as a singe constraint.
+
+
+        Parameters
+        ----------
+        constr : :obj:`~casadi.MX`
+            A constrained expression. It should be a symbolic expression that depends
+            on decision variables and features a comparison `==`, `<=`, `=>`.
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        >>> ocp.subject_to( x <= 3)
+        >>> ocp.subject_to( ocp.at_t0(x) == 0)
+        >>> ocp.subject_to( ocp.at_tf(x) == 0)
+        """
         self._set_transcribed(False)
         self._constraints.append(constr)
 
 
     def at_t0(self, expr):
+        """Evaluate a signal at the start of the horizon
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            A symbolic expression that may depend on states and controls
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing an evaluation at `t0`.
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        >>> ocp.subject_to( ocp.at_t0(sin(x)) == 0)
+        """
         return self._create_placeholder_expr(expr, 'at_t0')
 
     def at_tf(self, expr):
+        """Evaluate a signal at the end of the horizon
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            A symbolic expression that may depend on states and controls
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing an evaluation at `tf`.
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        >>> ocp.subject_to( ocp.at_tf(sin(x)) == 0)
+        """
         return self._create_placeholder_expr(expr, 'at_tf')
 
     def add_objective(self, term):
+        """Add a term to the objective of the Optimal Control Problem
+
+        Parameters
+        ----------
+        term : :obj:`~casadi.MX`
+            A symbolic expression that may not depend directly on states and controls.
+            Use :obj:`~ocpx.stage.Stage.at_t0`/:obj:`~ocpx.stage.Stage.at_tf`/:obj:`~ocpx.stage.Stage.integral`
+            to eliminate the time-dependence of states and controls.
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        >>> ocp.add_objective( ocp.at_tf(x) )    # Mayer term
+        >>> ocp.add_objective( ocp.integral(x) ) # Lagrange term
+
+        """
         self._set_transcribed(False)
         self._objective = self._objective + term
 
     def method(self, method):
-        self._method = method
+        """Specify the transcription method
+
+        Note that, for multi-stage problems, each stages can have a different method specification.
+
+        Parameters
+        ----------
+        method : :obj:`~casadi.MX`
+            Instance of a subclass of :obj:`~ocpx.direct_method.DirectMethod`.
+            Will not be modified
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> ocp.method(MultipleShooting())
+        """
+        from copy import deepcopy
+        self._method = deepcopy(method)
 
     def is_free_time(self):
+        """Does the stage have a free horizon length T?
+
+        Returns
+        -------
+        res : bool
+
+        """
         return isinstance(self._T, FreeTime)
 
     def is_free_starttime(self):
+        """Does the stage have a free horizon start time t0?
+
+        Returns
+        -------
+        res : bool
+
+        """
         return isinstance(self._t0, FreeTime)
 
     @property
