@@ -1,5 +1,4 @@
 from ocpx import *
-import matplotlib.pyplot as plt
 
 ocp = Ocp(T=10)
 
@@ -26,14 +25,15 @@ ocp.subject_to(x1 >= -0.25 )
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
 
+# Pick an NLP solver backend
 ocp.solver('ipopt')
 
 # Pick a solution method
 method = MultipleShooting(N=10, M=1, intg='rk')
-#method = DirectCollocation(N=20)
+method = DirectCollocation(N=20)
 ocp.method(method)
 
-# solve
+# Solve
 sol = ocp.solve()
 
 # Show structure
@@ -65,15 +65,15 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
-tsol, usol = sol.sample(u, grid='integrator',refine=100)
+try: 
+  tsol, usol = sol.sample(u, grid='integrator',refine=100)
 
-figure()
-plot(tsol,usol)
-title("Control signal")
-xlabel("Times [s]")
-grid(True)
+  figure()
+  plot(tsol,usol)
+  title("Control signal")
+  xlabel("Times [s]")
+  grid(True)
 
-try:
   tsc, x1c = sol.sample(x1, grid='integrator', refine=10)
 
   figure(figsize=(15, 4))
@@ -84,4 +84,4 @@ try:
 except:
   pass
 
-plt.show(block=True)
+show(block=True)
