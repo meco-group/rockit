@@ -83,7 +83,7 @@ class Stage:
 
     def state(self, n_rows=1, n_cols=1):
         """Create a state.
-        You must supply a derivative for the state with `~ocpx.stage.Stage.set_der`
+        You must supply a derivative for the state with :obj:`~ocpx.stage.Stage.set_der`
 
         Parameters
         ----------
@@ -102,7 +102,7 @@ class Stage:
         Examples
         --------
 
-        Defining the first-order ODE :  :math:`\dot(x) = -x`
+        Defining the first-order ODE :  :math:`\dot{x} = -x`
         
         >>> ocp = Ocp()
         >>> x = ocp.state()
@@ -184,6 +184,24 @@ class Stage:
             self._method.set_initial(self, self.master.opti)
 
     def set_der(self, state, der):
+        """Assign a right-hand side to a state derivative
+
+        Parameters
+        ----------
+        state : `~casadi.MX`
+            A CasADi symbol created with :obj:`~ocpx.stage.Stage.state`.
+        der : `~casadi.MX`
+            A CasADi symbolic expression of the same size as `state`
+
+        Examples
+        --------
+
+        Defining the first-order ODE :  :math:`\dot{x} = -x`
+        
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, -x)
+        """
         self._set_transcribed(False)
         self._state_der[state] = der
 
@@ -205,18 +223,17 @@ class Stage:
     def subject_to(self, constr):
         """Adds a constraint to the problem
 
-        The nature of the constraint is determined by its depencies.
-        If it depends on states or controls, it is taken a path-constraint
-        (ie should hold over the entire horizon).
-        Otherwise, if it depends only on the value of states/control
-        at the boundaries of the horizon (`~ocp.stage.Stage.at_t0`/`~ocp.stage.Stage.at_tf`), it is taken as a singe constraint.
-
-
         Parameters
         ----------
         constr : :obj:`~casadi.MX`
             A constrained expression. It should be a symbolic expression that depends
             on decision variables and features a comparison `==`, `<=`, `=>`.
+
+            If `constr` is a signal (:obj:`~ocpx.stage.Stage.is_signal`, depends on time)
+            a path-constraint is assumed: it should hold over the entire stage horizon.
+
+            If `constr` is not a signal (e.g. :obj:`~ocpx.stage.Stage.at_t0`/:obj:`~ocpx.stage.Stage.at_tf` was applied on states),
+            a boundary constraint is assumed.
 
         Examples
         --------
@@ -224,9 +241,9 @@ class Stage:
         >>> ocp = Ocp()
         >>> x = ocp.state()
         >>> ocp.set_der(x, -x)
-        >>> ocp.subject_to( x <= 3)
-        >>> ocp.subject_to( ocp.at_t0(x) == 0)
-        >>> ocp.subject_to( ocp.at_tf(x) == 0)
+        >>> ocp.subject_to( x <= 3)             # path constraint
+        >>> ocp.subject_to( ocp.at_t0(x) == 0)  # boundary constraint
+        >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
         """
         self._set_transcribed(False)
         self._constraints.append(constr)
@@ -365,8 +382,16 @@ class Stage:
     def np(self):
         return self.p.numel()
 
-    def is_trajectory(self, expr):
-        return depends_on(expr, vertcat(self.x, self.u))
+    def is_signal(self, expr):
+        """Does the expression represent a signal (does it depend on time)?
+
+        Returns
+        -------
+        res : bool
+
+        """
+ 
+        return depends_on(expr, vertcat(self.x, self.u, self.t))
 
     def _create_placeholder_expr(self, expr, callback_name):
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
@@ -402,10 +427,10 @@ class Stage:
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
     def _boundary_constraints_expr(self):
-        return [c for c in self._constraints if not self.is_trajectory(c)]
+        return [c for c in self._constraints if not self.is_signal(c)]
 
     def _path_constraints_expr(self):
-        return [c for c in self._constraints if self.is_trajectory(c)]
+        return [c for c in self._constraints if self.is_signal(c)]
 
     def _expr_apply(self, expr, **kwargs):
         """
