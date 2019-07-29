@@ -3,6 +3,7 @@ from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from collections import defaultdict
+from .casadi_helpers import get_meta
 
 class Stage:
     """
@@ -246,8 +247,7 @@ class Stage:
         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
         """
         self._set_transcribed(False)
-        self._constraints.append(constr)
-
+        self._constraints.append((constr, get_meta()))
 
     def at_t0(self, expr):
         """Evaluate a signal at the start of the horizon
@@ -427,10 +427,10 @@ class Stage:
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
     def _boundary_constraints_expr(self):
-        return [c for c in self._constraints if not self.is_signal(c)]
+        return [cm for cm in self._constraints if not self.is_signal(cm[0])]
 
     def _path_constraints_expr(self):
-        return [c for c in self._constraints if self.is_signal(c)]
+        return [cm for cm in self._constraints if self.is_signal(cm[0])]
 
     def _expr_apply(self, expr, **kwargs):
         """
@@ -519,9 +519,9 @@ class Stage:
 
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
-        orig = self._constraints + [self._objective]
+        orig = [c for c, _ in self._constraints] + [self._objective]
         res = substitute(orig, subst_from, subst_to)
-        ret._constraints = res[:-1]
+        ret._constraints = list(zip(res[:-1], [m for _, m in self._constraints]))
         ret._objective = res[-1]
         ret._initial = copy(self._initial)
 

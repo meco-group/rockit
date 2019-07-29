@@ -66,3 +66,28 @@ def reinterpret_expr(expr, symbols_from, symbols_to):
                 print('Evaluated ' + str(f))
 
     return output_val[0]
+
+
+def get_meta():
+    # Construct meta-data
+    import sys
+    import os
+    frame = sys._getframe(2)
+    meta = {"stacktrace": [{"file":os.path.abspath(frame.f_code.co_filename),"line":frame.f_lineno,"name":frame.f_code.co_name} ] }
+    return meta
+
+def merge_meta(a, b):
+    if b is None:
+        return a
+    if a is None:
+        return b
+    from copy import deepcopy
+    res = deepcopy(a)
+    res["stacktrace"] += b["stacktrace"] 
+    return res
+
+def single_stacktrace(m):
+    from copy import deepcopy
+    m = deepcopy(m)
+    m["stacktrace"] = m["stacktrace"][0]
+    return m

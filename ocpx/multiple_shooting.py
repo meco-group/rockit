@@ -57,15 +57,15 @@ class MultipleShooting(SamplingMethod):
             if self.poly_coeff is not None:
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
 
-            for c in stage._path_constraints_expr():  # for each constraint expression
+            for c, meta in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
-                opti.subject_to(self.eval_at_control(stage, c, k))
+                opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
         
-        for c in stage._path_constraints_expr():  # for each constraint expression
+        for c, meta in stage._path_constraints_expr():  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
-            opti.subject_to(self.eval_at_control(stage, c, -1))
+            opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
         self.xk.append(self.X[-1])
 
-        for c in stage._boundary_constraints_expr():  # Append boundary conditions to the end
-            opti.subject_to(self.eval(stage, c))
+        for c, meta in stage._boundary_constraints_expr():  # Append boundary conditions to the end
+            opti.subject_to(self.eval(stage, c), meta=meta)

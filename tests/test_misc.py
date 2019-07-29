@@ -1,8 +1,10 @@
 import unittest
 
-from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
+from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
 from problems import integrator_control_problem
 from numpy import sin, pi
+from contextlib import redirect_stdout
+from io import StringIO
 
 class MiscTests(unittest.TestCase):
 
@@ -182,5 +184,16 @@ class MiscTests(unittest.TestCase):
       ts, xs = sol.sample(x, grid='control')
       self.assertAlmostEqual(xs[0], 2*pi, places=6)
 
+    def test_show_infeasibilities(self):
+      for method in [MultipleShooting(), DirectCollocation()]:
+        ocp, x, u = integrator_control_problem(stage_method=method, x0 = 0)
+        ocp.subject_to(ocp.at_t0(x)==2)   
+        with self.assertRaises(Exception):
+          sol = ocp.solve()
+        with StringIO() as buf, redirect_stdout(buf):
+          ocp.show_infeasibilities(1e-4)
+          out = buf.getvalue()
+        self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
+      
 if __name__ == '__main__':
     unittest.main()

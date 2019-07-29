@@ -53,3 +53,6 @@ class Ocp(Stage):
 
     def solver(self, solver, solver_options={}):
         self.opti.solver(solver, solver_options)
+
+    def show_infeasibilities(self, *args, **kwargs):
+        self.opti.debug.show_infeasibilities(*args, **kwargs)

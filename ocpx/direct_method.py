@@ -1,5 +1,5 @@
 from casadi import Opti, jacobian, dot, hessian
-
+from .casadi_helpers import get_meta, merge_meta, single_stacktrace
 
 class DirectMethod:
     """
@@ -24,8 +24,8 @@ class DirectMethod:
         plt.title("Lagrange Hessian: " + H.dim(True))
     
     def transcribe(self, stage, opti):
-        for c in stage._constraints:
-            opti.subject_to(c)
+        for c, m in stage._constraints:
+            opti.subject_to(c, meta = m)
         return {}
 
 from casadi import substitute
@@ -37,11 +37,12 @@ class OptiWrapper(Opti):
         self.objective = 0
         self.placeholders = None
 
-    def subject_to(self, expr=None):
+    def subject_to(self, expr=None, meta=None):
+        meta = merge_meta(meta, get_meta())
         if expr is None:
             self.constraints = []
         else:
-            self.constraints.append(expr)
+            self.constraints.append((expr, meta))
 
     def add_objective(self, expr):
         self.objective = self.objective + expr
@@ -53,9 +54,10 @@ class OptiWrapper(Opti):
         if placeholders is not None:
             ks = list(placeholders.keys())
             vs = [placeholders[k] for k in ks]
-            res = substitute(self.constraints + [self.objective], ks, vs)
-            for c in res[:-1]:
+            res = substitute([c[0] for c in self.constraints] + [self.objective], ks, vs)
+            for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
                 super().subject_to(c)
+                self.update_user_dict(c, single_stacktrace(meta))
             super().minimize(res[-1])
             self.placeholders = placeholders
         return OptiSolWrapper(self, super().solve())
