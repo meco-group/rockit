@@ -148,17 +148,18 @@ fig.tight_layout()
 # -------------------------------
 # Animate results
 # -------------------------------
-fig2, ax3 = plt.subplots(1, 1)
-plt.ion()
-ax3.set_xlabel("X [m]")
-ax3.set_ylabel("Y [m]")
-for k in range(Nsim+1):
-    cart_pos_k      = pos_history[k]
-    theta_k         = theta_history[k]
-    pendulum_pos_k  = vertcat(horzcat(cart_pos_k,0), vertcat(cart_pos_k-L*sin(theta_k),L*cos(theta_k)).T)
-    color_k     = 3*[0.95*(1-float(k)/Nsim)]
-    ax3.plot(pendulum_pos_k[0,0], pendulum_pos_k[0,1], "s", markersize = 15, color = color_k)
-    ax3.plot(pendulum_pos_k[:,0], pendulum_pos_k[:,1], "-", linewidth = 1.5, color = color_k)
-    ax3.plot(pendulum_pos_k[1,0], pendulum_pos_k[1,1], "o", markersize = 10, color = color_k)
-    plt.pause(dt)
+if plt.isinteractive():
+  fig2, ax3 = plt.subplots(1, 1)
+  plt.ion()
+  ax3.set_xlabel("X [m]")
+  ax3.set_ylabel("Y [m]")
+  for k in range(Nsim+1):
+      cart_pos_k      = pos_history[k]
+      theta_k         = theta_history[k]
+      pendulum_pos_k  = vertcat(horzcat(cart_pos_k,0), vertcat(cart_pos_k-L*sin(theta_k),L*cos(theta_k)).T)
+      color_k     = 3*[0.95*(1-float(k)/Nsim)]
+      ax3.plot(pendulum_pos_k[0,0], pendulum_pos_k[0,1], "s", markersize = 15, color = color_k)
+      ax3.plot(pendulum_pos_k[:,0], pendulum_pos_k[:,1], "-", linewidth = 1.5, color = color_k)
+      ax3.plot(pendulum_pos_k[1,0], pendulum_pos_k[1,1], "o", markersize = 10, color = color_k)
+      plt.pause(dt)
 plt.show(block=True)
