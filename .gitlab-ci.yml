@@ -32,7 +32,7 @@ testing:examples:
   stage: testing
   <<: *template
   script:
-    - find  examples/working -name "*.py" | xargs -n 1 python
+    - find  examples -name "*.py" | xargs -n 1 python
 
 docs:sphinx:
   stage: docs
