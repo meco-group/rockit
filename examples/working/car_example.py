@@ -48,11 +48,11 @@ sol = ocp.solve()
 from pylab import *
 
 # Post-processing
-tsa, pa = sol.sample(ocp, p, grid='control')
-tsa, va = sol.sample(ocp, v, grid='control')
+tsa, pa = sol.sample(p, grid='control')
+tsa, va = sol.sample(v, grid='control')
 
-tsb, pb = sol.sample(ocp, p, grid='integrator')
-tsb, vb = sol.sample(ocp, v, grid='integrator')
+tsb, pb = sol.sample(p, grid='integrator')
+tsb, vb = sol.sample(v, grid='integrator')
 
 
 figure(figsize=(10, 4))
@@ -71,7 +71,7 @@ xlabel("Times [s]", fontsize=14)
 title('State v')
 grid(True)
 
-tsol, usol = sol.sample(ocp, F, grid='control')
+tsol, usol = sol.sample(F, grid='control')
 
 figure()
 step(tsol,usol,where='post')

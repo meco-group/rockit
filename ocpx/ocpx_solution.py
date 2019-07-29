@@ -3,17 +3,26 @@ from casadi import vertcat, vcat, DM, Function, hcat
 
 
 class OcpxSolution:
-    def __init__(self, nlpsol):
+    def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
+        self.stage = stage
 
-    def sample(self, stage, expr, grid, **kwargs):
+    def __call__(self, stage):
         """Sample expression at solution on a given grid.
 
         Parameters
         ----------
         stage : :obj:`~ocpx.stage.Stage`
             An optimal control problem stage.
+        """
+        return OcpxSolution(self.sol, stage=stage)
+
+    def sample(self, expr, grid, **kwargs):
+        """Sample expression at solution on a given grid.
+
+        Parameters
+        ----------
         expr : :obj:`casadi.MX`
             Arbitrary expression containing states, controls, ...
         grid : `str`
@@ -36,15 +45,15 @@ class OcpxSolution:
         Assume an ocp with a stage is already defined.
 
         >>> sol = ocp.solve()
-        >>> tx, xs = sol.sample(stage, x, grid='control')
+        >>> tx, xs = sol.sample(x, grid='control')
         """
         if grid == 'control':
-            return self._grid_control(stage, expr, grid, **kwargs)
+            return self._grid_control(self.stage, expr, grid, **kwargs)
         elif grid == 'integrator':
             if 'refine' in kwargs:
-                return self._grid_intg_fine(stage, expr, grid, **kwargs)
+                return self._grid_intg_fine(self.stage, expr, grid, **kwargs)
             else:
-                return self._grid_integrator(stage, expr, grid, **kwargs)
+                return self._grid_integrator(self.stage, expr, grid, **kwargs)
         else:
             msg = "Unknown grid option: {}\n".format(grid)
             msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."

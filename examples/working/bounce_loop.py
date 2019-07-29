@@ -49,7 +49,7 @@ sol = ocp.solve()
 plt.figure()
 
 for s in ocp.iter_stages():
-    ts, ps = sol.sample(s, p, grid='integrator')
+    ts, ps = sol(s).sample(p, grid='integrator')
     plt.plot(ts, ps)
 
 plt.show(block=True)

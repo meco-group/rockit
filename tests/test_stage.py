@@ -52,14 +52,14 @@ class StageTests(unittest.TestCase):
 
                         tolerance = 1e-6
 
-                        ts, ps = sol.sample(mystage, p, grid='integrator', refine=10)
+                        ts, ps = sol(mystage).sample(p, grid='integrator', refine=10)
 
                         ps_ref = np.hstack(((0.5*np.linspace(0,1, 10+1)**2)[:-1],np.linspace(0.5,1.5,10+1)-0.5*np.linspace(0,1, 10+1)**2)) 
                         np.testing.assert_allclose(ps, ps_ref, atol=tolerance)
 
                         ts_ref = t0_sol + np.linspace(0, 2, 10*2+1)
 
-                        ts, vs = sol.sample(mystage, v, grid='integrator', refine=10)
+                        ts, vs = sol(mystage).sample(v, grid='integrator', refine=10)
                         np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
 
                         vs_ref = np.hstack((np.linspace(0,1, 10+1)[:-1],np.linspace(1,0, 10+1))) 
@@ -67,7 +67,7 @@ class StageTests(unittest.TestCase):
 
 
                         u_ref = np.array([1.0]*10+[-1.0]*11)
-                        ts, us = sol.sample(mystage, u, grid='integrator', refine=10)
+                        ts, us = sol(mystage).sample(u, grid='integrator', refine=10)
                         np.testing.assert_allclose(us, u_ref, atol=tolerance)
 
 if __name__ == '__main__':

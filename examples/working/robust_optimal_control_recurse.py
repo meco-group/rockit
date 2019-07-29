@@ -63,7 +63,7 @@ sol = ocp.solve()
 
 plt.figure()
 for s in ocp.iter_stages():
-  ts, xsol = sol.sample(s, x1, grid='integrator')
+  ts, xsol = sol(s).sample(x1, grid='integrator')
   plt.plot(ts, xsol, '-o')
 
   plt.plot(ts, bound(ts),'r-')

@@ -86,8 +86,8 @@ for i in range(num_its):
 
     # Solve ILC problem
     sol = ocp.solve()
-    t, u_prev_val = sol.sample(ocp, u.T, grid='control')
-    t, x_val= sol.sample(ocp, x, grid='control')
+    t, u_prev_val = sol.sample(u.T, grid='control')
+    t, x_val= sol.sample(x, grid='control')
     u_prev_val = u_prev_val[:-1]
 
 

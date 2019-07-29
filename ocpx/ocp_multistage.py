@@ -17,7 +17,7 @@ class Ocp(Stage):
 
         Examples
         --------
-        
+
         >>> ocp = Ocp()
         """
         Stage.__init__(self, **kwargs)
@@ -47,9 +47,9 @@ class Ocp(Stage):
             self.opti.clear_objective()
             placeholders = self._transcribe()
             self._set_transcribed(True)
-            return OcpxSolution(self.opti.solve(placeholders=placeholders))
+            return OcpxSolution(self.opti.solve(placeholders=placeholders), self)
         else:
-            return OcpxSolution(self.opti.solve())
+            return OcpxSolution(self.opti.solve(), self)
 
     def solver(self, solver, solver_options={}):
         self.opti.solver(solver, solver_options)

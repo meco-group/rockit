@@ -58,12 +58,12 @@ ocp.solver('ipopt')
 
 sol = ocp.solve()
 
-ts1, xsol1 = sol.sample(stage1, x1[0], grid='integrator')
-ts2, xsol2 = sol.sample(stage2, x2[0], grid='integrator')
-ts3, xsol3 = sol.sample(stage3, x3[0], grid='integrator')
-ts4, xsol4 = sol.sample(stage4, x4[0], grid='integrator')
-ts5, xsol5 = sol.sample(stage5, x5[0], grid='integrator')
-ts6, xsol6 = sol.sample(stage6, x6[0], grid='integrator')
+ts1, xsol1 = sol(stage1).sample(x1[0], grid='integrator')
+ts2, xsol2 = sol(stage2).sample(x2[0], grid='integrator')
+ts3, xsol3 = sol(stage3).sample(x3[0], grid='integrator')
+ts4, xsol4 = sol(stage4).sample(x4[0], grid='integrator')
+ts5, xsol5 = sol(stage5).sample(x5[0], grid='integrator')
+ts6, xsol6 = sol(stage6).sample(x6[0], grid='integrator')
 
 plt.plot(ts1, xsol1, '-o')
 plt.plot(ts2, xsol2, '-o')

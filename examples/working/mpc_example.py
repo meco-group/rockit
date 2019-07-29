@@ -101,7 +101,7 @@ theta_history[0] = current_X[1]
 for i in range(Nsim):
     print("timestep", i+1, "of", Nsim)
     # Get the solution from sol
-    tsa, Fsol = sol.sample(ocp, F, grid='control')
+    tsa, Fsol = sol.sample(F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
 
     # Integral helper state: todo remove

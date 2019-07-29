@@ -16,7 +16,7 @@ class MethodTests(unittest.TestCase):
                      DirectCollocation(N=40)]:
         (ocp, x, u) = integrator_control_problem(T, b, x0, scheme, t0)
         sol = ocp.solve()
-        ts, xs = sol.sample(ocp, x, grid='control')
+        ts, xs = sol.sample(x, grid='control')
 
         self.assertAlmostEqual(xs[0],x0,places=6)
         self.assertAlmostEqual(xs[-1],x0-b*T,places=6)

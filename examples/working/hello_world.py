@@ -40,11 +40,11 @@ sol = ocp.solve()
 ocp.spy()
 
 # Post-processing
-tsa, x1a = sol.sample(ocp, x1, grid='control')
-tsa, x2a = sol.sample(ocp, x2, grid='control')
+tsa, x1a = sol.sample(x1, grid='control')
+tsa, x2a = sol.sample(x2, grid='control')
 
-tsb, x1b = sol.sample(ocp, x1, grid='integrator')
-tsb, x2b = sol.sample(ocp, x2, grid='integrator')
+tsb, x1b = sol.sample(x1, grid='integrator')
+tsb, x2b = sol.sample(x2, grid='integrator')
 
 
 from pylab import *
@@ -65,7 +65,7 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
-tsol, usol = sol.sample(ocp, u, grid='integrator',refine=100)
+tsol, usol = sol.sample(u, grid='integrator',refine=100)
 
 figure()
 plot(tsol,usol)
@@ -74,7 +74,7 @@ xlabel("Times [s]")
 grid(True)
 
 try:
-  tsc, x1c = sol.sample(ocp, x1, grid='integrator', refine=10)
+  tsc, x1c = sol.sample(x1, grid='integrator', refine=10)
 
   figure(figsize=(15, 4))
   plot(tsc, x1c, '.-')

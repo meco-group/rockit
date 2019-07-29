@@ -70,9 +70,9 @@ sol = ocp.solve()
 
 # Plot the 3 bounces
 plt.figure()
-ts1, ps1 = sol.sample(stage1, p1, grid='integrator')
-ts2, ps2 = sol.sample(stage2, p2, grid='integrator')
-ts3, ps3 = sol.sample(stage3, p3, grid='integrator')
+ts1, ps1 = sol(stage1).sample(p1, grid='integrator')
+ts2, ps2 = sol(stage2).sample(p2, grid='integrator')
+ts3, ps3 = sol(stage3).sample(p3, grid='integrator')
 plt.plot(ts1, ps1)
 plt.plot(ts2, ps2)
 plt.plot(ts3, ps3)

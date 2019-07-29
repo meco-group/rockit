@@ -54,13 +54,13 @@ sol = ocp.solve()
 
 import matplotlib.pyplot as plt
 
-ts, xsol = sol.sample(ocp, x[0], grid='control')
+ts, xsol = sol.sample(x[0], grid='control')
 
 plt.plot(ts, xsol, '-o')
 plt.plot(ts, bound(ts))
 
 plt.legend(["x1"])
-ts, Psol = sol.sample(ocp,P,grid = 'control')
+ts, Psol = sol.sample(P,grid = 'control')
 
 o = np.array([[1,0]])
 sigma =  np.sqrt(o*Psol*o.T)[:,0,0]

@@ -26,7 +26,7 @@ class MiscTests(unittest.TestCase):
                                 )
                                 sol = ocp.solve()
 
-                                ts, xs = sol.sample(ocp, x, grid='control')
+                                ts, xs = sol.sample(x, grid='control')
 
                                 self.assertAlmostEqual(xs[0], x0, places=6)
                                 self.assertAlmostEqual(
@@ -61,7 +61,7 @@ class MiscTests(unittest.TestCase):
        
         sol = ocp.solve()
 
-        ts, xs = sol.sample(ocp,x,grid='control')
+        ts, xs = sol.sample(x,grid='control')
 
         self.assertAlmostEqual(xs[0],x0,places=6)
         self.assertAlmostEqual(xs[-1],x0-b*T,places=6)
@@ -95,7 +95,7 @@ class MiscTests(unittest.TestCase):
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(ocp, x, grid='control')
+                        ts, xs = sol.sample(x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)
@@ -129,7 +129,7 @@ class MiscTests(unittest.TestCase):
 
                         sol = ocp.solve()
 
-                        ts, xs = sol.sample(ocp, x, grid='control')
+                        ts, xs = sol.sample(x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
                         self.assertAlmostEqual(xs[-1], xf, places=6)
@@ -159,13 +159,13 @@ class MiscTests(unittest.TestCase):
       ocp.set_value(p, 0)
       sol = ocp.solve()
 
-      ts, xs = sol.sample(ocp, x, grid='control')
+      ts, xs = sol.sample(x, grid='control')
       self.assertAlmostEqual(xs[0], 0)
 
       ocp.set_value(p, 1)
       sol = ocp.solve()
 
-      ts, xs = sol.sample(ocp, x, grid='control')
+      ts, xs = sol.sample(x, grid='control')
       self.assertAlmostEqual(xs[0], 1)
 
     def test_initial(self):
@@ -174,12 +174,12 @@ class MiscTests(unittest.TestCase):
       ocp.subject_to(ocp.at_t0(x)==v)
       ocp.subject_to(0==sin(v))
       sol = ocp.solve()
-      ts, xs = sol.sample(ocp, x, grid='control')
+      ts, xs = sol.sample(x, grid='control')
       self.assertAlmostEqual(xs[0], 0, places=6)
 
       ocp.set_initial(v, 2*pi)
       sol = ocp.solve()
-      ts, xs = sol.sample(ocp, x, grid='control')
+      ts, xs = sol.sample(x, grid='control')
       self.assertAlmostEqual(xs[0], 2*pi, places=6)
 
 if __name__ == '__main__':
