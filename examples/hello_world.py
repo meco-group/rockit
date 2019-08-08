@@ -19,7 +19,7 @@ ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 # Path constraints
 ocp.subject_to(      u <= 1)
 ocp.subject_to(-1 <= u     )
-ocp.subject_to(x1 >= -0.25 )
+ocp.subject_to(x1 >= -0.25) # grid='inf')
 
 # Initial constraints
 ocp.subject_to(ocp.at_t0(x1) == 0)
@@ -74,11 +74,12 @@ try:
   xlabel("Times [s]")
   grid(True)
 
-  tsc, x1c = sol.sample(x1, grid='integrator', refine=10)
+  tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
 
   figure(figsize=(15, 4))
-  plot(tsc, x1c, '.-')
+  plot(tsc, x1c, '-')
   plot(tsa, x1a, 'o')
+  plot(tsb, x1b, '.')
   xlabel("Times [s]")
   grid(True)
 except:

@@ -101,7 +101,7 @@ class OcpSolution:
             for l in range(M):
                 coeff = stage._method.poly_coeff[k * M + l]
                 tpower = vcat([ts**i for i in range(coeff.shape[1])])
-                sub_expr.append(expr_f(stage._method.poly_coeff[k * M + l] @ tpower, stage._method.U[k]))
+                sub_expr.append(expr_f(coeff @ tpower, stage._method.U[k]))
 
         ts = tlocal[-1]
         tpower = vcat([ts**i for i in range(coeff.shape[1])])

@@ -1,6 +1,8 @@
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat
-
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat
+from .spline import BSplineBasis, BSpline
+from .casadi_helpers import reinterpret_expr
+import numpy as np
 
 class MultipleShooting(SamplingMethod):
     def __init__(self, *args, **kwargs):
@@ -57,15 +59,38 @@ class MultipleShooting(SamplingMethod):
             if self.poly_coeff is not None:
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
 
-            for c, meta in stage._path_constraints_expr():  # for each constraint expression
+            for c, meta, arg in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
-                opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
-        
-        for c, meta in stage._path_constraints_expr():  # for each constraint expression
+                if arg["grid"] == "control":
+                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                elif arg["grid"] == "integrator":
+                    raise Exception("Not implemented") 
+                elif arg["grid"] == "inf":
+                    for l in range(self.M):
+                        coeff = stage._method.poly_coeff[k * self.M + l]
+                        degree = coeff.shape[1]-1
+                        basis = BSplineBasis([0]*(degree+1)+[1]*(degree+1),degree)
+                        tscale = self.T / self.N / self.M
+                        tpower = vcat([tscale**i for i in range(degree+1)])
+                        coeff = coeff * repmat(tpower.T,stage.nx,1)
+                        # TODO: bernstein transformation as function of degree
+                        Poly_to_Bernstein_matrix_4 = DM([[1,0,0,0,0],[1,1.0/4, 0, 0, 0],[1, 1.0/2, 1.0/6, 0, 0],[1, 3.0/4, 1.0/2, 1.0/4, 0],[1, 1, 1, 1, 1]])
+                        state_coeff = Poly_to_Bernstein_matrix_4 @ coeff.T
+                        
+                        statesize = [0] + [elem.nnz() for elem in stage.states]
+                        statessizecum = np.cumsum(statesize)
+
+                        subst_from = stage.states
+                        state_coeff_split = horzsplit(state_coeff,statessizecum)
+                        subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
+                        c_spline = reinterpret_expr(c, subst_from, subst_to)
+                        opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
+
+        for c, meta, _ in stage._path_constraints_expr():  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
             opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
         self.xk.append(self.X[-1])
 
-        for c, meta in stage._boundary_constraints_expr():  # Append boundary conditions to the end
+        for c, meta, _ in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(self.eval(stage, c), meta=meta)

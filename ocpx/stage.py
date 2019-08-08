@@ -221,7 +221,7 @@ class Stage:
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
 
-    def subject_to(self, constr):
+    def subject_to(self, constr, grid='control'):
         """Adds a constraint to the problem
 
         Parameters
@@ -235,6 +235,12 @@ class Stage:
 
             If `constr` is not a signal (e.g. :obj:`~ocpx.stage.Stage.at_t0`/:obj:`~ocpx.stage.Stage.at_tf` was applied on states),
             a boundary constraint is assumed.
+        grid : str
+            A string containing the type of grid to constrain the problem
+            Possible entries: 
+                control: constraint at control interval edges
+                inf: use mathematical guarantee for the whole control interval (only possible for polynomials of states and controls)
+                integrator: constraint at integrator edges
 
         Examples
         --------
@@ -247,7 +253,11 @@ class Stage:
         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
         """
         self._set_transcribed(False)
-        self._constraints.append((constr, get_meta()))
+        if grid not in ['control','inf','integrator']:
+            raise Exception("Invalid argument")
+        
+        args = {"grid": grid}
+        self._constraints.append((constr, get_meta(), args))
 
     def at_t0(self, expr):
         """Evaluate a signal at the start of the horizon
@@ -427,10 +437,10 @@ class Stage:
         return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
 
     def _boundary_constraints_expr(self):
-        return [cm for cm in self._constraints if not self.is_signal(cm[0])]
+        return [c for c in self._constraints if not self.is_signal(c[0])]
 
     def _path_constraints_expr(self):
-        return [cm for cm in self._constraints if self.is_signal(cm[0])]
+        return [c for c in self._constraints if self.is_signal(c[0])]
 
     def _expr_apply(self, expr, **kwargs):
         """
@@ -519,9 +529,9 @@ class Stage:
 
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
-        orig = [c for c, _ in self._constraints] + [self._objective]
+        orig = [c for c, _, _ in self._constraints] + [self._objective]
         res = substitute(orig, subst_from, subst_to)
-        ret._constraints = list(zip(res[:-1], [m for _, m in self._constraints]))
+        ret._constraints = list(zip(res[:-1], [m for _, m, _ in self._constraints], [d for _, _, d in self._constraints]))
         ret._objective = res[-1]
         ret._initial = copy(self._initial)
 

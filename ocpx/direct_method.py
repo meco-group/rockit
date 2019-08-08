@@ -24,7 +24,7 @@ class DirectMethod:
         plt.title("Lagrange Hessian: " + H.dim(True))
     
     def transcribe(self, stage, opti):
-        for c, m in stage._constraints:
+        for c, m, _ in stage._constraints:
             opti.subject_to(c, meta = m)
         return {}
 
