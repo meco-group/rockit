@@ -346,6 +346,7 @@ class Stage:
         >>> ocp.method(MultipleShooting())
         """
         from copy import deepcopy
+        self._set_transcribed(False)
         self._method = deepcopy(method)
 
     def is_free_time(self):
@@ -434,7 +435,7 @@ class Stage:
     # Internal methods
     def _ode(self):
         ode = veccat(*[self._state_der[k] for k in self.states])
-        return Function('ode', [self.x, self.u, self.p], [ode], ["x", "u", "p"], ["ode"])
+        return Function('ode', [self.x, self.u, self.p, self.t], [ode], ["x", "u", "p","t"], ["ode"])
 
     def _boundary_constraints_expr(self):
         return [c for c in self._constraints if not self.is_signal(c[0])]

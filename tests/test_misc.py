@@ -3,6 +3,7 @@ import unittest
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
 from problems import integrator_control_problem
 from numpy import sin, pi
+from numpy.testing import assert_array_almost_equal
 from contextlib import redirect_stdout
 from io import StringIO
 
@@ -195,5 +196,32 @@ class MiscTests(unittest.TestCase):
           out = buf.getvalue()
         self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
       
+
+    def test_time_dep_ode(self):
+        t0 = 1.2
+        T = 5.7
+        ocp = Ocp(t0=t0,T=5.7)
+        
+        x = ocp.state()
+        ocp.set_der(x, ocp.t**2)
+
+        ocp.subject_to(ocp.at_t0(x)==0)
+        
+        tf = t0+T
+        x_ref = tf**3/3-t0**3/3
+
+        ocp.solver('ipopt')
+        opts = {"abstol": 1e-9, "reltol": 1e-9}
+        for method in [
+                MultipleShooting(intg='rk'),
+                MultipleShooting(intg='cvodes',intg_options=opts),
+                MultipleShooting(intg='idas',intg_options=opts),
+                DirectCollocation()]:
+            ocp.method(method)
+            sol = ocp.solve()
+            ts, xs = sol.sample(x,grid='control')
+            x_ref = ts**3/3-t0**3/3
+            assert_array_almost_equal(xs,x_ref)
+
 if __name__ == '__main__':
     unittest.main()
