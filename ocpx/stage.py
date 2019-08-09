@@ -210,7 +210,7 @@ class Stage:
         if depends_on(expr, self.u):
             raise Exception("Dependency on controls not supported yet for stage.der")
         ode = self._ode()
-        return jtimes(expr, self.x, ode(self.x, self.u, self.p))
+        return jtimes(expr, self.x, ode(self.x, self.u, self.p, self.t))
 
     def integral(self, expr, grid='inf'):
         if grid=='inf':
