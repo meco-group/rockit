@@ -102,6 +102,7 @@ for x,y,ax,ay,b in list(zip(xs,ys,axs,ays,bs)):
     plot(xx,-ax/ay*xx + b/ay)
     circle = plt.Circle((x, y), r_veh, color='r', fill=False)
     axis.add_artist(circle)
-    plt.pause(0.5)
+    if plt.isinteractive():
+        plt.pause(0.5)
 
 show(block=True)
