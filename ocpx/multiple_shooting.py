@@ -1,6 +1,6 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat
-from .spline import BSplineBasis, BSpline
+from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
 import numpy as np
 
