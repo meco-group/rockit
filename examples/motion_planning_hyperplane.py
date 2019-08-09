@@ -84,7 +84,8 @@ ts, xs = sol.sample(x, grid='integrator')
 ts, ys = sol.sample(y, grid='integrator')
 plot(xs, ys, 'b.')
 
-plot([x[0] for x in points]+[points[0][0]],[x[1] for x in points]+[points[0][1]],'r-')
+if len(points)>0:
+    plot([x[0] for x in points]+[points[0][0]],[x[1] for x in points]+[points[0][1]],'r-')
 
 fig = plt.gcf()
 axis = fig.gca()
