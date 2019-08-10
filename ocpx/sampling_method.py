@@ -159,6 +159,9 @@ class SamplingMethod(DirectMethod):
     def eval_at_control(self, stage, expr, k):
         return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
+    def eval_at_integrator(self, stage, expr, k, i):
+        return stage._expr_apply(expr, x=self.xk[k*self.M + i], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():
             for k in range(self.N):

@@ -62,11 +62,8 @@ class OcpSolution:
     def _grid_control(self, stage, expr, grid):
         """Evaluate expression at (N + 1) control points."""
         sub_expr = []
-        for k in range(stage._method.N):
-            sub_expr.append(stage._constr_apply(
-                expr, x=stage._method.X[k], u=stage._method.U[k]))
-        sub_expr.append(stage._constr_apply(
-            expr, x=stage._method.X[-1], u=stage._method.U[-1]))
+        for k in list(range(stage._method.N))+[-1]:
+            sub_expr.append(stage._method.eval_at_control(stage, expr, k))
         res = [self.sol.value(elem) for elem in sub_expr]
         time = self.sol.value(stage._method.control_grid)
         return time, np.array(res)
@@ -76,10 +73,8 @@ class OcpSolution:
         sub_expr = []
         for k in range(stage._method.N):
             for l in range(stage._method.M):
-                sub_expr.append(stage._constr_apply(
-                    expr, x=stage._method.xk[k * stage._method.M + l], u=stage._method.U[k]))
-        sub_expr.append(stage._constr_apply(
-            expr, x=stage._method.xk[-1], u=stage._method.U[-1]))
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
+        sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
         res = [self.sol.value(elem) for elem in sub_expr]
         time = self.sol.value(stage._method.control_grid)
         time = np.linspace(time[0], time[-1], stage._method.N * stage._method.M + 1)
