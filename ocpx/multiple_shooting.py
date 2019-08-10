@@ -19,9 +19,9 @@ class MultipleShooting(SamplingMethod):
             V.append(opti.variable(v.shape[0], v.shape[1]))
         self.V = veccat(*V)
 
+
         V = []
-        for v in stage.variables['control']:
-            self.V_control.append([opti.variable(v.shape[0], v.shape[1])])
+        self.V_control = [[] for v in stage.variables['control']]
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu) if stage.nu else MX(0, 1))

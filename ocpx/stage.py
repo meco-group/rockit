@@ -213,6 +213,18 @@ class Stage:
         return jtimes(expr, self.x, ode(self.x, self.u, self.p, self.t))
 
     def integral(self, expr, grid='inf'):
+        """Compute an integral or a sum
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            An expression to integrate over the state time domain (from t0 to tf=t0+T)
+        grid : str
+            Possible entries:
+                inf: the integral is performed using the integrator defined for the stage
+                control: the integral is evaluated as a sum on the control grid (start of each control interval)
+                         Note that the final state is not included in this definition
+        """
         if grid=='inf':
             I = self.state()
             self.set_der(I, expr)
