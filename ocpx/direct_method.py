@@ -26,6 +26,7 @@ class DirectMethod:
     def transcribe(self, stage, opti):
         for c, m, _ in stage._constraints:
             opti.subject_to(c, meta = m)
+        opti.add_objective(stage._objective)
         return {}
 
 from casadi import substitute
