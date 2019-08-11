@@ -1,4 +1,4 @@
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat
 from .direct_method import DirectMethod
 
 class SamplingMethod(DirectMethod):
@@ -164,13 +164,15 @@ class SamplingMethod(DirectMethod):
 
     def set_initial(self, stage, opti):
         for var, expr in stage._initial.items():
-            for k in range(self.N):
-                opti.set_initial(
-                    self.eval_at_control(stage, var, k),
-                    opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))
-            opti.set_initial(
-                self.eval_at_control(stage, var, -1),
-                opti.debug.value(self.eval_at_control(stage, expr, -1), opti.initial()))
+            for k in list(range(self.N))+[-1]:
+                target = self.eval_at_control(stage, var, k)
+                value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))
+                if target.numel()*(self.N)==value.numel():
+                    if repmat(target, self.N, 1).shape==value.shape:
+                        value = value[k,:]
+                    elif repmat(target, 1, N).shape==value.shape:
+                        value = value[:,k]
+                opti.set_initial(target, value)
 
     def set_value(self, stage, opti, parameter, value):
         for i, p in enumerate(stage.parameters['']):

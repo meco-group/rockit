@@ -2,7 +2,7 @@ import unittest
 
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
 from problems import integrator_control_problem
-from numpy import sin, pi
+from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from contextlib import redirect_stdout
 from io import StringIO
@@ -222,6 +222,46 @@ class MiscTests(unittest.TestCase):
             ts, xs = sol.sample(x,grid='control')
             x_ref = ts**3/3-t0**3/3
             assert_array_almost_equal(xs,x_ref)
+
+
+    def test_variables(self):
+        N = 10
+        ocp = Ocp(t0=2*pi,T=10)
+        p = ocp.parameter(grid='control')
+        v = ocp.variable(grid='control')
+        x = ocp.state()
+        ocp.set_der(x, 0)
+        ocp.subject_to(ocp.at_t0(x)==0)
+
+        ts = linspace(0, 10, N)
+
+        ocp.add_objective(ocp.integral(sin(v-p)**2,grid='control'))
+        ocp.method(MultipleShooting(N=N))
+        ocp.solver('ipopt')
+        ocp.set_value(p, ts)
+        ocp.set_initial(v, ts)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+
+        assert_array_almost_equal(xs[:-1], ts)
+        ocp.set_initial(v, 0.1+2*pi+ts)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        assert_array_almost_equal(xs[:-1], 2*pi+ts)
+        ocp.set_initial(v, 0.1+ocp.t)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        assert_array_almost_equal(xs[:-1], 2*pi+ts)
+        ocp.set_initial(v, 0.1+2*pi)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        with self.assertRaises(AssertionError):
+          assert_array_almost_equal(xs[:-1], 2*pi+ts)
+        #ocp.set_value(p, ocp.t)
+        #sol = ocp.solve()
+        #_, xs = sol.sample(v, grid='control')
+        #assert_array_almost_equal(xs[:-1], linspace(2*pi, 2*pi+1, N))
+
 
 if __name__ == '__main__':
     unittest.main()
