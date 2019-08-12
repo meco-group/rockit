@@ -137,13 +137,13 @@ class SamplingMethod(DirectMethod):
     def add_time_variables(self, stage, opti):
         if stage.is_free_time():
             self.T = opti.variable()
-            opti.set_initial(self.T, stage._T.T_init)
+            opti.set_initial(self.T, stage.T_init)
         else:
             self.T = stage._T
 
         if stage.is_free_starttime():
             self.t0 = opti.variable()
-            opti.set_initial(self.t0, stage._t0.T_init)
+            opti.set_initial(self.t0, stage.t0_init)
         else:
             self.t0 = stage._t0
 

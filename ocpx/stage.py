@@ -49,6 +49,8 @@ class Stage:
         self._initial = dict()
         self._T = T
         self._t0 = t0
+        self.t0_init = t0.T_init if isinstance(t0, FreeTime) else t0
+        self.T_init = T.T_init if isinstance(T, FreeTime) else T
         self._placeholders = dict()
         self._placeholder_callbacks = dict()
         self._create_variables(t0, T)
