@@ -60,7 +60,11 @@ class OptiWrapper(Opti):
             vs = [placeholders[k] for k in ks]
             res = substitute([c[0] for c in self.constraints] + [self.objective], ks, vs)
             for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
-                super().subject_to(c)
+                try:
+                    super().subject_to(c)
+                except Exception as e:
+                    print(meta)
+                    raise e
                 self.update_user_dict(c, single_stacktrace(meta))
             super().minimize(res[-1])
             self.placeholders = placeholders
