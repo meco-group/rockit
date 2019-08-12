@@ -90,9 +90,13 @@ class OcpSolution:
         expr_f = Function('expr', [stage.x, stage.u], [expr])
 
         sub_expr = []
-        tlocal = np.linspace(0, self.sol.value(T) / N / M, refine + 1) 
-        ts = DM(tlocal[:-1]).T
+
+        time = self.sol.value(stage._method.control_grid)
+        total_time = [time[0]]
         for k in range(N):
+            total_time.append(np.linspace(time[k], time[k+1], M*(refine + 1))[1:])
+            tlocal = np.linspace(0, (time[k+1]-time[k])/M, refine + 1) 
+            ts = DM(tlocal[:-1]).T
             for l in range(M):
                 coeff = stage._method.poly_coeff[k * M + l]
                 tpower = vcat([ts**i for i in range(coeff.shape[1])])
@@ -104,6 +108,5 @@ class OcpSolution:
 
         res = self.sol.value(hcat(sub_expr))
 
-        time = self.sol.value(stage._method.control_grid)
-        time = np.linspace(time[0], time[-1], refine * N * M + 1)
+        time = np.hstack(total_time)
         return time, res
