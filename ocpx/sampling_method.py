@@ -98,7 +98,7 @@ class SamplingMethod(DirectMethod):
 
     def transcribe(self, stage, opti):
         """
-        Transcription is the process of going from a continous-time OCP to an NLP
+        Transcription is the process of going from a continuous-time OCP to an NLP
         """
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
