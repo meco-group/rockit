@@ -414,7 +414,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.t))
+        return depends_on(expr, vertcat(self.x, self.u, self.t, vcat(self.variables['control'])))
 
     def _create_placeholder_expr(self, expr, callback_name):
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
