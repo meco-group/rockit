@@ -20,9 +20,7 @@
 #
 #
 
-from __future__ import division
-
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes, symvar, horzcat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
@@ -224,6 +222,7 @@ class SamplingMethod(DirectMethod):
         self.P = []
         self.V = None
         self.V_control = []
+        self.V_states = []
         self.P_control = []
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
@@ -426,7 +425,8 @@ class SamplingMethod(DirectMethod):
     def add_variables_V_control(self, stage, opti, k):
         if k==0:
             self.V_control = [[] for v in stage.variables['control']]
-
+            for i, v in enumerate(stage.variables['states']):
+                self.V_states.append([opti.variable(v.shape[0], v.shape[1])])
         for i, v in enumerate(stage.variables['control']):
             self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
         for i, v in enumerate(stage.variables['states']):
@@ -467,14 +467,17 @@ class SamplingMethod(DirectMethod):
     def get_v_control_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_control])
 
+    def get_v_states_at(self, stage, k=-1):
+        return veccat(*[v[k] for v in self.V_states])
+
     def eval(self, stage, expr):
         return stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T)
 
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
 
     def eval_at_integrator(self, stage, expr, k, i):
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.integrator_grid[k][i])
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i])
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
         return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j])

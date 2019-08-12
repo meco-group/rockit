@@ -597,6 +597,10 @@ class Stage:
             v = veccat(*self.variables['control'])
             subst_from.append(v)
             subst_to.append(kwargs["v_control"])
+        if "v_states" in kwargs and self.variables['states']:
+            v = veccat(*self.variables['states'])
+            subst_from.append(v)
+            subst_to.append(kwargs["v_states"])
         return (subst_from, subst_to)
 
     _constr_apply = _expr_apply
