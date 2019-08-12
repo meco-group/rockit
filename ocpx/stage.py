@@ -360,6 +360,7 @@ class Stage:
         from copy import deepcopy
         self._set_transcribed(False)
         self._method = deepcopy(method)
+        self._method.register(self)
 
     def is_free_time(self):
         """Does the stage have a free horizon length T?

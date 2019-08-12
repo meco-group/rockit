@@ -23,6 +23,9 @@ class DirectMethod:
         plt.spy(H)
         plt.title("Lagrange Hessian: " + H.dim(True))
     
+    def register(self, stage):
+        pass
+
     def transcribe(self, stage, opti):
         for c, m, _ in stage._constraints:
             opti.subject_to(c, meta = m)
