@@ -7,6 +7,9 @@ from numpy.testing import assert_array_almost_equal
 from contextlib import redirect_stdout
 from io import StringIO
 
+
+
+
 class MiscTests(unittest.TestCase):
 
     def test_spy(self):
@@ -23,9 +26,9 @@ class MiscTests(unittest.TestCase):
                 for u_max in [1, 2]:
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
-                            for intg_method in ['rk', 'cvodes', 'idas']:
+                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4)]:
                                 ocp, x, u = integrator_control_problem(
-                                    T, u_max, x0, MultipleShooting(N=4,M=M,intg=intg_method), t0
+                                    T, u_max, x0, method, t0
                                 )
                                 sol = ocp.solve()
 
@@ -77,7 +80,7 @@ class MiscTests(unittest.TestCase):
         for t0 in [0, 1]:
             for x0 in [0, 1]:
                 for b in [1, 2]:
-                    for intg_method in ['rk', 'cvodes', 'idas']:
+                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
                         ocp = Ocp(t0=t0, T=FreeTime(1))
 
                         x = ocp.state()
@@ -94,7 +97,7 @@ class MiscTests(unittest.TestCase):
 
                         ocp.solver('ipopt')
 
-                        ocp.method(MultipleShooting(N=4, intg=intg_method))
+                        ocp.method(method)
 
                         sol = ocp.solve()
 
@@ -111,7 +114,7 @@ class MiscTests(unittest.TestCase):
         for T in [2]:
             for x0 in [0, 1]:
                 for b in [1, 2]:
-                    for intg_method in ['rk', 'cvodes', 'idas']:
+                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
                         ocp = Ocp(t0=FreeTime(2),T=T)
 
                         x = ocp.state()
@@ -128,7 +131,7 @@ class MiscTests(unittest.TestCase):
 
                         ocp.solver('ipopt')
 
-                        ocp.method(MultipleShooting(N=4, intg=intg_method))
+                        ocp.method(method)
 
                         sol = ocp.solve()
 
@@ -262,6 +265,34 @@ class MiscTests(unittest.TestCase):
         #_, xs = sol.sample(v, grid='control')
         #assert_array_almost_equal(xs[:-1], linspace(2*pi, 2*pi+1, N))
 
+
+    def test_integral(self):
+        t0 = 1.2
+        T = 5.7
+        ocp = Ocp(t0=t0,T=T)
+        
+        x = ocp.state()
+        u = ocp.control()
+        ocp.set_der(x, u)
+
+        ocp.subject_to(ocp.at_t0(x)==0)
+        ocp.subject_to(u<=1)
+        f = ocp.integral(x*ocp.t)
+        ocp.add_objective(-f) # (t-t0)*t -> t^3/3-t^2/2*t0
+        ocp.solver('ipopt')
+        opts = {"abstol": 1e-8, "reltol": 1e-8, "quad_err_con": True}
+        for method in [
+                MultipleShooting(intg='rk'),
+                MultipleShooting(intg='cvodes',intg_options=opts),
+                #MultipleShooting(intg='idas',intg_options=opts),
+                DirectCollocation()]:
+            ocp.method(method)
+            sol = ocp.solve()
+            ts, xs = sol.sample(f,grid='control')
+            I = lambda t: t**3/3-t**2/2*t0
+            x_ref = I(t0+T)-I(t0)
+
+            assert_array_almost_equal(xs[-1],x_ref)
 
 if __name__ == '__main__':
     unittest.main()

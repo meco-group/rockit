@@ -1,5 +1,6 @@
 from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat
 from .direct_method import DirectMethod
+from numpy import nan
 
 class SamplingMethod(DirectMethod):
     def __init__(self, N=50, M=1, intg='rk', intg_options=None, **kwargs):
@@ -20,6 +21,7 @@ class SamplingMethod(DirectMethod):
 
         self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
+        self.q = 0
 
     def discrete_system(self, stage):
         f = stage._ode()
@@ -43,14 +45,16 @@ class SamplingMethod(DirectMethod):
 
         # Compute local start time
         t0_local = t0
+        quad = 0
         for j in range(self.M):
             intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, p=P)
             X.append(intg_res["xf"])
+            quad = quad + intg_res["qf"]
             poly_coeffs.append(intg_res["poly_coeff"])
             t0_local += DT
 
-        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs)],
-                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff'])
+        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs), quad],
+                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff', 'qf'])
         assert not ret.has_free()
         return ret
 
@@ -58,17 +62,17 @@ class SamplingMethod(DirectMethod):
         DT = MX.sym("DT")
         t0 = MX.sym("t0")
         # A single Runge-Kutta 4 step
-        k1 = f(X, U, P, t0)
-        k2 = f(X + DT / 2 * k1, U, P, t0+DT/2)
-        k3 = f(X + DT / 2 * k2, U, P, t0+DT/2)
-        k4 = f(X + DT * k3, U, P, t0+DT)
+        k1,k1_q = f(X, U, P, t0)
+        k2,k2_q = f(X + DT / 2 * k1, U, P, t0+DT/2)
+        k3,k3_q = f(X + DT / 2 * k2, U, P, t0+DT/2)
+        k4,k4_q = f(X + DT * k3, U, P, t0+DT)
 
         f0 = k1
         f1 = 2/DT*(k2-k1)/2
         f2 = 4/DT**2*(k3-k2)/6
         f3 = 4*(k4-2*k3+k1)/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
-        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff'])
+        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff, DT / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
 
     def intg_cvodes(self, f, X, U, P):
         # A single CVODES step
@@ -76,7 +80,8 @@ class SamplingMethod(DirectMethod):
         I = integrator('intg_cvodes', 'cvodes', data, self.intg_options)
         DT = MX.sym("DT")
         t0 = MX.sym("t0")
-        return Function('F', [X, U, t0, DT, P], [I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})['xf'], MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff'])
+        res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
+        return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
 
     def intg_idas(self, f, X, U, P):
         # A single IDAS step
@@ -84,14 +89,16 @@ class SamplingMethod(DirectMethod):
         I = integrator('intg_idas', 'idas', data, self.intg_options)
         DT = MX.sym("DT")
         t0 = MX.sym("t0")
-        return Function('F', [X, U, t0, DT, P], [I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})['xf'], MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff'])
+        res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
+        return Function('F', [X, U, t0, DT, P], [res['xf'], MX(), res['qf']], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
 
     def prepare_sundials(self, f, X, U, P):
         # Preparing arguments of Sundials integrators
         DT = MX.sym("DT")
         t = MX.sym("t")
         t0 = MX.sym("t0")
-        data = {'x': X, 'p': vertcat(U, DT, P, t0), 't': t, 'ode': DT * f(X, U, P, t0+t*DT)}
+        ode, quad = f(X, U, P, t0+t*DT)
+        data = {'x': X, 'p': vertcat(U, DT, P, t0), 't': t, 'ode': DT * ode, 'quad': DT * quad}
   
         return data
 
@@ -157,7 +164,7 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, p=veccat(*self.P), v=self.V)
 
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, x=self.X[k], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, x=self.X[k], xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def eval_at_integrator(self, stage, expr, k, i):
         return stage._expr_apply(expr, x=self.xk[k*self.M + i], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])

@@ -35,6 +35,7 @@ class Stage:
         >>> stage = Stage()
         """
         self.states = []
+        self.qstates = []
         self.controls = []
         self.parameters = defaultdict(list)
         self.variables = defaultdict(list)
@@ -84,7 +85,7 @@ class Stage:
         self._set_transcribed(False)
         return s
 
-    def state(self, n_rows=1, n_cols=1):
+    def state(self, n_rows=1, n_cols=1, quad=False):
         """Create a state.
         You must supply a derivative for the state with :obj:`~ocpx.stage.Stage.set_der`
 
@@ -114,7 +115,10 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x", n_rows, n_cols)
-        self.states.append(x)
+        if quad:
+            self.qstates.append(x)
+        else:
+            self.states.append(x)
         self._set_transcribed(False)
         return x
 
@@ -212,7 +216,7 @@ class Stage:
         if depends_on(expr, self.u):
             raise Exception("Dependency on controls not supported yet for stage.der")
         ode = self._ode()
-        return jtimes(expr, self.x, ode(self.x, self.u, self.p, self.t))
+        return jtimes(expr, self.x, ode(self.x, self.u, self.p, self.t)[0])
 
     def integral(self, expr, grid='inf'):
         """Compute an integral or a sum
@@ -228,9 +232,8 @@ class Stage:
                          Note that the final state is not included in this definition
         """
         if grid=='inf':
-            I = self.state()
+            I = self.state(quad=True)
             self.set_der(I, expr)
-            self.subject_to(self.at_t0(I) == 0)
             return self.at_tf(I)
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
@@ -389,6 +392,10 @@ class Stage:
         return veccat(*self.states)
 
     @property
+    def xq(self):
+        return veccat(*self.qstates)
+
+    @property
     def u(self):
         return veccat(*self.controls)
 
@@ -450,7 +457,8 @@ class Stage:
     # Internal methods
     def _ode(self):
         ode = veccat(*[self._state_der[k] for k in self.states])
-        return Function('ode', [self.x, self.u, self.p, self.t], [ode], ["x", "u", "p","t"], ["ode"])
+        quad = veccat(*[self._state_der[k] for k in self.qstates])
+        return Function('ode', [self.x, self.u, self.p, self.t], [ode, quad], ["x", "u", "p", "t"], ["ode", "quad"])
 
     def _boundary_constraints_expr(self):
         return [c for c in self._constraints if not self.is_signal(c[0])]
@@ -475,6 +483,9 @@ class Stage:
         if "x" in kwargs:
             subst_from.append(self.x)
             subst_to.append(kwargs["x"])
+        if "xq" in kwargs:
+            subst_from.append(self.xq)
+            subst_to.append(kwargs["xq"])
         if "u" in kwargs:
             subst_from.append(self.u)
             subst_to.append(kwargs["u"])

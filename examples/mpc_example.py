@@ -103,11 +103,7 @@ for i in range(Nsim):
     # Get the solution from sol
     tsa, Fsol = sol.sample(F, grid='control')
     # Simulate dynamics (applying the first control input) and update the current state
-
-    # Integral helper state: todo remove
-    current_X = vertcat(current_X, 0)
     current_X = Sim_pendulum_dyn(x0=current_X, u=Fsol[0], T=dt)["xf"]
-    current_X = current_X[:4]
     # Add disturbance at t = 2*Tf
     if add_disturbance:
         if i == round(2*Nhor)-1:

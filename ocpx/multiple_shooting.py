@@ -39,6 +39,7 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(self.T >= 0)
 
         self.xk = []
+        self.q = 0
         # we only save polynomal coeffs for runge-kutta4
         if stage._method.intg == 'rk':
             self.poly_coeff = []
@@ -54,6 +55,7 @@ class MultipleShooting(SamplingMethod):
             # Save intermediate info
             poly_coeff_temp = FF["poly_coeff"]
             xk_temp = FF["Xi"]
+            self.q = self.q + FF["qf"]
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
             if self.poly_coeff is not None:
