@@ -105,11 +105,11 @@ class SamplingMethod(DirectMethod):
 
         # Create time grid (might be symbolic)
         self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
-        placeholders = stage._bake_placeholders(self)
         self.add_constraints(stage, opti)
         self.add_objective(stage, opti)
         self.set_initial(stage, opti)
         self.set_parameter(stage, opti)
+        placeholders = stage._bake_placeholders(self)
         return placeholders
 
     def fill_placeholders_integral_control(self, stage, expr, *args):
