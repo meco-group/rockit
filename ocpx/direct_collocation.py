@@ -41,12 +41,14 @@ class DirectCollocation(SamplingMethod):
         self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(opti.variable(stage.nx))
+        x = opti.variable(stage.nx)
+        self.X.append(x)
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
-            self.X.append(opti.variable(stage.nx))
-            self.Z.append(opti.variable(stage.nx, self.degree))
+            self.Z.append(horzcat(x, opti.variable(stage.nx, self.degree)))
+            x = opti.variable(stage.nx)
+            self.X.append(x)
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
@@ -75,17 +77,16 @@ class DirectCollocation(SamplingMethod):
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
-            Z = horzcat(self.X[k], self.Z[k])
-            self.poly_coeff.append(Z @ (poly*S))
+            self.poly_coeff.append(self.Z[k] @ (poly*S))
             for j in range(self.degree):
-                Pidot_j = Z @ self.C[:,j]/ dt
-                res = f(x=self.Z[k][:, j], u=self.U[k], p=self.P, t=self.control_grid[k]+dt*self.tau[j])
+                Pidot_j = self.Z[k] @ self.C[:,j]/ dt
+                res = f(x=self.Z[k][:, j+1], u=self.U[k], p=self.P, t=self.control_grid[k]+dt*self.tau[j])
                 # Collocation constraints
                 opti.subject_to(Pidot_j == res["ode"])
                 self.q = self.q + res["quad"]*dt*self.B[j]
 
             # Continuity constraints
-            opti.subject_to(Z @ self.D == self.X[k + 1])
+            opti.subject_to(self.Z[k] @ self.D == self.X[k + 1])
 
             for c, meta, _ in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
