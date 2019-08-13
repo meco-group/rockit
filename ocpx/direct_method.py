@@ -80,4 +80,4 @@ class OptiSolWrapper:
         ks = list(placeholders.keys())
         vs = [placeholders[k] for k in ks]
         res = substitute([expr], ks, vs)[0]
-        return self.sol.value(expr)
+        return self.sol.value(res)
