@@ -29,9 +29,6 @@ import numpy as np
 class DirectCollocation(SamplingMethod):
     def __init__(self, *args, degree=4, scheme='radau', **kwargs):
         SamplingMethod.__init__(self, *args, **kwargs)
-        if not self.M == 1:
-            raise NotImplementedError(
-                "Direct Collocation not yet supported for M!=1")
         self.degree = degree
         self.tau = collocation_points(degree, scheme)
         [self.C, self.D, self.B] = collocation_coeff(self.tau)
@@ -46,7 +43,7 @@ class DirectCollocation(SamplingMethod):
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
-            self.Z.append(horzcat(x, opti.variable(stage.nx, self.degree)))
+            self.Z.append([horzcat(x, opti.variable(stage.nx, self.degree))]+[opti.variable(stage.nx, self.degree+1) for i in range(self.M-1)])
             x = opti.variable(stage.nx)
             self.X.append(x)
 
@@ -71,22 +68,27 @@ class DirectCollocation(SamplingMethod):
 
         
         self.poly_coeff = []
-        self.xk = self.X
+        self.xk = []
         self.q = 0
 
         for k in range(self.N):
-            dt = self.control_grid[k + 1] - self.control_grid[k]
+            dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
-            self.poly_coeff.append(self.Z[k] @ (poly*S))
-            for j in range(self.degree):
-                Pidot_j = self.Z[k] @ self.C[:,j]/ dt
-                res = f(x=self.Z[k][:, j+1], u=self.U[k], p=self.P, t=self.control_grid[k]+dt*self.tau[j])
-                # Collocation constraints
-                opti.subject_to(Pidot_j == res["ode"])
-                self.q = self.q + res["quad"]*dt*self.B[j]
+            t0 = self.control_grid[k]
+            for i in range(self.M):
+                self.xk.append(self.Z[k][i][:,0])
+                self.poly_coeff.append(self.Z[k][i] @ (poly*S))
+                for j in range(self.degree):
+                    Pidot_j = self.Z[k][i] @ self.C[:,j]/ dt
+                    res = f(x=self.Z[k][i][:, j+1], u=self.U[k], p=self.P, t=t0+dt*self.tau[j])
+                    # Collocation constraints
+                    opti.subject_to(Pidot_j == res["ode"])
+                    self.q = self.q + res["quad"]*dt*self.B[j]
+                t0 += dt
 
-            # Continuity constraints
-            opti.subject_to(self.Z[k] @ self.D == self.X[k + 1])
+                # Continuity constraints
+                x_next = self.X[k + 1] if i==self.M-1 else self.Z[k][i+1][:,0]
+                opti.subject_to(self.Z[k][i] @ self.D == x_next)
 
             for c, meta, _ in stage._path_constraints_expr():  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
