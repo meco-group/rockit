@@ -92,17 +92,21 @@ class OcpSolution:
         sub_expr = []
 
         time = self.sol.value(stage._method.control_grid)
-        total_time = [time[0]]
+        total_time = []
         for k in range(N):
-            total_time.append(np.linspace(time[k], time[k+1], M*(refine + 1))[1:])
-            tlocal = np.linspace(0, (time[k+1]-time[k])/M, refine + 1) 
+            t0 = time[k]
+            dt = (time[k+1]-time[k])/M
+            tlocal = np.linspace(0, dt, refine + 1) 
             ts = DM(tlocal[:-1]).T
             for l in range(M):
+                total_time.append(t0+tlocal[:-1])
                 coeff = stage._method.poly_coeff[k * M + l]
                 tpower = vcat([ts**i for i in range(coeff.shape[1])])
                 sub_expr.append(expr_f(coeff @ tpower, stage._method.U[k]))
+                t0+=dt
 
         ts = tlocal[-1]
+        total_time.append(time[k+1])
         tpower = vcat([ts**i for i in range(coeff.shape[1])])
         sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, stage._method.U[-1]))
 

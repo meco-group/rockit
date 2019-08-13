@@ -24,27 +24,33 @@ class OcpSolutionTests(unittest.TestCase):
         assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
 
     def test_intg_refine(self):
-        for method in [DirectCollocation(N=2), MultipleShooting(N=2,intg='rk')]:
-          ocp, sol, p, v, u = bang_bang_problem(method)
-          tolerance = 1e-6
+        for M in [1, 2]:
+          for method in [DirectCollocation(N=2), MultipleShooting(N=2,M=M,intg='rk')]:
+            if isinstance(method, DirectCollocation):
+              MM=1
+            else:
+              MM=M
+            ocp, sol, p, v, u = bang_bang_problem(method)
+            tolerance = 1e-6
 
-          ts, ps = sol.sample(p, grid='integrator', refine=10)
+            ts, ps = sol.sample(p, grid='integrator', refine=10)
 
-          ps_ref = np.hstack(((0.5*np.linspace(0,1, 10+1)**2)[:-1],np.linspace(0.5,1.5,10+1)-0.5*np.linspace(0,1, 10+1)**2)) 
-          assert_allclose(ps, ps_ref, atol=tolerance)
+            ps_ref = np.hstack(((0.5*np.linspace(0,1, 10*MM+1)**2)[:-1],np.linspace(0.5,1.5,10*MM+1)-0.5*np.linspace(0,1, 10*MM+1)**2)) 
+            assert_allclose(ps, ps_ref, atol=tolerance)
 
-          ts_ref = np.linspace(0, 2, 10*2+1)
+            ts_ref = np.linspace(0, 2, 10*2*MM+1)
+            assert_allclose(ts, ts_ref, atol=tolerance)
 
-          ts, vs = sol.sample(v, grid='integrator', refine=10)
-          assert_allclose(ts, ts_ref, atol=tolerance)
+            ts, vs = sol.sample(v, grid='integrator', refine=10)
+            assert_allclose(ts, ts_ref, atol=tolerance)
 
-          vs_ref = np.hstack((np.linspace(0,1, 10+1)[:-1],np.linspace(1,0, 10+1))) 
-          assert_allclose(vs, vs_ref, atol=tolerance)
+            vs_ref = np.hstack((np.linspace(0,1, 10*MM+1)[:-1],np.linspace(1,0, 10*MM+1))) 
+            assert_allclose(vs, vs_ref, atol=tolerance)
 
 
-          u_ref = np.array([1.0]*10+[-1.0]*11)
-          ts, us = sol.sample(u, grid='integrator', refine=10)
-          assert_allclose(us, u_ref, atol=tolerance)
+            u_ref = np.array([1.0]*MM*10+[-1.0]*(MM*10+1))
+            ts, us = sol.sample(u, grid='integrator', refine=10)
+            assert_allclose(us, u_ref, atol=tolerance)
 
 if __name__ == '__main__':
     unittest.main()
