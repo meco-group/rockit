@@ -61,6 +61,12 @@ class OptiWrapper(Opti):
     def non_converged_solution(self):
         return OptiSolWrapper(self, super().debug)
 
+    def variable(self,n=1,m=1):
+        if n==0 or m==0:
+            return MX(n, m)
+        else:
+            return super().variable(n, m)
+
     def solve(self, placeholders=None):
         if placeholders is not None:
             ks = list(placeholders.keys())
