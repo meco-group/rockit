@@ -38,12 +38,13 @@ class SamplingMethod(DirectMethod):
         X0 = f.mx_in("x")            # Initial state
         U = f.mx_in("u")             # Control
         P = f.mx_in("p")
+        Z = f.mx_in("z")
 
         X = [X0]
         if hasattr(self, 'intg_'+ self.intg):
-            intg = getattr(self, "intg_" + self.intg)(f, X0, U, P)
+            intg = getattr(self, "intg_" + self.intg)(f, X0, U, P, Z)
         else:
-            intg = self.intg_builtin(f, X0, U, P)
+            intg = self.intg_builtin(f, X0, U, P, Z)
         assert not intg.has_free()
 
         # Compute local start time
@@ -61,30 +62,34 @@ class SamplingMethod(DirectMethod):
         assert not ret.has_free()
         return ret
 
-    def intg_rk(self, f, X, U, P):
+    def intg_rk(self, f, X, U, P, Z):
+        assert Z.is_empty()
         DT = MX.sym("DT")
         t0 = MX.sym("t0")
         # A single Runge-Kutta 4 step
-        k1,k1_q = f(X, U, P, t0)
-        k2,k2_q = f(X + DT / 2 * k1, U, P, t0+DT/2)
-        k3,k3_q = f(X + DT / 2 * k2, U, P, t0+DT/2)
-        k4,k4_q = f(X + DT * k3, U, P, t0+DT)
+        k1 = f(x=X, u=U, p=P, t=t0, z=Z)
+        k2 = f(x=X + DT / 2 * k1["ode"], u=U, p=P, t=t0+DT/2, z=Z)
+        k3 = f(x=X + DT / 2 * k2["ode"], u=U, p=P, t=t0+DT/2)
+        k4 = f(x=X + DT * k3["ode"], u=U, p=P, t=t0+DT)
 
-        f0 = k1
-        f1 = 2/DT*(k2-k1)/2
-        f2 = 4/DT**2*(k3-k2)/6
-        f3 = 4*(k4-2*k3+k1)/DT**3/24
+        f0 = k1["ode"]
+        f1 = 2/DT*(k2["ode"]-k1["ode"])/2
+        f2 = 4/DT**2*(k3["ode"]-k2["ode"])/6
+        f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
-        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff, DT / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
+        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"])], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
 
-    def intg_builtin(self, f, X, U, P):
+    def intg_builtin(self, f, X, U, P, Z):
         # A single CVODES step
         DT = MX.sym("DT")
         t = MX.sym("t")
         t0 = MX.sym("t0")
-        ode, quad = f(X, U, P, t0+t*DT)
-        data = {'x': X, 'p': vertcat(U, DT, P, t0), 't': t, 'ode': DT * ode, 'quad': DT * quad}
-        I = integrator('intg_cvodes', self.intg, data, self.intg_options)
+        res = f(x=X, u=U, p=P, t=t0+t*DT, z=Z)
+        data = {'x': X, 'p': vertcat(U, DT, P, t0), 'z': Z, 't': t, 'ode': DT * res["ode"], 'quad': DT * res["quad"], 'alg': res["alg"]}
+        options = dict(self.intg_options)
+        if self.intg in ["collocation"]:
+            options["number_of_finite_elements"] = 1
+        I = integrator('intg_cvodes', self.intg, data, options)
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
         return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
 
@@ -93,6 +98,7 @@ class SamplingMethod(DirectMethod):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
+
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
 
@@ -164,6 +170,12 @@ class SamplingMethod(DirectMethod):
                     if repmat(target, self.N, 1).shape==value.shape:
                         value = value[k,:]
                     elif repmat(target, 1, N).shape==value.shape:
+                        value = value[:,k]
+
+                if target.numel()*(self.N+1)==value.numel():
+                    if repmat(target, self.N+1, 1).shape==value.shape:
+                        value = value[k,:]
+                    elif repmat(target, 1, N+1).shape==value.shape:
                         value = value[:,k]
                 opti.set_initial(target, value)
 

@@ -48,7 +48,43 @@ def bang_bang_problem(stage_method):
     ocp.method(stage_method)
 
     return (ocp, ocp.solve(), p, v, u)
-    
+
+
+def vdp_dae(method):
+  ocp = Ocp(T=10)
+
+  # Define 2 states
+  x1 = ocp.state()
+  x2 = ocp.state()
+
+  z = ocp.algebraic()
+
+  # Define 1 control
+  u = ocp.control(order=0)
+
+  # Specify ODE
+  ocp.set_der(x1, z * x1 - x2 + u)
+  ocp.set_der(x2, x1)
+  ocp.add_alg(z-(1 - x2**2))
+
+  # Lagrange objective
+  ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+
+  # Path constraints
+  ocp.subject_to(-1 <= (u <= 1))
+  ocp.subject_to(x1 >= -0.25)
+
+  # Initial constraints
+  ocp.subject_to(ocp.at_t0(x1) == 0)
+  ocp.subject_to(ocp.at_t0(x2) == 1)
+
+  # Pick an NLP solver backend
+  ocp.solver('ipopt')
+
+  # Pick a solution method
+  ocp.method(method)
+  return (ocp, x1, x2, u)
+
 def vdp(method):
   ocp = Ocp(T=10)
 

@@ -37,6 +37,7 @@ class Stage:
         self.states = []
         self.qstates = []
         self.controls = []
+        self.algebraics = []
         self.parameters = defaultdict(list)
         self.variables = defaultdict(list)
 
@@ -45,6 +46,7 @@ class Stage:
 
         self._param_vals = dict()
         self._state_der = dict()
+        self._alg = []
         self._constraints = []
         self._objective = 0
         self._initial = dict()
@@ -121,6 +123,30 @@ class Stage:
             self.states.append(x)
         self._set_transcribed(False)
         return x
+
+    def algebraic(self, n_rows=1, n_cols=1):
+        """Create an algebraic variable
+        You must supply an algebraic relation with:obj:`~ocpx.stage.Stage.set_alg`
+
+        Parameters
+        ----------
+        n_rows : int, optional
+            Number of rows
+            Default: 1
+        n_cols : int, optional
+            Number of columns
+            Default: 1
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing an algebraic variable
+        """
+        # Create a placeholder symbol with a dummy name (see #25)
+        z = MX.sym("z", n_rows, n_cols)
+        self.algebraics.append(z)
+        self._set_transcribed(False)
+        return z
 
     def variable(self, n_rows=1, n_cols=1, grid = ''):
         # Create a placeholder symbol with a dummy name (see #25)
@@ -212,11 +238,15 @@ class Stage:
         self._set_transcribed(False)
         self._state_der[state] = der
 
+    def add_alg(self, constr):
+        self._set_transcribed(False)
+        self._alg.append(constr)
+
     def der(self, expr):
         if depends_on(expr, self.u):
             raise Exception("Dependency on controls not supported yet for stage.der")
         ode = self._ode()
-        return jtimes(expr, self.x, ode(self.x, self.u, self.p, self.t)[0])
+        return jtimes(expr, self.x, ode(x=self.x, u=self.u, z=self.z, p=self.p, t=self.t)["ode"])
 
     def integral(self, expr, grid='inf'):
         """Compute an integral or a sum
@@ -400,12 +430,20 @@ class Stage:
         return veccat(*self.controls)
 
     @property
+    def z(self):
+        return veccat(*self.algebraics)
+
+    @property
     def p(self):
         return veccat((*self.parameters['']+self.parameters['control']))
 
     @property
     def nx(self):
         return self.x.numel()
+
+    @property
+    def nz(self):
+        return self.z.numel()
 
     @property
     def nu(self):
@@ -424,7 +462,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.t, vcat(self.variables['control'])))
+        return depends_on(expr, vertcat(self.x, self.u, self.t, vcat(self.variables['control']+self.variables['states'])))
 
     def _create_placeholder_expr(self, expr, callback_name):
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
@@ -458,7 +496,8 @@ class Stage:
     def _ode(self):
         ode = veccat(*[self._state_der[k] for k in self.states])
         quad = veccat(*[self._state_der[k] for k in self.qstates])
-        return Function('ode', [self.x, self.u, self.p, self.t], [ode, quad], ["x", "u", "p", "t"], ["ode", "quad"])
+        alg = veccat(*self._alg)
+        return Function('ode', [self.x, self.u, self.z, self.p, self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
     def _boundary_constraints_expr(self):
         return [c for c in self._constraints if not self.is_signal(c[0])]
