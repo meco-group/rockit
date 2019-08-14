@@ -51,6 +51,13 @@ class Ocp(Stage):
         else:
             return OcpSolution(self.opti.solve(), self)
 
+    def callback(self, fun):
+        self.opti.callback(lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, self.master)))
+
+    @property
+    def debug(self):
+        self.opti.debug
+
     def solver(self, solver, solver_options={}):
         self.opti.solver(solver, solver_options)
 

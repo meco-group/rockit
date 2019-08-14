@@ -54,6 +54,13 @@ class OptiWrapper(Opti):
     def clear_objective(self):
         self.objective = 0
 
+    def callback(self,fun):
+        super().callback(fun)
+
+    @property
+    def non_converged_solution(self):
+        return OptiSolWrapper(self, super().debug)
+
     def solve(self, placeholders=None):
         if placeholders is not None:
             ks = list(placeholders.keys())
@@ -75,9 +82,9 @@ class OptiSolWrapper:
         self.opti_wrapper = opti_wrapper
         self.sol = sol
 
-    def value(self, expr):
+    def value(self, expr,*args,**kwargs):
         placeholders = self.opti_wrapper.placeholders
         ks = list(placeholders.keys())
         vs = [placeholders[k] for k in ks]
         res = substitute([expr], ks, vs)[0]
-        return self.sol.value(res)
+        return self.sol.value(res, *args,**kwargs)
