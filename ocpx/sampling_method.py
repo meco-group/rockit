@@ -40,7 +40,10 @@ class SamplingMethod(DirectMethod):
         P = f.mx_in("p")
 
         X = [X0]
-        intg = getattr(self, "intg_" + self.intg)(f, X0, U, P)
+        if hasattr(self, 'intg_'+ self.intg):
+            intg = getattr(self, "intg_" + self.intg)(f, X0, U, P)
+        else:
+            intg = self.intg_builtin(f, X0, U, P)
         assert not intg.has_free()
 
         # Compute local start time
@@ -74,33 +77,16 @@ class SamplingMethod(DirectMethod):
         poly_coeff = hcat([X, f0, f1, f2, f3])
         return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1 + 2 * k2 + 2 * k3 + k4), poly_coeff, DT / 6 * (k1_q + 2 * k2_q + 2 * k3_q + k4_q)], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
 
-    def intg_cvodes(self, f, X, U, P):
+    def intg_builtin(self, f, X, U, P):
         # A single CVODES step
-        data = self.prepare_sundials(f, X, U, P)
-        I = integrator('intg_cvodes', 'cvodes', data, self.intg_options)
-        DT = MX.sym("DT")
-        t0 = MX.sym("t0")
-        res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
-        return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
-
-    def intg_idas(self, f, X, U, P):
-        # A single IDAS step
-        data = self.prepare_sundials(f, X, U, P)
-        I = integrator('intg_idas', 'idas', data, self.intg_options)
-        DT = MX.sym("DT")
-        t0 = MX.sym("t0")
-        res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
-        return Function('F', [X, U, t0, DT, P], [res['xf'], MX(), res['qf']], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
-
-    def prepare_sundials(self, f, X, U, P):
-        # Preparing arguments of Sundials integrators
         DT = MX.sym("DT")
         t = MX.sym("t")
         t0 = MX.sym("t0")
         ode, quad = f(X, U, P, t0+t*DT)
         data = {'x': X, 'p': vertcat(U, DT, P, t0), 't': t, 'ode': DT * ode, 'quad': DT * quad}
-  
-        return data
+        I = integrator('intg_cvodes', self.intg, data, self.intg_options)
+        res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
+        return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
 
 
     def transcribe(self, stage, opti):
