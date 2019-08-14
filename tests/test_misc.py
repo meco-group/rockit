@@ -1,7 +1,7 @@
 import unittest
 
 from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
-from problems import integrator_control_problem
+from problems import integrator_control_problem, vdp
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from contextlib import redirect_stdout
@@ -293,6 +293,28 @@ class MiscTests(unittest.TestCase):
             x_ref = I(t0+T)-I(t0)
 
             assert_array_almost_equal(xs[-1],x_ref)
+
+    def test_collocation_equivalence(self):
+
+      ocp, x1, x2, u = vdp(MultipleShooting(N=6,intg='collocation',intg_options={"number_of_finite_elements": 1, "interpolation_order": 4}))
+      ocp.solver("ipopt",{"ipopt.tol":1e-12})
+      sol = ocp.solve()
+
+      x1_a = sol.sample(x1, grid='control')[1]
+      x2_a = sol.sample(x2, grid='control')[1]
+      u_a = sol.sample(u, grid='control')[1]
+
+      ocp, x1, x2, u = vdp(DirectCollocation(N=6))
+      ocp.solver("ipopt",{"ipopt.tol":1e-12})
+      sol = ocp.solve()
+
+      x1_b = sol.sample(x1, grid='control')[1]
+      x2_b = sol.sample(x2, grid='control')[1]
+      u_b = sol.sample(u, grid='control')[1]
+
+      assert_array_almost_equal(x1_a,x1_b,decimal=12)
+      assert_array_almost_equal(x2_a,x2_b,decimal=12)
+      assert_array_almost_equal(u_a,u_b,decimal=12)
 
 if __name__ == '__main__':
     unittest.main()
