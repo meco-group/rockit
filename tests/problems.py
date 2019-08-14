@@ -85,7 +85,7 @@ def vdp_dae(method):
   ocp.method(method)
   return (ocp, x1, x2, u)
 
-def vdp(method):
+def vdp(method,grid='control'):
   ocp = Ocp(T=10)
 
   # Define 2 states
@@ -104,7 +104,7 @@ def vdp(method):
 
   # Path constraints
   ocp.subject_to(-1 <= (u <= 1))
-  ocp.subject_to(x1 >= -0.25)
+  ocp.subject_to(x1 >= -0.25, grid=grid)
 
   # Initial constraints
   ocp.subject_to(ocp.at_t0(x1) == 0)

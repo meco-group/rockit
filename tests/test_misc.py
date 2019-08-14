@@ -6,7 +6,7 @@ from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from contextlib import redirect_stdout
 from io import StringIO
-
+import numpy as np
 
 
 
@@ -318,5 +318,26 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(x2_a,x2_b,decimal=12)
         assert_array_almost_equal(u_a,u_b,decimal=12)
 
+    def test_grid_inf_subject_to(self):
+        ocp, x1, x2, u = vdp(MultipleShooting(N=10))
+        sol = ocp.solve()
+        x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
+        self.assertFalse(np.all(x1sol>-0.25))
+
+        margins = [np.inf]
+        for M in [1,2,4]:
+          ocp, x1, x2, u = vdp(MultipleShooting(N=10,M=M),grid='inf')
+          sol = ocp.solve()
+          x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
+          margin = np.min(x1sol-(-0.25))
+          self.assertTrue(np.all(margin>0))
+          self.assertTrue(np.all(margin<0.01))
+
+          # Assert that margin shrinks for increasing M
+          self.assertTrue(margin<0.5*margins[-1])
+          margins.append(margin)
+          self.assertTrue(margin)
+
+        
 if __name__ == '__main__':
     unittest.main()
