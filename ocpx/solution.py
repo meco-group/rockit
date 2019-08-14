@@ -1,6 +1,6 @@
 import numpy as np
 from casadi import vertcat, vcat, DM, Function, hcat
-
+from numpy import nan
 
 class OcpSolution:
     def __init__(self, nlpsol, stage):
@@ -87,7 +87,7 @@ class OcpSolution:
             raise Exception(msg)
         N, M, T = stage._method.N, stage._method.M, stage._method.T
 
-        expr_f = Function('expr', [stage.x, stage.u], [expr])
+        expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
 
         sub_expr = []
 
@@ -102,13 +102,24 @@ class OcpSolution:
                 total_time.append(t0+tlocal[:-1])
                 coeff = stage._method.poly_coeff[k * M + l]
                 tpower = vcat([ts**i for i in range(coeff.shape[1])])
-                sub_expr.append(expr_f(coeff @ tpower, stage._method.U[k]))
+                if stage._method.poly_coeff_z:
+                    coeff_z = stage._method.poly_coeff_z[k * M + l]
+                    tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
+                    z = coeff_z @ tpower_z
+                else:
+                    z = nan
+                sub_expr.append(expr_f(coeff @ tpower, z, stage._method.U[k]))
                 t0+=dt
 
         ts = tlocal[-1]
         total_time.append(time[k+1])
         tpower = vcat([ts**i for i in range(coeff.shape[1])])
-        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, stage._method.U[-1]))
+        if stage._method.poly_coeff_z:
+            tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
+            z = coeff_z @ tpower_z
+        else:
+            z = nan
+        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
 
         res = self.sol.value(hcat(sub_expr))
 

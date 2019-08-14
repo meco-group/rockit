@@ -12,6 +12,7 @@ class SamplingMethod(DirectMethod):
 
         self.X = []  # List that will hold N+1 decision variables for state vector
         self.U = []  # List that will hold N decision variables for control vector
+        self.Z = []  # Algebraic vars
         self.T = None
         self.t0 = None
         self.P = []
@@ -19,8 +20,10 @@ class SamplingMethod(DirectMethod):
         self.V_control = []
         self.P_control = []
 
-        self.poly_coeff = None  # Optional list to save the coefficients for a polynomial
+        self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
+        self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
+        self.zk = []
         self.q = 0
 
     def discrete_system(self, stage):
@@ -156,10 +159,10 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, p=veccat(*self.P), v=self.V)
 
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, x=self.X[k], xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def eval_at_integrator(self, stage, expr, k, i):
-        return stage._expr_apply(expr, x=self.xk[k*self.M + i], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def set_initial(self, stage, opti, initial):
         for var, expr in initial.items():

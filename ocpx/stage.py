@@ -522,6 +522,9 @@ class Stage:
         if "x" in kwargs:
             subst_from.append(self.x)
             subst_to.append(kwargs["x"])
+        if "z" in kwargs:
+            subst_from.append(self.z)
+            subst_to.append(kwargs["z"])
         if "xq" in kwargs:
             subst_from.append(self.xq)
             subst_to.append(kwargs["xq"])
