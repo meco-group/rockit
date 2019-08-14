@@ -2,6 +2,8 @@ from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
                    repmat, DM
+from .casadi_helpers import get_ranges_dict
+from itertools import repeat
 try:
     from casadi import collocation_coeff
 except:
@@ -106,8 +108,17 @@ class DirectCollocation(SamplingMethod):
         for c, meta, _ in stage._boundary_constraints_expr():  # Append boundary conditions to the end
             opti.subject_to(self.eval(stage, c), meta=meta)
 
-    def set_initial(self, stage, opti):
-        super().set_initial(stage, opti)
+    def set_initial(self, stage, opti, initial):
+        initial = dict(initial)
+        algs = get_ranges_dict(stage.algebraics)
+        for a, v in list(initial.items()):
+            # from casadi import *;x=MX.sym('x');a=MX.sym('a');print(x is x+0)
+            if a in algs:
+                for k in range(self.N):
+                    for e in self.A[k]:
+                        opti.set_initial(e[algs[a],:], v)
+                del initial[a]
+        super().set_initial(stage, opti, initial)
         for k in range(self.N):
             x0 = DM(opti.debug.value(self.X[k], opti.initial()))
             for e in self.Z[k]:

@@ -106,7 +106,7 @@ class SamplingMethod(DirectMethod):
         self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
         self.add_constraints(stage, opti)
         self.add_objective(stage, opti)
-        self.set_initial(stage, opti)
+        self.set_initial(stage, opti, stage._initial)
         self.set_parameter(stage, opti)
         placeholders = stage._bake_placeholders(self)
         return placeholders
@@ -161,8 +161,8 @@ class SamplingMethod(DirectMethod):
     def eval_at_integrator(self, stage, expr, k, i):
         return stage._expr_apply(expr, x=self.xk[k*self.M + i], u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
-    def set_initial(self, stage, opti):
-        for var, expr in stage._initial.items():
+    def set_initial(self, stage, opti, initial):
+        for var, expr in initial.items():
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
                 value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))

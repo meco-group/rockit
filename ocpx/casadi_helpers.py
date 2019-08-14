@@ -1,6 +1,15 @@
 from casadi import *
 
 
+def get_ranges_dict(list_expr):
+    ret = {}
+    offset = 0
+    for e in list_expr:
+        next_offset = offset+e.nnz()
+        ret[e] = list(range(offset, next_offset))
+        offset = next_offset
+    return ret
+
 def reinterpret_expr(expr, symbols_from, symbols_to):
     """
     .. code-block:: python

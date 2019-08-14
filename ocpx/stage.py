@@ -214,7 +214,7 @@ class Stage:
     def set_initial(self, var, value):
         self._initial[var] = value
         if self.master.is_transcribed:
-            self._method.set_initial(self, self.master.opti)
+            self._method.set_initial(self, self.master.opti, self._initial)
 
     def set_der(self, state, der):
         """Assign a right-hand side to a state derivative
