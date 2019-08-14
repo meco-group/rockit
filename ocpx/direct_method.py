@@ -1,5 +1,5 @@
 from casadi import Opti, jacobian, dot, hessian
-from .casadi_helpers import get_meta, merge_meta, single_stacktrace
+from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 
 class DirectMethod:
     """
