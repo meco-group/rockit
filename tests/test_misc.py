@@ -324,19 +324,35 @@ class MiscTests(unittest.TestCase):
         x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
         self.assertFalse(np.all(x1sol>-0.25))
 
-        margins = [np.inf]
-        for M in [1,2,4]:
-          ocp, x1, x2, u = vdp(MultipleShooting(N=10,M=M),grid='inf')
-          sol = ocp.solve()
-          x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
-          margin = np.min(x1sol-(-0.25))
-          self.assertTrue(np.all(margin>0))
-          self.assertTrue(np.all(margin<0.01))
+        for method in  [MultipleShooting, DirectCollocation]:
+            margins = [np.inf]
+            for M in [1,2,4]:
+                ocp, x1, x2, u = vdp(method(N=10,M=M),grid='inf')
+                sol = ocp.solve()
+                x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
+                margin = np.min(x1sol-(-0.25))
+                self.assertTrue(np.all(margin>0))
+                self.assertTrue(np.all(margin<0.01))
 
-          # Assert that margin shrinks for increasing M
-          self.assertTrue(margin<0.5*margins[-1])
-          margins.append(margin)
-          self.assertTrue(margin)
+                # Assert that margin shrinks for increasing M
+                self.assertTrue(margin<0.5*margins[-1])
+                margins.append(margin)
+                self.assertTrue(margin)
+
+    def test_grid_integrator_subject_to(self):
+        ocp, x1, x2, u = vdp(MultipleShooting(N=10))
+        sol = ocp.solve()
+        x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
+        self.assertFalse(np.all(x1sol>-0.25))
+
+        for method in  [MultipleShooting, DirectCollocation]:
+            margins = [np.inf]
+            for M in [1,2,4]:
+                ocp, x1, x2, u = vdp(method(N=10,M=M),grid='integrator')
+                sol = ocp.solve()
+                x1sol = sol.sample(x1, grid='integrator')[1]
+                margin = np.min(x1sol-(-0.25))
+                assert_array_almost_equal(margin, 0, decimal=8)
 
     def test_dae_casadi(self):
         # cross check with dae_colloation

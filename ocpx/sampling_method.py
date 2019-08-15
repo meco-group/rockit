@@ -1,6 +1,9 @@
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit
 from .direct_method import DirectMethod
+from .splines import BSplineBasis, BSpline
+from .casadi_helpers import reinterpret_expr
 from numpy import nan
+import numpy as np
 
 class SamplingMethod(DirectMethod):
     def __init__(self, N=50, M=1, intg='rk', intg_options=None, **kwargs):
@@ -113,6 +116,26 @@ class SamplingMethod(DirectMethod):
         self.set_parameter(stage, opti)
         placeholders = stage._bake_placeholders(self)
         return placeholders
+
+    def add_inf_constraints(self, stage, opti, c, k, l, meta):
+        coeff = stage._method.poly_coeff[k * self.M + l]
+        degree = coeff.shape[1]-1
+        basis = BSplineBasis([0]*(degree+1)+[1]*(degree+1),degree)
+        tscale = self.T / self.N / self.M
+        tpower = vcat([tscale**i for i in range(degree+1)])
+        coeff = coeff * repmat(tpower.T,stage.nx,1)
+        # TODO: bernstein transformation as function of degree
+        Poly_to_Bernstein_matrix_4 = DM([[1,0,0,0,0],[1,1.0/4, 0, 0, 0],[1, 1.0/2, 1.0/6, 0, 0],[1, 3.0/4, 1.0/2, 1.0/4, 0],[1, 1, 1, 1, 1]])
+        state_coeff = Poly_to_Bernstein_matrix_4 @ coeff.T
+        
+        statesize = [0] + [elem.nnz() for elem in stage.states]
+        statessizecum = np.cumsum(statesize)
+
+        subst_from = stage.states
+        state_coeff_split = horzsplit(state_coeff,statessizecum)
+        subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
+        c_spline = reinterpret_expr(c, subst_from, subst_to)
+        opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
 
     def fill_placeholders_integral_control(self, stage, expr, *args):
         r = 0

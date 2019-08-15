@@ -107,15 +107,21 @@ class DirectCollocation(SamplingMethod):
                 x_next = self.X[k + 1] if i==self.M-1 else self.Xc[k][i+1][:,0]
                 opti.subject_to(self.Xc[k][i] @ self.D == x_next)
 
-            for c, meta, _ in stage._path_constraints_expr():  # for each constraint expression
+                for c, meta, _ in stage._constraints["integrator"]:
+                    opti.subject_to(self.eval_at_integrator(stage, c, k, i), meta=meta)
+                        
+                for c, meta, _ in stage._constraints["inf"]:
+                    self.add_inf_constraints(stage, opti, c, k, i, meta)
+
+            for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
 
-        for c, meta, _ in stage._path_constraints_expr():  # for each constraint expression
+        for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
             opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
-        for c, meta, _ in stage._boundary_constraints_expr():  # Append boundary conditions to the end
+        for c, meta, _ in stage._constraints["point"]:  # Append boundary conditions to the end
             opti.subject_to(self.eval(stage, c), meta=meta)
 
     def set_initial(self, stage, opti, initial):

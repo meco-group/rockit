@@ -47,7 +47,7 @@ class Stage:
         self._param_vals = dict()
         self._state_der = dict()
         self._alg = []
-        self._constraints = []
+        self._constraints = defaultdict(list)
         self._objective = 0
         self._initial = dict()
         self._T = T
@@ -268,7 +268,7 @@ class Stage:
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
 
-    def subject_to(self, constr, grid='control'):
+    def subject_to(self, constr, grid=None):
         """Adds a constraint to the problem
 
         Parameters
@@ -300,11 +300,19 @@ class Stage:
         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
         """
         self._set_transcribed(False)
-        if grid not in ['control','inf','integrator']:
+        if grid is None:
+            grid = 'control' if self.is_signal(constr) else 'point'
+        if grid not in ['point', 'control', 'inf', 'integrator']:
             raise Exception("Invalid argument")
+        if self.is_signal(constr):
+            if grid == 'point':
+                raise Exception("Got a signal expression for grid 'point'.")
+        else:
+            if grid != 'point': 
+                raise Exception("Expected signal expression since grid '" + grid + "' was given.")
         
         args = {"grid": grid}
-        self._constraints.append((constr, get_meta(), args))
+        self._constraints[grid].append((constr, get_meta(), args))
 
     def at_t0(self, expr):
         """Evaluate a signal at the start of the horizon
@@ -499,12 +507,6 @@ class Stage:
         alg = veccat(*self._alg)
         return Function('ode', [self.x, self.u, self.z, self.p, self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
-    def _boundary_constraints_expr(self):
-        return [c for c in self._constraints if not self.is_signal(c[0])]
-
-    def _path_constraints_expr(self):
-        return [c for c in self._constraints if self.is_signal(c[0])]
-
     def _expr_apply(self, expr, **kwargs):
         """
         Substitute placeholder symbols with actual decision variables,
@@ -598,10 +600,19 @@ class Stage:
 
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
-        orig = [c for c, _, _ in self._constraints] + [self._objective]
+        constr_types = self._constraints.keys()
+        orig = [self._objective]
+        for k in constr_types:
+            orig.extend([c for c, _, _ in self._constraints[k]])
         res = substitute(orig, subst_from, subst_to)
-        ret._constraints = list(zip(res[:-1], [m for _, m, _ in self._constraints], [d for _, _, d in self._constraints]))
-        ret._objective = res[-1]
+        ret._objective = res[0]
+        res = res[1:]
+        ret._constraints = defaultdict(list)
+        for k in constr_types:
+            v = self._constraints[k]
+            ret._constraints[k] = list(zip(res, [m for _, m, _ in v], [d for _, _, d in v]))
+            res = res[len(v):]
+
         ret._initial = copy(self._initial)
 
         if 'T' not in kwargs:

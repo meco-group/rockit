@@ -27,7 +27,7 @@ class DirectMethod:
         pass
 
     def transcribe(self, stage, opti):
-        for c, m, _ in stage._constraints:
+        for c, m, _ in stage._constraints["point"]:
             opti.subject_to(c, meta = m)
         opti.add_objective(stage._objective)
         return {}
