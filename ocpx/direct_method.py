@@ -7,9 +7,6 @@ class DirectMethod:
       'first discretize, then optimize'
     """
     
-    def configure(self, opti):
-        opti.solver(self.solver, self.solver_options)
-
     def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
         J = jacobian(opti.g, opti.x).sparsity()
@@ -35,12 +32,6 @@ class DirectMethod:
 from casadi import substitute
 
 class OptiWrapper(Opti):
-    def set_ocp(self, ocp):
-        self.ocp = ocp
-        self.constraints = []
-        self.objective = 0
-        self.placeholders = None
-
     def subject_to(self, expr=None, meta=None):
         meta = merge_meta(meta, get_meta())
         if expr is None:
