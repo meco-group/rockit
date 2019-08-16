@@ -65,24 +65,21 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
-try: 
-  tsol, usol = sol.sample(u, grid='integrator',refine=100)
+tsol, usol = sol.sample(u, grid='integrator',refine=100)
 
-  figure()
-  plot(tsol,usol)
-  title("Control signal")
-  xlabel("Times [s]")
-  grid(True)
+figure()
+plot(tsol,usol)
+title("Control signal")
+xlabel("Times [s]")
+grid(True)
 
-  tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
+tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
 
-  figure(figsize=(15, 4))
-  plot(tsc, x1c, '-')
-  plot(tsa, x1a, 'o')
-  plot(tsb, x1b, '.')
-  xlabel("Times [s]")
-  grid(True)
-except:
-  pass
+figure(figsize=(15, 4))
+plot(tsc, x1c, '-')
+plot(tsa, x1a, 'o')
+plot(tsb, x1b, '.')
+xlabel("Times [s]")
+grid(True)
 
 show(block=True)
