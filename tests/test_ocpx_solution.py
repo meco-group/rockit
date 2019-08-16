@@ -23,6 +23,10 @@ class OcpSolutionTests(unittest.TestCase):
         assert_allclose(us, u_exact, atol=tolerance)
         assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
 
+
+        tsa, tsb = sol.sample(ocp.t, grid='integrator')
+        assert_allclose(tsa, tsb, atol=tolerance)
+
     def test_intg_refine(self):
         for M in [1, 2]:
           for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk')]:
