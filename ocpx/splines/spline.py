@@ -393,14 +393,17 @@ class BSpline(Spline):
     """Construct a Bspline curve from the basis B and coefficients c
     """
     def __add__(self, other):
+        return self.common(other, lambda a,b : a+b)
+
+    def common(self, other, op):
         if isinstance(other, self.__class__):
             basis = self.basis + other.basis
-            coeffs = (basis.transform(self.basis).dot(self.coeffs) +
+            coeffs = op(basis.transform(self.basis).dot(self.coeffs),
                       basis.transform(other.basis).dot(other.coeffs))
         else:
             try:
                 basis = self.basis
-                coeffs = self.coeffs + other  # Only for BSpline!
+                coeffs = op(self.coeffs,other)  # Only for BSpline!
             except:
                 NotImplementedError("Incompatible datatype")
         return self.__class__(basis, coeffs)
@@ -512,16 +515,16 @@ class BSpline(Spline):
         return self.__class__(basis, self.coeffs)
 
     def __ge__(self, other):
-        return (self-other).coeffs >= 0
+        return self.common(other, lambda a,b : a>=b).coeffs
 
     def __gt__(self, other):
-        return (self-other).coeffs > 0
+        return self.common(other, lambda a,b : a>b).coeffs
 
     def __le__(self, other):
-        return (self-other).coeffs <= 0
+        return self.common(other, lambda a,b : a<=b).coeffs
 
     def __lt__(self, other):
-        return (self-other).coeffs < 0
+        return self.common(other, lambda a,b : a<b).coeffs
 
 class Nurbs(Spline):
     def __init__(self, basis, coeffs):

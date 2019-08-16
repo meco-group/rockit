@@ -97,9 +97,9 @@ ocp.subject_to(ocp.at_tf(dgamma)==0)
 
 ocp.subject_to(-Rn <= (T<= Rn))
 ocp.subject_to(-5*Rn <= (R<= 5*Rn))
-ocp.subject_to(-pi/2 <= (alpha<=pi/2),grid='integrator_roots')
-ocp.subject_to(-pi/8 <= (beta<=pi/8),grid='integrator_roots')
-ocp.subject_to(pi/4 <= (gamma<=pi),grid='integrator_roots')
+ocp.subject_to(-pi/2 <= (alpha<=pi/2),grid='inf')
+ocp.subject_to(-pi/8 <= (beta<=pi/8),grid='inf')
+ocp.subject_to(pi/4 <= (gamma<=pi),grid='inf')
 
 
 # Minimal time
