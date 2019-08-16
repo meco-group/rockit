@@ -28,7 +28,7 @@ class OcpSolution:
         grid : `str`
             At which points in time to sample, options are
             'control' or 'integrator' (at integrator discretization
-            level).
+            level) or 'integrator_roots'.
         refine : int, optional
             Refine grid by evaluation the polynomal of the integrater at
             intermediate points ("refine" points per interval).
@@ -54,6 +54,8 @@ class OcpSolution:
                 return self._grid_intg_fine(self.stage, expr, grid, **kwargs)
             else:
                 return self._grid_integrator(self.stage, expr, grid, **kwargs)
+        elif grid == 'integrator_roots':
+            return self._grid_integrator_roots(self.stage, expr, grid, **kwargs)
         else:
             msg = "Unknown grid option: {}\n".format(grid)
             msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
@@ -71,13 +73,27 @@ class OcpSolution:
     def _grid_integrator(self, stage, expr, grid):
         """Evaluate expression at (N*M + 1) integrator discretization points."""
         sub_expr = []
+        time = []
         for k in range(stage._method.N):
             for l in range(stage._method.M):
                 sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
+            time.append(stage._method.integrator_grid[k])
         sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
         res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(stage._method.control_grid)
-        time = np.linspace(time[0], time[-1], stage._method.N * stage._method.M + 1)
+        time = self.sol.value(vcat(time))
+        return time, np.array(res)
+
+    def _grid_integrator_roots(self, stage, expr, grid):
+        """Evaluate expression at integrator roots."""
+        sub_expr = []
+        tr = []
+        for k in range(stage._method.N):
+            for l in range(stage._method.M):
+                for j in range(stage._method.xr[k][l].shape[1]):
+                    sub_expr.append(stage._method.eval_at_integrator_root(stage, expr, k, l, j))
+                tr.extend(stage._method.tr[k][l])
+        res = [self.sol.value(elem) for elem in sub_expr]
+        time = self.sol.value(hcat(tr))
         return time, np.array(res)
 
     def _grid_intg_fine(self, stage, expr, grid, refine):

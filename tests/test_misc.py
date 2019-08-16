@@ -345,14 +345,18 @@ class MiscTests(unittest.TestCase):
         x1sol = sol.sample(x1, grid='integrator',refine=100)[1]
         self.assertFalse(np.all(x1sol>-0.25))
 
-        for method in  [MultipleShooting, DirectCollocation]:
-            margins = [np.inf]
-            for M in [1,2,4]:
-                ocp, x1, x2, u = vdp(method(N=10,M=M),grid='integrator')
-                sol = ocp.solve()
-                x1sol = sol.sample(x1, grid='integrator')[1]
-                margin = np.min(x1sol-(-0.25))
-                assert_array_almost_equal(margin, 0, decimal=8)
+        for method, grids in  [(MultipleShooting,['integrator']), (DirectCollocation,['integrator','integrator_roots'])]:
+            for grid in grids:
+              margins = [np.inf]
+              for M in [1,2,4]:
+                  ocp, x1, x2, u = vdp(method(N=10,M=M),grid=grid)
+                  sol = ocp.solve()
+                  x1sol = sol.sample(x1, grid=grid)[1]
+                  x1solf = sol.sample(x1, grid='integrator',refine=100)[1]
+                  margin = np.min(x1sol-(-0.25))
+                  marginf = np.min(x1solf-(-0.25))
+                  self.assertTrue(marginf<1e-5)
+                  assert_array_almost_equal(margin, 0, decimal=8)
 
     def test_dae_casadi(self):
         # cross check with dae_colloation

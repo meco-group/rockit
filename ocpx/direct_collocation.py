@@ -46,11 +46,26 @@ class DirectCollocation(SamplingMethod):
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
-            self.Xc.append([horzcat(x, opti.variable(stage.nx, self.degree))]+[opti.variable(stage.nx, self.degree+1) for i in range(self.M-1)])
-            self.Zc.append([opti.variable(stage.nz, self.degree) for i in range(self.M)])
+            xr = []
+            zr = []
+            Xc = []
+            Zc = []
+            for i in range(self.M):
+                xc = opti.variable(stage.nx, self.degree)
+                xr.append(xc)
+                zc = opti.variable(stage.nz, self.degree)
+                zr.append(zc)
+
+                x0 = x if i==0 else opti.variable(stage.nx)
+                Xc.append(horzcat(x0, xc))
+                Zc.append(zc)
+
+            self.xr.append(xr)
+            self.zr.append(zr)
+            self.Xc.append(Xc)
+            self.Zc.append(Zc)
             x = opti.variable(stage.nx)
             self.X.append(x)
-
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
@@ -82,11 +97,18 @@ class DirectCollocation(SamplingMethod):
         poly_z = vcat(ps_z)
         self.q = 0
 
+        # Make time-grid for roots
+        for k in range(self.N):
+            dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
+            tr = []
+            for i in range(self.M):
+                tr.append([self.integrator_grid[k][i]+dt*self.tau[j] for j in range(self.degree)])        
+            self.tr.append(tr)
+
         for k in range(self.N):
             dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
             S_z = 1/repmat(hcat([dt**i for i in range(self.degree)]), self.degree, 1)
-            t0 = self.control_grid[k]
             self.Z.append(self.Zc[k][0] @ poly_z[:,0])
             for i in range(self.M):
                 self.xk.append(self.Xc[k][i][:,0])
@@ -95,13 +117,14 @@ class DirectCollocation(SamplingMethod):
                 self.zk.append(self.Zc[k][i] @ poly_z[:,0])
                 for j in range(self.degree):
                     Pidot_j = self.Xc[k][i] @ self.C[:,j]/ dt
-                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=self.P, t=t0+dt*self.tau[j])
+                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=self.P, t=self.tr[k][i][j])
                     # Collocation constraints
                     opti.subject_to(Pidot_j == res["ode"])
                     self.q = self.q + res["quad"]*dt*self.B[j]
                     if stage.nz:
                         opti.subject_to(0 == res["alg"])
-                t0 += dt
+                    for c, meta, _ in stage._constraints["integrator_roots"]:
+                        opti.subject_to(self.eval_at_integrator_root(stage, c, k, i, j), meta=meta)
 
                 # Continuity constraints
                 x_next = self.X[k + 1] if i==self.M-1 else self.Xc[k][i+1][:,0]

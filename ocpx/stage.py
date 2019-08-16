@@ -287,7 +287,8 @@ class Stage:
             Possible entries: 
                 control: constraint at control interval edges
                 inf: use mathematical guarantee for the whole control interval (only possible for polynomials of states and controls)
-                integrator: constraint at integrator edges
+                integrator: constrain at integrator edges
+                integrator_roots: constrain at integrator roots (e.g. collocation points excluding 0)
 
         Examples
         --------
@@ -302,7 +303,7 @@ class Stage:
         self._set_transcribed(False)
         if grid is None:
             grid = 'control' if self.is_signal(constr) else 'point'
-        if grid not in ['point', 'control', 'inf', 'integrator']:
+        if grid not in ['point', 'control', 'inf', 'integrator', 'integrator_roots']:
             raise Exception("Invalid argument")
         if self.is_signal(constr):
             if grid == 'point':
