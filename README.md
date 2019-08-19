@@ -4,60 +4,129 @@
 [![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.mech.kuleuven.be/ocpx)
 [![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.mech.kuleuven.be/ocpx/documentation-ocpx.pdf)
 
-# Get started
+# Description
+
+Rockit (Rapid Optimal Control kit) is a software framework to quickly prototype optimal control problems (aka dynamic optimization) that may arise in engineering:
+iterative learning (ILC), model predictive control (NMPC), motion planning.
+
+Notably, the software allows free end-time problems and multi-stage optimal problems.
+The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org).
+
+# Installation
+Install using pip: `pip install rockit`
+
+# Hello world
+(Taken from the [example directory](https://gitlab.mech.kuleuven.be/meco-software/rockit/blob/master/examples/hello_world.py))
 Some recommendations for a productive setup:
 
-### Python environment
+Import the project:
+```python
+from ocpx import *
+```
 
-* Install https://docs.conda.io/en/latest/miniconda.html
-  This allows you to create an isolated Python environment.
+Start an optimal control environment with a time horizon of 10 seconds (free time problems can be configured with `FreeTime(initial_guess)`).
+```python
+ocp = Ocp(T=10)
+```
 
-* `conda create --name ocpx python=3.6 matplotlib scipy ipython pylint`
-* `conda activate ocpx`
+Define two scalar states (vectors and matrices also supported):
+```python
+x1 = ocp.state()
+x2 = ocp.state()
+```
 
-### CasADi setup
-* In your Python environment, do `pip install casadi`
+Define one control input:
+```python
+u = ocp.control(order=0)
+```
 
-### IDE
+Specify ODE (DAEs also supported with `ocp.algebraic` and `add_alg`):
+```python
+ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+ocp.set_der(x2, x1)
+```
 
- * Install https://code.visualstudio.com/
- * Install the Python extension.
- * Open the `ocpx` cloned folder, navigate to the `hello_world.py` example.
- * A bar at the bottom of the screen should mention the Python environment,
-  make sure to select 'ocpx' environment.
- * Add the `ocpx` cloned folder into PYTHONPATH with `export PYTHONPATH=$PYTHONPATH:/path/to/repo` (linux) or `set PYTHONPATH=%PYTHONPATH%;/path/to/repo` (windows)
- * Right-click the open file, select 'Run Python file in terminal'.
+Lagrange objective:
+```python
+ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+```
 
- ### Documentation
+Path constraints:
+```python
+ocp.subject_to(      u <= 1)
+ocp.subject_to(-1 <= u     )
+ocp.subject_to(x1 >= -0.25)
+```
 
- Use the [NumPy docstring format](https://numpydoc.readthedocs.io/en/latest/format.html).
- For example:
- ```python
-def sample(self, stage, expr, grid):
-    """Sample expression at solution on a given grid.
+Initial constraints:
+```python
+ocp.subject_to(ocp.at_t0(x1) == 0)
+ocp.subject_to(ocp.at_t0(x2) == 1)
+```
 
-    Parameters
-    ----------
-    stage : :obj:`~ocpx.stage.Stage`
-        An optimal control problem stage.
-    expr : :obj:`casadi.MX`
-        Arbitrary expression containing states, controls, ...
-    grid : :obj:`~ocpx.stage_options.GridOption`
-        Type of time grid to use for sampling,
-        options are available in ocpx.stage_options.
+Pick an NLP solver backend (CasADi `nlpsol` plugin):
+```python
+ocp.solver('ipopt')
+```
 
-    Returns
-    -------
-    time : numpy.ndarray
-        Time from zero to final time, same length as res
-    res : numpy.ndarray
-        Numerical values of evaluated expression at points in time vector.
+Pick a solution method:
+```python
+method = MultipleShooting(N=10, M=1, intg='rk')
+#method = DirectCollocation(N=20)
+ocp.method(method)
+```
 
-    Examples
-    --------
-    Assume an ocp with a stage is already defined.
+Solve:
+```python
+sol = ocp.solve()
+```
 
-    >>> sol = ocp.solve()
-    >>> tx, xs = sol.sample(stage, x, grid='control')
-    """
+Show structure:
+```python
+ocp.spy()
+```
+
+Post-processing:
+```
+tsa, x1a = sol.sample(x1, grid='control')
+tsa, x2a = sol.sample(x2, grid='control')
+
+tsb, x1b = sol.sample(x1, grid='integrator')
+tsb, x2b = sol.sample(x2, grid='integrator')
+
+
+from pylab import *
+
+figure(figsize=(10, 4))
+subplot(1, 2, 1)
+plot(tsb, x1b, '.-')
+plot(tsa, x1a, 'o')
+xlabel("Times [s]", fontsize=14)
+grid(True)
+title('State x1')
+
+subplot(1, 2, 2)
+plot(tsb, x2b, '.-')
+plot(tsa, x2a, 'o')
+legend(['grid_integrator', 'grid_control'])
+xlabel("Times [s]", fontsize=14)
+title('State x2')
+grid(True)
+
+tsol, usol = sol.sample(u, grid='integrator',refine=100)
+
+figure()
+plot(tsol,usol)
+title("Control signal")
+xlabel("Times [s]")
+grid(True)
+
+tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
+
+figure(figsize=(15, 4))
+plot(tsc, x1c, '-')
+plot(tsa, x1a, 'o')
+plot(tsb, x1b, '.')
+xlabel("Times [s]")
+grid(True)
 ```
