@@ -13,7 +13,7 @@ Notably, the software allows free end-time problems and multi-stage optimal prob
 The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org).
 
 # Installation
-Install using pip: `pip install rockit`
+Install using pip: `pip install rockit-meco`
 
 # Hello world
 (Taken from the [example directory](https://gitlab.mech.kuleuven.be/meco-software/rockit/blob/master/examples/hello_world.py))
