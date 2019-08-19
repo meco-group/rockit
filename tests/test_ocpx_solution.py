@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
-from ocpx import MultipleShooting, DirectCollocation
+from rockit import MultipleShooting, DirectCollocation
 
 class OcpSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):

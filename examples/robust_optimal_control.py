@@ -21,7 +21,7 @@
 #
 
 # robust optimal control
-from ocpx import *
+from rockit import *
 from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt
 import matplotlib.pyplot as plt
 import numpy as np
@@ -30,7 +30,7 @@ def robust_control_stages(ocp,delta,t0):
   """
   Returns
   -------
-  stage: :obj: `~ocpx.stage.Stage
+  stage: :obj: `~rockit.stage.Stage
   x : :obj: `~casadi.MX
 
   """

@@ -1,6 +1,6 @@
 import unittest
 
-from ocpx import Ocp, DirectMethod, MultipleShooting, DirectCollocation
+from rockit import Ocp, DirectMethod, MultipleShooting, DirectCollocation
 from problems import integrator_control_problem
 
 

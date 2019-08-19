@@ -27,7 +27,7 @@ In this example, we want to shoot a ball from the ground up so that after 2
 bounces, it will reach the height of 0.5 meter.
 """
 
-from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime
 import matplotlib.pyplot as plt
 
 ocp = Ocp()

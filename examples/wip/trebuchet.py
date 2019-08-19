@@ -1,4 +1,4 @@
-from ocpx import *
+from rockit import *
 dla = 1  # long arm Front beam length [m]
 dsa = 0.25  # Back beam length(short arm) [m]
 h = 1  # pivot height

@@ -30,10 +30,10 @@ class Ocp(Stage):
 
         Parameters
         ----------
-        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        t0 : float or :obj:`~rockit.freetime.FreeTime`, optional
             Starting time of the optimal control horizon
             Default: 0
-        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        T : float or :obj:`~rockit.freetime.FreeTime`, optional
             Total horizon of the optimal control horizon
             Default: 1
 

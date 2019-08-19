@@ -1,8 +1,8 @@
-# OCPx
-[![pipeline status](https://gitlab.mech.kuleuven.be/meco-software/ocpx/badges/master/pipeline.svg)](https://gitlab.mech.kuleuven.be/meco-software/ocpx/commits/master)
-[![coverage report](https://gitlab.mech.kuleuven.be/meco-software/ocpx/badges/master/coverage.svg)](https://meco-software.pages.mech.kuleuven.be/ocpx/coverage/index.html)
-[![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.mech.kuleuven.be/ocpx)
-[![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.mech.kuleuven.be/ocpx/documentation-ocpx.pdf)
+# rockit
+[![pipeline status](https://gitlab.mech.kuleuven.be/meco-software/rockit/badges/master/pipeline.svg)](https://gitlab.mech.kuleuven.be/meco-software/rockit/commits/master)
+[![coverage report](https://gitlab.mech.kuleuven.be/meco-software/rockit/badges/master/coverage.svg)](https://meco-software.pages.mech.kuleuven.be/rockit/coverage/index.html)
+[![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.mech.kuleuven.be/rockit)
+[![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.mech.kuleuven.be/rockit/documentation-rockit.pdf)
 
 # Description
 
@@ -21,7 +21,7 @@ Some recommendations for a productive setup:
 
 Import the project:
 ```python
-from ocpx import *
+from rockit import *
 ```
 
 Start an optimal control environment with a time horizon of 10 seconds (free time problems can be configured with `FreeTime(initial_guess)`).

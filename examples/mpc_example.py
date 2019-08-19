@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import *
+from rockit import *
 from casadi import *
 
 import matplotlib.pyplot as plt

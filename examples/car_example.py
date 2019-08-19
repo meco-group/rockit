@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import *
+from rockit import *
 import matplotlib.pyplot as plt
 
 ocp = Ocp(T=FreeTime(1.0))

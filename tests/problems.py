@@ -1,4 +1,4 @@
-from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime
 
 
 def integrator_control_problem(T=1, u_max=1, x0=0, stage_method=None, t0=0):

@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import *
+from rockit import *
 import numpy as np
 from pylab import *
 from numpy import pi, cos, sin, tan

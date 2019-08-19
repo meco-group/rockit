@@ -26,6 +26,7 @@ from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from collections import defaultdict
 from .casadi_helpers import get_meta
+from contextlib import contextmanager
 
 class Stage:
     """
@@ -36,18 +37,18 @@ class Stage:
         """Create an Optimal Control Problem stage.
         
         Only call this constructer when you need abstract stages,
-        ie stages that are not associated with an :obj:`~ocpx.ocp.Ocp`.
-        For other uses, see :obj:`~ocpx.stage.Stage.stage`.
+        ie stages that are not associated with an :obj:`~rockit.ocp.Ocp`.
+        For other uses, see :obj:`~rockit.stage.Stage.stage`.
 
         Parameters
         ----------
-        parent : float or :obj:`~ocpx.stage.Stage`, optional
+        parent : float or :obj:`~rockit.stage.Stage`, optional
             Parent Stage to which 
             Default: None
-        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        t0 : float or :obj:`~rockit.freetime.FreeTime`, optional
             Starting time of the stage
             Default: 0
-        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        T : float or :obj:`~rockit.freetime.FreeTime`, optional
             Total horizon of the stage
             Default: 1
 
@@ -83,22 +84,22 @@ class Stage:
         self._method = DirectMethod()
 
     def stage(self, template=None, **kwargs):
-        """Create a new :obj:`~ocpx.stage.Stage` and add it as to the :obj:`~ocpx.ocp.Ocp`.
+        """Create a new :obj:`~rockit.stage.Stage` and add it as to the :obj:`~rockit.ocp.Ocp`.
 
         Parameters
         ----------
-        template : :obj:`~ocpx.stage.Stage`, optional
+        template : :obj:`~rockit.stage.Stage`, optional
             A stage to copy from. Will not be modified.
-        t0 : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        t0 : float or :obj:`~rockit.freetime.FreeTime`, optional
             Starting time of the stage
             Default: 0
-        T : float or :obj:`~ocpx.freetime.FreeTime`, optional
+        T : float or :obj:`~rockit.freetime.FreeTime`, optional
             Total horizon of the stage
             Default: 1
 
         Returns
         -------
-        s : :obj:`~ocpx.stage.Stage`
+        s : :obj:`~rockit.stage.Stage`
             New stage
         """
         if template:
@@ -111,7 +112,7 @@ class Stage:
 
     def state(self, n_rows=1, n_cols=1, quad=False):
         """Create a state.
-        You must supply a derivative for the state with :obj:`~ocpx.stage.Stage.set_der`
+        You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
 
         Parameters
         ----------
@@ -148,7 +149,7 @@ class Stage:
 
     def algebraic(self, n_rows=1, n_cols=1):
         """Create an algebraic variable
-        You must supply an algebraic relation with:obj:`~ocpx.stage.Stage.set_alg`
+        You must supply an algebraic relation with:obj:`~rockit.stage.Stage.set_alg`
 
         Parameters
         ----------
@@ -244,7 +245,7 @@ class Stage:
         Parameters
         ----------
         state : `~casadi.MX`
-            A CasADi symbol created with :obj:`~ocpx.stage.Stage.state`.
+            A CasADi symbol created with :obj:`~rockit.stage.Stage.state`.
         der : `~casadi.MX`
             A CasADi symbolic expression of the same size as `state`
 
@@ -299,10 +300,10 @@ class Stage:
             A constrained expression. It should be a symbolic expression that depends
             on decision variables and features a comparison `==`, `<=`, `=>`.
 
-            If `constr` is a signal (:obj:`~ocpx.stage.Stage.is_signal`, depends on time)
+            If `constr` is a signal (:obj:`~rockit.stage.Stage.is_signal`, depends on time)
             a path-constraint is assumed: it should hold over the entire stage horizon.
 
-            If `constr` is not a signal (e.g. :obj:`~ocpx.stage.Stage.at_t0`/:obj:`~ocpx.stage.Stage.at_tf` was applied on states),
+            If `constr` is not a signal (e.g. :obj:`~rockit.stage.Stage.at_t0`/:obj:`~rockit.stage.Stage.at_tf` was applied on states),
             a boundary constraint is assumed.
         grid : str
             A string containing the type of grid to constrain the problem
@@ -390,7 +391,7 @@ class Stage:
         ----------
         term : :obj:`~casadi.MX`
             A symbolic expression that may not depend directly on states and controls.
-            Use :obj:`~ocpx.stage.Stage.at_t0`/:obj:`~ocpx.stage.Stage.at_tf`/:obj:`~ocpx.stage.Stage.integral`
+            Use :obj:`~rockit.stage.Stage.at_t0`/:obj:`~rockit.stage.Stage.at_tf`/:obj:`~rockit.stage.Stage.integral`
             to eliminate the time-dependence of states and controls.
 
         Examples
@@ -414,7 +415,7 @@ class Stage:
         Parameters
         ----------
         method : :obj:`~casadi.MX`
-            Instance of a subclass of :obj:`~ocpx.direct_method.DirectMethod`.
+            Instance of a subclass of :obj:`~rockit.direct_method.DirectMethod`.
             Will not be modified
 
         Examples

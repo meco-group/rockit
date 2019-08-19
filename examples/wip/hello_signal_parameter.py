@@ -1,4 +1,4 @@
-from ocpx import *
+from rockit import *
 import matplotlib.pyplot as plt
 import numpy as np
 

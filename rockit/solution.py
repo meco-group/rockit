@@ -35,10 +35,13 @@ class OcpSolution:
 
         Parameters
         ----------
-        stage : :obj:`~ocpx.stage.Stage`
+        stage : :obj:`~rockit.stage.Stage`
             An optimal control problem stage.
         """
         return OcpSolution(self.sol, stage=stage)
+
+    def value(self, expr, *args, **kwargs):
+        return self.sol.value(expr, *args, **kwargs)
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression at solution on a given grid.

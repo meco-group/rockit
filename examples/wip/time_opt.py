@@ -1,6 +1,6 @@
 # time optimal example for mass-spring-damper system
 
-from ocpx import *
+from rockit import *
 from casadi import sumsqr, vertcat, sin, cos
 import math
 import matplotlib.pyplot as plt

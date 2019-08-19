@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import MultipleShooting, DirectMethod, Ocp
+from rockit import MultipleShooting, DirectMethod, Ocp
 from casadi import integrator, vertcat, sin, Function, vcat, norm_2, horzcat
 import numpy as np
 import matplotlib.pyplot as plt

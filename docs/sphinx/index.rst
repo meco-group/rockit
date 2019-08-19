@@ -1,12 +1,12 @@
-.. OCPx documentation master file, created by
+.. rockit documentation master file, created by
    sphinx-quickstart on Wed Jul 24 12:29:07 2019.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to OCPx's documentation!
+Welcome to rockit's documentation!
 ================================
 
- .. automodule:: ocpx
+ .. automodule:: rockit
     :members:
 
 Coverage

@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import *
+from rockit import *
 
 xref = 0.1 # chariot reference
 

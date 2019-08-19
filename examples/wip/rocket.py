@@ -1,4 +1,4 @@
-from ocpx import Ocp, DirectMethod, MultipleShooting
+from rockit import Ocp, DirectMethod, MultipleShooting
 
 ocp = Ocp()
 

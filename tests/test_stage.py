@@ -1,6 +1,6 @@
 import unittest
 
-from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
 import numpy as np
 
 class StageTests(unittest.TestCase):

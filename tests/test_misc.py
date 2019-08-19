@@ -1,6 +1,6 @@
 import unittest
 
-from ocpx import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
 from problems import integrator_control_problem, vdp, vdp_dae
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal

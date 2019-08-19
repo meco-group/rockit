@@ -20,7 +20,7 @@
 #
 #
 
-from ocpx import *
+from rockit import *
 
 ocp = Ocp(T=10)
 
