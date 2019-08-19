@@ -23,7 +23,7 @@ testing:unittests:
   stage: testing
   <<: *template
   script:
-    - nosetests --with-coverage --cover-html --cover-package=ocpx
+    - nosetests --with-coverage --cover-html --cover-package=rockit
   artifacts:
     paths:
       - cover
@@ -42,7 +42,7 @@ docs:sphinx:
     - testing:examples
   script:
     - cd docs/sphinx && mkdir -p apidoc
-    - sphinx-apidoc -f -o ./apidoc/ ../../ocpx/
+    - sphinx-apidoc -f -o ./apidoc/ ../../rockit/
     - make html
   artifacts:
     paths:
