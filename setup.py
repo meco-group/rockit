@@ -6,7 +6,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='rockit',
+    name='rockit-meco',
     version="0.1.0",
     author="MECO-Group",
     author_email="joris.gillis@kuleuven.be",
@@ -27,5 +27,5 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],
-    download_url=''
+    download_url='https://gitlab.mech.kuleuven.be/meco-software/rockit/-/archive/v0.1.0/rockit-v0.1.0.tar.gz'
 )
