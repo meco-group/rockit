@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='rockit-meco',
-    version="0.1.0",
+    version="0.1.1",
     author="MECO-Group",
     author_email="joris.gillis@kuleuven.be",
     description="Rapid Optimal Control Kit",
@@ -27,5 +27,5 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],
-    download_url='https://gitlab.mech.kuleuven.be/meco-software/rockit/-/archive/v0.1.0/rockit-v0.1.0.tar.gz'
+    download_url='https://gitlab.mech.kuleuven.be/meco-software/rockit/-/archive/v0.1.1/rockit-v0.1.1.tar.gz'
 )
