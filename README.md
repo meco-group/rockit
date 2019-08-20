@@ -10,7 +10,7 @@ Rockit (Rapid Optimal Control kit) is a software framework to quickly prototype 
 iterative learning (ILC), model predictive control (NMPC), motion planning.
 
 Notably, the software allows free end-time problems and multi-stage optimal problems.
-The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org) 
+The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org) .
 Rockit is maintained by the [MECO research group](https://www.mech.kuleuven.be/en/pma/research/meco) at KU Leuven.
 
 # Installation
