@@ -18,7 +18,6 @@ Install using pip: `pip install rockit-meco`
 
 # Hello world
 (Taken from the [example directory](https://gitlab.mech.kuleuven.be/meco-software/rockit/blob/master/examples/hello_world.py))
-Some recommendations for a productive setup:
 
 Import the project:
 ```python
