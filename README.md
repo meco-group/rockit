@@ -88,7 +88,7 @@ Show structure:
 ocp.spy()
 ```
 
-Post-processing:
+Post-processing. Sample states/control or expressions thereof on a specific grid:
 ```
 tsa, x1a = sol.sample(x1, grid='control')
 tsa, x2a = sol.sample(x2, grid='control')
