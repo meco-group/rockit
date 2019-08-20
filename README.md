@@ -10,16 +10,13 @@ Rockit (Rapid Optimal Control kit) is a software framework to quickly prototype 
 iterative learning (ILC), model predictive control (NMPC), motion planning.
 
 Notably, the software allows free end-time problems and multi-stage optimal problems.
-The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org) .
-Rockit is maintained by the [MECO research group](https://www.mech.kuleuven.be/en/pma/research/meco) at KU Leuven.
+The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org).
 
 # Installation
 Install using pip: `pip install rockit-meco`
 
 # Hello world
-(Taken from the [example directory](https://gitlab.mech.kuleuven.be/meco-software/rockit/blob/master/examples/hello_world.py))
-
-You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git/master?filepath=examples%2Fhello_world.ipynb).
+(Taken from the [example directory](https://meco-software.pages.mech.kuleuven.be/rockit/examples/))
 
 Import the project:
 ```python
@@ -37,30 +34,29 @@ x1 = ocp.state()
 x2 = ocp.state()
 ```
 
-Define one control input:
+Define one piece-wise constant control input (use `order=1` for piecewise linear):
 ```python
-u = ocp.control(order=0)
+u = ocp.control()
 ```
 
-Specify ODE (DAEs also supported with `ocp.algebraic` and `add_alg`):
+Specify differential equations for states (time dependency supported with `ocp.t`, DAEs also supported with `ocp.algebraic` and `add_alg`):
 ```python
 ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
 ocp.set_der(x2, x1)
 ```
 
-Lagrange objective:
+Lagrange objective (Mayer term supported with `ocp.at_tf(expression)`):
 ```python
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 ```
 
-Path constraints:
+Path constraints (must be valid on the whole time domain running from `t0` to `tf=t0+T`, grid options available):
 ```python
-ocp.subject_to(      u <= 1)
-ocp.subject_to(-1 <= u     )
 ocp.subject_to(x1 >= -0.25)
+ocp.subject_to(-1 <= (u <= 1 ))
 ```
 
-Initial constraints:
+Boundary constraints:
 ```python
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
@@ -88,7 +84,7 @@ Show structure:
 ocp.spy()
 ```
 
-Post-processing. Sample states/control or expressions thereof on a specific grid:
+Post-processing:
 ```
 tsa, x1a = sol.sample(x1, grid='control')
 tsa, x2a = sol.sample(x2, grid='control')
@@ -132,8 +128,3 @@ plot(tsb, x1b, '.')
 xlabel("Times [s]")
 grid(True)
 ```
-
-# Citing
-
-If you find rockit useful in your research, pleasse cite the project URL `https://gitlab.mech.kuleuven.be/meco-software/rockit`.
-A proper publication is in the pipeline..

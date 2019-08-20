@@ -20,6 +20,13 @@
 #
 #
 
+"""
+Dae example
+===========
+
+Example of adding an algebraic state and algebraic equation
+"""
+
 from rockit import *
 
 ocp = Ocp(T=10)
@@ -110,5 +117,7 @@ try:
   grid(True)
 except:
   pass
+
+# sphinx_gallery_thumbnail_number = 2
 
 show(block=True)

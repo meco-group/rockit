@@ -11,9 +11,7 @@ stages:
   before_script:
     - source activate ocpx
     - mkdir -p .pip
-    - pip --cache-dir=.pip install casadi
-    - pip --cache-dir=.pip install sphinx_rtd_theme
-    - pip --cache-dir=.pip install coverage
+    - pip --cache-dir=.pip install casadi sphinx-gallery sphinx_rtd_theme coverage
     - python setup.py install
   cache:
     paths:

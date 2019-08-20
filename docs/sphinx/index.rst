@@ -9,6 +9,8 @@ Welcome to rockit's documentation!
  .. automodule:: rockit
     :members:
 
+.. include:: gallery_dirs/index.rst
+
 Coverage
 ========
 

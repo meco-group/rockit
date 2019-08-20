@@ -21,7 +21,8 @@
 #
 
 """
-Bouncing ball example.
+Bouncing ball example (using for loop)
+======================================
 
 In this example, we want to shoot a ball from the ground up so that after 2
 bounces, it will reach the height of 0.5 meter.

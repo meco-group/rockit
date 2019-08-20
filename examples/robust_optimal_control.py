@@ -20,6 +20,14 @@
 #
 #
 
+"""
+Robust Optimal Control
+======================
+
+Use a scenario tree of disturbances delta,
+for which all possible realizations still meet a constraint
+"""
+
 # robust optimal control
 from rockit import *
 from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt

@@ -20,6 +20,12 @@
 #
 #
 
+"""
+Model Predictive Control example
+================================
+
+"""
+
 from rockit import *
 from casadi import *
 

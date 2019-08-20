@@ -20,6 +20,14 @@
 #
 #
 
+"""
+Motion planning with hyperplanes
+================================
+
+Separating hyperplane is used to deal with
+convex polytopic obstacles
+"""
+
 from rockit import *
 import matplotlib.pyplot as plt
 import numpy as np
@@ -127,5 +135,7 @@ for x,y,ax,ay,b in list(zip(xs,ys,axs,ays,bs)):
     axis.add_artist(circle)
     if plt.isinteractive():
         plt.pause(0.5)
+
+# sphinx_gallery_thumbnail_number = 2
 
 show(block=True)

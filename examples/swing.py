@@ -20,6 +20,15 @@
 #
 #
 
+
+"""
+Garden swing
+============
+
+How should you move your body to get a swing moving?
+Demo with Lagrangian mechanics
+"""
+
 from rockit import *
 import numpy as np
 from pylab import *

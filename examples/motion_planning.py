@@ -20,6 +20,13 @@
 #
 #
 
+"""
+Motion planning
+===============
+
+Simple motion planning with circular obstacle
+"""
+
 from rockit import *
 import matplotlib.pyplot as plt
 import numpy as np

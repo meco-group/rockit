@@ -20,6 +20,12 @@
 #
 #
 
+"""
+Iterative learning example
+==========================
+
+"""
+
 from rockit import MultipleShooting, DirectMethod, Ocp
 from casadi import integrator, vertcat, sin, Function, vcat, norm_2, horzcat
 import numpy as np

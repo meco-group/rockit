@@ -20,6 +20,13 @@
 #
 #
 
+"""
+DAE cart-pendulum example
+=========================
+
+Taken from the CasADi example repo
+"""
+
 from rockit import *
 
 xref = 0.1 # chariot reference

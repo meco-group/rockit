@@ -33,8 +33,19 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.mathjax',
     'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode'
+    'sphinx.ext.viewcode',
+    'sphinx_gallery.gen_gallery'
 ]
+
+from sphinx_gallery.sorting import ExampleTitleSortKey
+
+sphinx_gallery_conf = {
+     'examples_dirs': '../../examples',   # path to your example scripts
+     'gallery_dirs': 'examples',  # path where to save gallery generated examples
+    'filename_pattern': '/',
+    'within_subsection_order': ExampleTitleSortKey,
+
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

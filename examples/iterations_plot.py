@@ -20,6 +20,13 @@
 #
 #
 
+"""
+Iterations plotting
+===================
+
+Example of making plots while the solver converges
+"""
+
 from rockit import *
 
 ocp = Ocp(T=10)
@@ -74,5 +81,7 @@ ocp.callback(plotme)
 
 # Solve
 sol = ocp.solve()
+
+# sphinx_gallery_thumbnail_number = 2
 
 show(block=True)

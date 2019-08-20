@@ -20,56 +20,87 @@
 #
 #
 
+"""
+A Hello World Example
+===================
+
+Some basic example on solving an Optimal Control Problem with rockit.
+"""
+
+# Import the project
 from rockit import *
 
+#%%
+# Problem specification
+# ---------------------
+
+# Start an optimal control environment with a time horizon of 10 seconds
+#  (free time problems can be configured with `FreeTime(initial_guess)`)
 ocp = Ocp(T=10)
 
-# Define 2 states
+# Define two scalar states (vectors and matrices also supported)
 x1 = ocp.state()
 x2 = ocp.state()
 
-# Define 1 control
+# Define one piecewise constant control input
+#  (use `order=1` for piecewise linear)
 u = ocp.control(order=0)
 
-# Specify ODE
+# Specify differential equations for states
+#  (time dependency supported with `ocp.t`,
+#   DAEs also supported with `ocp.algebraic` and `add_alg`)
 ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
 ocp.set_der(x2, x1)
 
-# Lagrange objective
+# Lagrange objective term
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+# Mayer objective term
+ocp.add_objective(ocp.at_tf(x1**2))
 
 # Path constraints
-ocp.subject_to(      u <= 1)
-ocp.subject_to(-1 <= u     )
-ocp.subject_to(x1 >= -0.25) # grid='inf')
+#  (must be valid on the whole time domain running from `t0` to `tf=t0+T`,
+#   grid options available such as `grid='inf'`)
+ocp.subject_to(x1 >= -0.25)
+ocp.subject_to(-1 <= (u <= 1 ))
 
-# Initial constraints
+# Boundary constraints
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
 
+#%%
+# Solving the problem
+# -------------------
+
 # Pick an NLP solver backend
+#  (CasADi `nlpsol` plugin):
 ocp.solver('ipopt')
 
 # Pick a solution method
-method = MultipleShooting(N=10, M=1, intg='rk')
-#method = DirectCollocation(N=20)
+#  N -- number of control intervals
+#  M -- number of integration steps per control interval
+method = MultipleShooting(N=10, M=2, intg='rk')
+#method = DirectCollocation(N=10, M=2)
 ocp.method(method)
 
 # Solve
 sol = ocp.solve()
 
+#%%
+# Post-processing
+# ---------------
+
+from pylab import *
+
 # Show structure
 ocp.spy()
 
-# Post-processing
+# Sample a state/control or expression thereof on a grid
 tsa, x1a = sol.sample(x1, grid='control')
 tsa, x2a = sol.sample(x2, grid='control')
 
 tsb, x1b = sol.sample(x1, grid='integrator')
 tsb, x2b = sol.sample(x2, grid='integrator')
 
-
-from pylab import *
 
 figure(figsize=(10, 4))
 subplot(1, 2, 1)
@@ -87,6 +118,9 @@ xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
 
+# sphinx_gallery_thumbnail_number = 2
+
+# Refine the grid for a more detailed plot
 tsol, usol = sol.sample(u, grid='integrator',refine=100)
 
 figure()

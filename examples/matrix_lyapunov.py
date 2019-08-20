@@ -20,6 +20,14 @@
 #
 #
 
+"""
+Example with matrix state
+=========================
+
+The example uses the Lyapunov differential equation to approximate
+state covariance along the trajectory
+"""
+
 # time optimal example for mass-spring-damper system
 from rockit import *
 from casadi import sumsqr, vertcat, sin, cos, vec, diag, horzcat, sqrt, jacobian

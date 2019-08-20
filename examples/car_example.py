@@ -20,7 +20,15 @@
 #
 #
 
+"""
+Car accelerating on a linear track
+====================================
+
+
+"""
+
 from rockit import *
+from numpy import sin, pi
 import matplotlib.pyplot as plt
 
 ocp = Ocp(T=FreeTime(1.0))
@@ -46,9 +54,10 @@ ocp.set_der(v, 1/m * (F - c * v**2))
 ocp.add_objective(ocp.T)
 
 # Path constraints
-ocp.subject_to(          F <= F_max)
-ocp.subject_to(-F_max <= F         )
+ocp.subject_to(-F_max <= (F<= F_max))
 ocp.subject_to(v >= 0)
+# Position depedant speed limit
+#ocp.subject_to(v <= 1-sin(2*pi*p)/2)
 
 # Initial constraints
 ocp.subject_to(ocp.at_t0(p)==0)
@@ -57,6 +66,9 @@ ocp.subject_to(ocp.at_t0(v)==0)
 # End constraints
 ocp.subject_to(ocp.at_tf(p)==d)
 ocp.subject_to(ocp.at_tf(v)==0)
+
+# Set initia guess for speed
+ocp.set_initial(v, 1)
 
 # Pick a solver
 ocp.solver('ipopt')
@@ -88,6 +100,7 @@ title('State p')
 subplot(1, 2, 2)
 plot(tsb, vb, '.-')
 plot(tsa, va, 'o')
+plot(tsa, 1-sin(2*pi*pa)/2, 'r--')
 legend(['grid_integrator', 'grid_control'])
 xlabel("Times [s]", fontsize=14)
 title('State v')
