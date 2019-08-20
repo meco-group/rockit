@@ -9,7 +9,7 @@ version = "0.1.2"
 
 setup(
     name='rockit-meco',
-    version="0.1.1",
+    version=version,
     author="MECO-Group",
     author_email="joris.gillis@kuleuven.be",
     description="Rapid Optimal Control Kit",
