@@ -56,8 +56,6 @@ ocp.add_objective(ocp.T)
 # Path constraints
 ocp.subject_to(-F_max <= (F<= F_max))
 ocp.subject_to(v >= 0)
-# Position depedant speed limit
-#ocp.subject_to(v <= 1-sin(2*pi*p)/2)
 
 # Initial constraints
 ocp.subject_to(ocp.at_t0(p)==0)
@@ -66,9 +64,6 @@ ocp.subject_to(ocp.at_t0(v)==0)
 # End constraints
 ocp.subject_to(ocp.at_tf(p)==d)
 ocp.subject_to(ocp.at_tf(v)==0)
-
-# Set initia guess for speed
-ocp.set_initial(v, 1)
 
 # Pick a solver
 ocp.solver('ipopt')
