@@ -23,7 +23,7 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
-                   repmat, DM
+                   repmat, DM, sum2
 from .casadi_helpers import get_ranges_dict
 from itertools import repeat
 try:
@@ -161,6 +161,8 @@ class DirectCollocation(SamplingMethod):
             for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+
+        self.Z.append(self.Zc[-1][-1] @ sum2(poly_z))
 
         for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
