@@ -179,7 +179,8 @@ class DirectCollocation(SamplingMethod):
             if a in algs:
                 for k in range(self.N):
                     for e in self.Zc[k]:
-                        opti.set_initial(e[algs[a],:], v)
+                        e_shape = e[algs[a],:].shape
+                        opti.set_initial(e[algs[a],:], repmat(v,1,e_shape[1]))
                 del initial[a]
         super().set_initial(stage, opti, initial)
         for k in range(self.N):
