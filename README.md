@@ -95,7 +95,7 @@ Show structure:
 ocp.spy()
 ```
 
-![Structure of optimizaiton problem](docs/hello_world_structure.png)
+![Structure of optimization problem](docs/hello_world_structure.png)
 
 Post-processing:
 ```
@@ -107,4 +107,4 @@ plot(tsb, x1b, 'o')
 plot(tsc, x1c, '.')
 ```
 
-![SOlution trajectory of states](docs/hello_world_states.png)
+![Solution trajectory of states](docs/hello_world_states.png)
