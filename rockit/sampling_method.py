@@ -227,13 +227,13 @@ class SamplingMethod(DirectMethod):
                 if target.numel()*(self.N)==value.numel():
                     if repmat(target, self.N, 1).shape==value.shape:
                         value = value[k,:]
-                    elif repmat(target, 1, N).shape==value.shape:
+                    elif repmat(target, 1, self.N).shape==value.shape:
                         value = value[:,k]
 
                 if target.numel()*(self.N+1)==value.numel():
                     if repmat(target, self.N+1, 1).shape==value.shape:
                         value = value[k,:]
-                    elif repmat(target, 1, N+1).shape==value.shape:
+                    elif repmat(target, 1, self.N+1).shape==value.shape:
                         value = value[:,k]
                 opti.set_initial(target, value)
 
