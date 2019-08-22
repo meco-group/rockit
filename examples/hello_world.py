@@ -44,7 +44,7 @@ x2 = ocp.state()
 
 # Define one piecewise constant control input
 #  (use `order=1` for piecewise linear)
-u = ocp.control(order=0)
+u = ocp.control()
 
 # Specify differential equations for states
 #  (time dependency supported with `ocp.t`,

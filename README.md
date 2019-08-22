@@ -6,11 +6,14 @@
 
 # Description
 
+![Rockit logo](docs/logo.png)
+
 Rockit (Rapid Optimal Control kit) is a software framework to quickly prototype optimal control problems (aka dynamic optimization) that may arise in engineering:
 iterative learning (ILC), model predictive control (NMPC), motion planning.
 
 Notably, the software allows free end-time problems and multi-stage optimal problems.
 The software is currently focused on direct methods and relieas eavily on [CasADi](http://casadi.org).
+The software is developed by the [KU Leuven MECO research team](https://www.mech.kuleuven.be/en/pma/research/meco).
 
 # Installation
 Install using pip: `pip install rockit-meco`
@@ -47,9 +50,13 @@ ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
 ocp.set_der(x2, x1)
 ```
 
-Lagrange objective (Mayer term supported with `ocp.at_tf(expression)`):
+Lagrange objective term
 ```python
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+```
+
+```Mayer objective term
+ocp.add_objective(ocp.at_tf(x1**2))
 ```
 
 Path constraints (must be valid on the whole time domain running from `t0` to `tf=t0+T`, grid options available):
@@ -70,9 +77,11 @@ ocp.solver('ipopt')
 ```
 
 Pick a solution method:
+  N -- number of control intervals
+  M -- number of integration steps per control interval
 ```python
-method = MultipleShooting(N=10, M=1, intg='rk')
-#method = DirectCollocation(N=20)
+method = MultipleShooting(N=10, M=2, intg='rk')
+#method = DirectCollocation(N=10, M=2)
 ocp.method(method)
 ```
 
@@ -86,47 +95,16 @@ Show structure:
 ocp.spy()
 ```
 
+![Structure of optimizaiton problem](docs/hello_world_structure.png)
+
 Post-processing:
 ```
 tsa, x1a = sol.sample(x1, grid='control')
-tsa, x2a = sol.sample(x2, grid='control')
-
 tsb, x1b = sol.sample(x1, grid='integrator')
-tsb, x2b = sol.sample(x2, grid='integrator')
-
-
-from pylab import *
-
-figure(figsize=(10, 4))
-subplot(1, 2, 1)
-plot(tsb, x1b, '.-')
-plot(tsa, x1a, 'o')
-xlabel("Times [s]", fontsize=14)
-grid(True)
-title('State x1')
-
-subplot(1, 2, 2)
-plot(tsb, x2b, '.-')
-plot(tsa, x2a, 'o')
-legend(['grid_integrator', 'grid_control'])
-xlabel("Times [s]", fontsize=14)
-title('State x2')
-grid(True)
-
-tsol, usol = sol.sample(u, grid='integrator',refine=100)
-
-figure()
-plot(tsol,usol)
-title("Control signal")
-xlabel("Times [s]")
-grid(True)
-
 tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
-
-figure(figsize=(15, 4))
-plot(tsc, x1c, '-')
-plot(tsa, x1a, 'o')
-plot(tsb, x1b, '.')
-xlabel("Times [s]")
-grid(True)
+plot(tsa, x1a, '-')
+plot(tsb, x1b, 'o')
+plot(tsc, x1c, '.')
 ```
+
+![SOlution trajectory of states](docs/hello_world_states.png)
