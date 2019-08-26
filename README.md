@@ -28,7 +28,7 @@ Import the project:
 from rockit import *
 ```
 
-Start an optimal control environment with a time horizon of 10 seconds (free time problems can be configured with `FreeTime(initial_guess)`).
+Start an optimal control environment with a time horizon of 10 seconds (free time problems can be configured with `FreeTime(initial_guess)`):
 ```python
 ocp = Ocp(T=10)
 ```
@@ -50,7 +50,7 @@ ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
 ocp.set_der(x2, x1)
 ```
 
-Lagrange objective term
+Lagrange objective term:
 ```python
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 ```
