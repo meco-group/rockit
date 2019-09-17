@@ -201,6 +201,20 @@ class SamplingMethod(DirectMethod):
         else:
             self.t0 = stage._t0
 
+    def add_variables_V(self, stage, opti):
+        V = []
+        for v in stage.variables['']:
+            V.append(opti.variable(v.shape[0], v.shape[1]))
+        self.V = veccat(*V)
+
+
+    def add_variables_V_control(self, stage, opti, k):
+        if k==0:
+            self.V_control = [[] for v in stage.variables['control']]
+
+        for i, v in enumerate(stage.variables['control']):
+            self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
+
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[:,k] for p in self.P_control])
 

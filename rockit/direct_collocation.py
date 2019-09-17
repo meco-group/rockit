@@ -65,6 +65,7 @@ class DirectCollocation(SamplingMethod):
         # is block-sparse
         x = opti.variable(stage.nx)
         self.X.append(x)
+        self.add_variables_V(stage, opti)
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
@@ -88,6 +89,7 @@ class DirectCollocation(SamplingMethod):
             self.Zc.append(Zc)
             x = opti.variable(stage.nx)
             self.X.append(x)
+            self.add_variables_V_control(stage, opti, k)
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system

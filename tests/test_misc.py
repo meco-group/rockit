@@ -175,18 +175,19 @@ class MiscTests(unittest.TestCase):
       self.assertAlmostEqual(xs[0], 1)
 
     def test_initial(self):
-      ocp, x, u = integrator_control_problem(x0=None)
-      v = ocp.variable()
-      ocp.subject_to(ocp.at_t0(x)==v)
-      ocp.subject_to(0==sin(v))
-      sol = ocp.solve()
-      ts, xs = sol.sample(x, grid='control')
-      self.assertAlmostEqual(xs[0], 0, places=6)
+      for stage_method in [MultipleShooting(), DirectCollocation()]:
+        ocp, x, u = integrator_control_problem(x0=None,stage_method=stage_method)
+        v = ocp.variable()
+        ocp.subject_to(ocp.at_t0(x)==v)
+        ocp.subject_to(0==sin(v))
+        sol = ocp.solve()
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[0], 0, places=6)
 
-      ocp.set_initial(v, 2*pi)
-      sol = ocp.solve()
-      ts, xs = sol.sample(x, grid='control')
-      self.assertAlmostEqual(xs[0], 2*pi, places=6)
+        ocp.set_initial(v, 2*pi)
+        sol = ocp.solve()
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[0], 2*pi, places=6)
 
     def test_show_infeasibilities(self):
       for method in [MultipleShooting(), DirectCollocation()]:

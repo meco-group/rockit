@@ -33,23 +33,12 @@ class MultipleShooting(SamplingMethod):
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         self.X.append(opti.variable(stage.nx))
-
-        V = []
-        for v in stage.variables['']:
-            V.append(opti.variable(v.shape[0], v.shape[1]))
-        self.V = veccat(*V)
-
-
-        V = []
-        self.V_control = [[] for v in stage.variables['control']]
+        self.add_variables_V(stage, opti)
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
             self.X.append(opti.variable(stage.nx))
-
-            for i, v in enumerate(stage.variables['control']):
-                self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
-
+            self.add_variables_V_control(stage, opti, k)
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
