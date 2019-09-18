@@ -389,6 +389,12 @@ class SamplingMethod(DirectMethod):
             r = r + self.eval_at_control(stage, expr, k)*dt
         return r
 
+    def fill_placeholders_sum_control(self, stage, expr, *args):
+        r = 0
+        for k in range(self.N):
+            r = r + self.eval_at_control(stage, expr, k)
+        return r
+
     def fill_placeholders_at_t0(self, stage, expr, *args):
         return self.eval_at_control(stage, expr, 0)
 

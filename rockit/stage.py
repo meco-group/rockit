@@ -320,6 +320,21 @@ class Stage:
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
 
+    def sum(self, expr, grid='inf'):
+        """Compute a sum
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            An expression to integrate over the state time domain (from t0 to tf=t0+T)
+        grid : str
+            Possible entries:
+                inf: the integral is performed using the integrator defined for the stage
+                control: the integral is evaluated as a sum on the control grid (start of each control interval)
+                         Note that the final state is not included in this definition
+        """
+        return self._create_placeholder_expr(expr, 'sum_control')
+
     def subject_to(self, constr, grid=None):
         """Adds a constraint to the problem
 
