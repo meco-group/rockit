@@ -82,6 +82,10 @@ class Ocp(Stage):
             self._transcribed_placeholders.is_dirty = False
         return self._transcribed_placeholders
 
+    @property
+    def non_converged_solution(self):
+        return OcpSolution(self.opti.non_converged_solution, self.master)
+
     def solve(self):
         self._transcribe()
         return OcpSolution(self.opti.solve(), self)
