@@ -487,7 +487,10 @@ class BSpline(Spline):
         coeffs = self.coeffs
         d = self.basis.degree
         K = csr_matrix_alt(np.diag((knots[d + 1:] - knots[:-(d + 1)]) / (d + 1)))
-        return sum(K.dot(coeffs))
+        try:
+            return sum(K.dot(coeffs))
+        except:
+            return cas.sum1(K.dot(coeffs))
         # try:
         #     return sum(coeffs * (knots[d + 1:] - knots[:-(d + 1)])) / (d + 1)
 
