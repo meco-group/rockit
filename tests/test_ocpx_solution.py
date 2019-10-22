@@ -2,7 +2,8 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
-from rockit import MultipleShooting, DirectCollocation
+from casadi import vertcat, DM
+from rockit import MultipleShooting, DirectCollocation, Ocp
 
 class OcpSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
@@ -51,6 +52,57 @@ class OcpSolutionTests(unittest.TestCase):
             u_ref = np.array([1.0]*M*10+[-1.0]*(M*10+1))
             ts, us = sol.sample(u, grid='integrator', refine=10)
             assert_allclose(us, u_ref, atol=tolerance)
+
+    def test_shapes(self):
+      ocp = Ocp(T=1)
+      N = 3
+      M = 5
+      R = 2
+      for xshape in [(), (7,), (7, 11), (1, 1), (7, 1), (1, 7)]:
+        target_shape = tuple([e for e in xshape if e!=1])
+        x = ocp.state(*xshape)
+        ocp.set_der(x,DM.ones(*xshape))
+        X0 = DM.rand(*xshape)
+        ocp.subject_to(ocp.at_t0(x)==X0)
+        ocp.solver('ipopt')
+
+        X0_target = np.array(X0).reshape(target_shape)
+
+        degree = 2
+        ocp.method(DirectCollocation(N=N,M=M,degree=2))
+        
+        sol = ocp.solve()
+        
+        t, X = sol.sample(x,grid='control')
+        tdim = N+1
+        self.assertEqual(t.shape[0],tdim)
+        self.assertEqual(X.shape[0],tdim)
+        assert_allclose(X.shape[1:],target_shape)
+        for i in range(tdim):
+          assert_allclose(X[i,...],X0_target+t[i])
+
+        t, X = sol.sample(x,grid='integrator')
+        tdim = N*M+1
+        self.assertEqual(t.shape[0],tdim)
+        self.assertEqual(X.shape[0],tdim)
+        assert_allclose(X.shape[1:],target_shape)
+        for i in range(tdim):
+          assert_allclose(X[i,...],X0_target+t[i])
+
+        t, X = sol.sample(x,grid='integrator',refine=R)
+        tdim = N*M*R+1
+        self.assertEqual(t.shape[0],tdim)
+        self.assertEqual(X.shape[0],tdim)
+        for i in range(tdim):
+          assert_allclose(X[i,...],X0_target+t[i])
+
+
+        t, X = sol.sample(x,grid='integrator_roots')
+        tdim = N*M*degree
+        self.assertEqual(t.shape[0],tdim)
+        self.assertEqual(X.shape[0],tdim)
+        for i in range(tdim):
+          assert_allclose(X[i,...],X0_target+t[i])
 
 if __name__ == '__main__':
     unittest.main()

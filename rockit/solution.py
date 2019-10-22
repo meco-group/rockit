@@ -137,6 +137,11 @@ class OcpSolution:
 
         expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
 
+        expr_shape = expr_f.size_out(0)
+        expr_prod = expr_shape[0]*expr_shape[1]
+        tdim = N*M*refine+1
+        target_shape = (tdim,)+tuple([e for e in expr_shape if e!=1])
+
         sub_expr = []
 
         time = self.sol.value(stage._method.control_grid)
@@ -167,9 +172,12 @@ class OcpSolution:
             z = coeff_z @ tpower_z
         else:
             z = nan
-        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
 
-        res = self.sol.value(hcat(sub_expr))
+        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
+        res = self.sol.value(hcat(sub_expr)).reshape(expr_shape[0], tdim, expr_shape[1])
+
+        res = np.transpose(res,[1,0,2])
+        res = res.reshape(target_shape)
 
         time = np.hstack(total_time)
         return time, res
