@@ -101,6 +101,14 @@ class MiscTests(unittest.TestCase):
 
                         sol = ocp.solve()
 
+                        self.assertAlmostEqual(sol.value(ocp.t0), t0)
+                        self.assertAlmostEqual(sol.value(ocp.T),(xf-x0)/b)
+                        self.assertAlmostEqual(sol.value(ocp.tf), t0 + (xf - x0) / b)
+
+                        # issue #91
+                        #self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
+                        #self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
+
                         ts, xs = sol.sample(x, grid='control')
 
                         self.assertAlmostEqual(xs[0], x0, places=6)
