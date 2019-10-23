@@ -20,13 +20,16 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from collections import defaultdict
 from .casadi_helpers import get_meta
 from contextlib import contextmanager
+
+import numpy as np
+from numpy import nan
 
 class Stage:
     """
@@ -656,3 +659,136 @@ class Stage:
             yield self
         for s in self._stages:
             yield from s.iter_stages(include_self=True)
+
+    def sample(self, expr, grid, **kwargs):
+        """Sample expression symbolically on a given grid.
+
+        Parameters
+        ----------
+        expr : :obj:`casadi.MX`
+            Arbitrary expression containing states, controls, ...
+        grid : `str`
+            At which points in time to sample, options are
+            'control' or 'integrator' (at integrator discretization
+            level) or 'integrator_roots'.
+        refine : int, optional
+            Refine grid by evaluation the polynomal of the integrater at
+            intermediate points ("refine" points per interval).
+
+        Returns
+        -------
+        time : :obj:`casadi.MX`
+            Time from zero to final time, same length as res
+        res : :obj:`casadi.MX`
+            Symbolically evaluated expression at points in time vector.
+
+        Examples
+        --------
+        Assume an ocp with a stage is already defined.
+
+        >>> sol = ocp.solve()
+        >>> tx, xs = sol.sample(x, grid='control')
+        """
+        self.master._transcribe()
+        placeholders = self.master.placeholders_transcribed
+        if grid == 'control':
+            time, res = self._grid_control(self, expr, grid, **kwargs)
+        elif grid == 'integrator':
+            if 'refine' in kwargs:
+                time, res = self._grid_intg_fine(self, expr, grid, **kwargs)
+            else:
+                time, res = self._grid_integrator(self, expr, grid, **kwargs)
+        elif grid == 'integrator_roots':
+            time, res = self._grid_integrator_roots(self, expr, grid, **kwargs)
+        else:
+            msg = "Unknown grid option: {}\n".format(grid)
+            msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
+            raise Exception(msg)
+
+        return placeholders(time), placeholders(res)
+
+    def _grid_control(self, stage, expr, grid):
+        """Evaluate expression at (N + 1) control points."""
+        sub_expr = []
+        for k in list(range(stage._method.N))+[-1]:
+            sub_expr.append(stage._method.eval_at_control(stage, expr, k))
+        res = hcat(sub_expr)
+        time = stage._method.control_grid
+        return time, res
+
+    def _grid_integrator(self, stage, expr, grid):
+        """Evaluate expression at (N*M + 1) integrator discretization points."""
+        sub_expr = []
+        time = []
+        for k in range(stage._method.N):
+            for l in range(stage._method.M):
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
+            time.append(stage._method.integrator_grid[k])
+        sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
+        return vcat(time), hcat(sub_expr)
+
+
+    def _grid_integrator_roots(self, stage, expr, grid):
+        """Evaluate expression at integrator roots."""
+        sub_expr = []
+        tr = []
+        for k in range(stage._method.N):
+            for l in range(stage._method.M):
+                for j in range(stage._method.xr[k][l].shape[1]):
+                    sub_expr.append(stage._method.eval_at_integrator_root(stage, expr, k, l, j))
+                tr.extend(stage._method.tr[k][l])
+        return hcat(tr).T, hcat(sub_expr)
+
+    def _grid_intg_fine(self, stage, expr, grid, refine):
+        """Evaluate expression at extra fine integrator discretization points."""
+        if stage._method.poly_coeff is None:
+            msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
+            raise Exception(msg)
+        N, M = stage._method.N, stage._method.M
+
+        expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
+
+        time = stage._method.control_grid
+        total_time = []
+        sub_expr = []
+        for k in range(N):
+            t0 = time[k]
+            dt = (time[k+1]-time[k])/M
+            tlocal = linspace(MX(0), dt, refine + 1)
+            assert tlocal.is_column()
+            ts = tlocal[:-1,:]
+            for l in range(M):
+                total_time.append(t0+tlocal[:-1])
+                coeff = stage._method.poly_coeff[k * M + l]
+                tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
+                if stage._method.poly_coeff_z:
+                    coeff_z = stage._method.poly_coeff_z[k * M + l]
+                    tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
+                    z = coeff_z @ tpower_z
+                else:
+                    z = nan
+                sub_expr.append(expr_f(coeff @ tpower, z, stage._method.U[k]))
+                t0+=dt
+
+        ts = tlocal[-1,:]
+        total_time.append(time[k+1])
+        tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
+        if stage._method.poly_coeff_z:
+            tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
+            z = coeff_z @ tpower_z
+        else:
+            z = nan
+
+        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
+
+        return vcat(total_time), hcat(sub_expr)
+
+    def value(self, expr, *args, **kwargs):
+        """Get the value of an (non-signal) expression.
+
+        Parameters
+        ----------
+        expr : :obj:`casadi.MX`
+            Arbitrary expression containing no signals (states, controls) ...
+        """
+        return self._method.eval(self, expr)

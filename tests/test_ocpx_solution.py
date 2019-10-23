@@ -70,7 +70,15 @@ class OcpSolutionTests(unittest.TestCase):
 
         degree = 2
         ocp.method(DirectCollocation(N=N,M=M,degree=2))
-        
+
+        t, X = ocp.sample(x,grid='control')
+        self.assertTrue(t.is_column())
+        t, X = ocp.sample(x,grid='integrator')
+        self.assertTrue(t.is_column())
+        t, X = ocp.sample(x,grid='integrator',refine=R)
+        self.assertTrue(t.is_column())
+        t, X = ocp.sample(x,grid='integrator_roots')
+        self.assertTrue(t.is_column())
         sol = ocp.solve()
         
         t, X = sol.sample(x,grid='control')

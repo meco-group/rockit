@@ -21,7 +21,7 @@
 #
 
 import numpy as np
-from casadi import vertcat, vcat, DM, Function, hcat
+from casadi import vertcat, vcat, DM, Function, hcat, MX
 from numpy import nan
 
 class OcpSolution:
@@ -79,105 +79,15 @@ class OcpSolution:
         >>> sol = ocp.solve()
         >>> tx, xs = sol.sample(x, grid='control')
         """
-        if grid == 'control':
-            return self._grid_control(self.stage, expr, grid, **kwargs)
-        elif grid == 'integrator':
-            if 'refine' in kwargs:
-                return self._grid_intg_fine(self.stage, expr, grid, **kwargs)
-            else:
-                return self._grid_integrator(self.stage, expr, grid, **kwargs)
-        elif grid == 'integrator_roots':
-            return self._grid_integrator_roots(self.stage, expr, grid, **kwargs)
-        else:
-            msg = "Unknown grid option: {}\n".format(grid)
-            msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
-            raise Exception(msg)
+        time, res = self.stage.sample(expr, grid, **kwargs)
 
-    def _grid_control(self, stage, expr, grid):
-        """Evaluate expression at (N + 1) control points."""
-        sub_expr = []
-        for k in list(range(stage._method.N))+[-1]:
-            sub_expr.append(stage._method.eval_at_control(stage, expr, k))
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(stage._method.control_grid)
-        return time, np.array(res)
-
-    def _grid_integrator(self, stage, expr, grid):
-        """Evaluate expression at (N*M + 1) integrator discretization points."""
-        sub_expr = []
-        time = []
-        for k in range(stage._method.N):
-            for l in range(stage._method.M):
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
-            time.append(stage._method.integrator_grid[k])
-        sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(vcat(time))
-        return time, np.array(res)
-
-    def _grid_integrator_roots(self, stage, expr, grid):
-        """Evaluate expression at integrator roots."""
-        sub_expr = []
-        tr = []
-        for k in range(stage._method.N):
-            for l in range(stage._method.M):
-                for j in range(stage._method.xr[k][l].shape[1]):
-                    sub_expr.append(stage._method.eval_at_integrator_root(stage, expr, k, l, j))
-                tr.extend(stage._method.tr[k][l])
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(hcat(tr))
-        return time, np.array(res)
-
-    def _grid_intg_fine(self, stage, expr, grid, refine):
-        """Evaluate expression at extra fine integrator discretization points."""
-        if stage._method.poly_coeff is None:
-            msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
-            raise Exception(msg)
-        N, M, T = stage._method.N, stage._method.M, stage._method.T
-
-        expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
-
-        expr_shape = expr_f.size_out(0)
+        expr_shape = MX(expr).shape
         expr_prod = expr_shape[0]*expr_shape[1]
-        tdim = N*M*refine+1
+
+        tdim = time.numel()
         target_shape = (tdim,)+tuple([e for e in expr_shape if e!=1])
 
-        sub_expr = []
-
-        time = self.sol.value(stage._method.control_grid)
-        total_time = []
-        for k in range(N):
-            t0 = time[k]
-            dt = (time[k+1]-time[k])/M
-            tlocal = np.linspace(0, dt, refine + 1) 
-            ts = DM(tlocal[:-1]).T
-            for l in range(M):
-                total_time.append(t0+tlocal[:-1])
-                coeff = stage._method.poly_coeff[k * M + l]
-                tpower = vcat([ts**i for i in range(coeff.shape[1])])
-                if stage._method.poly_coeff_z:
-                    coeff_z = stage._method.poly_coeff_z[k * M + l]
-                    tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
-                    z = coeff_z @ tpower_z
-                else:
-                    z = nan
-                sub_expr.append(expr_f(coeff @ tpower, z, stage._method.U[k]))
-                t0+=dt
-
-        ts = tlocal[-1]
-        total_time.append(time[k+1])
-        tpower = vcat([ts**i for i in range(coeff.shape[1])])
-        if stage._method.poly_coeff_z:
-            tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
-            z = coeff_z @ tpower_z
-        else:
-            z = nan
-
-        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
-        res = self.sol.value(hcat(sub_expr)).reshape(expr_shape[0], tdim, expr_shape[1])
-
+        res = self.sol.value(res).reshape(expr_shape[0], tdim, expr_shape[1])
         res = np.transpose(res,[1,0,2])
         res = res.reshape(target_shape)
-
-        time = np.hstack(total_time)
-        return time, res
+        return self.sol.value(time), res
