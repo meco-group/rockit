@@ -48,7 +48,7 @@ class OcpSolution:
         expr : :obj:`casadi.MX`
             Arbitrary expression containing no signals (states, controls) ...
         """
-        return self.sol.value(expr, *args, **kwargs)
+        return self.sol.value(self.stage.value(expr, *args, **kwargs))
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression at solution on a given grid.
