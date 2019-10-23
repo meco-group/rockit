@@ -28,7 +28,7 @@ class DirectMethod:
     Base class for 'direct' solution methods for Optimal Control Problems:
       'first discretize, then optimize'
     """
-    
+
     def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
         J = jacobian(opti.g, opti.x).sparsity()
@@ -49,11 +49,17 @@ class DirectMethod:
         for c, m, _ in stage._constraints["point"]:
             opti.subject_to(c, meta = m)
         opti.add_objective(stage._objective)
-        return {}
+
+    def transcribe_placeholders(self, stage, placeholders):
+        pass
 
 from casadi import substitute
 
 class OptiWrapper(Opti):
+    def __init__(self, ocp):
+        self.ocp = ocp
+        super().__init__()
+
     def subject_to(self, expr=None, meta=None):
         meta = merge_meta(meta, get_meta())
         if expr is None:
@@ -80,20 +86,19 @@ class OptiWrapper(Opti):
         else:
             return super().variable(n, m)
 
-    def solve(self, placeholders=None):
-        if placeholders is not None:
-            ks = list(placeholders.keys())
-            vs = [placeholders[k] for k in ks]
-            res = substitute([c[0] for c in self.constraints] + [self.objective], ks, vs)
-            for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
-                try:
-                    super().subject_to(c)
-                except Exception as e:
-                    print(meta)
-                    raise e
-                self.update_user_dict(c, single_stacktrace(meta))
-            super().minimize(res[-1])
-            self.placeholders = placeholders
+    def transcribe_placeholders(self,placeholders):
+        super().subject_to()
+        res = placeholders([c[0] for c in self.constraints] + [self.objective])
+        for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
+            try:
+                super().subject_to(c)
+            except Exception as e:
+                print(meta)
+                raise e
+            self.update_user_dict(c, single_stacktrace(meta))
+        super().minimize(res[-1])
+
+    def solve(self):
         return OptiSolWrapper(self, super().solve())
 
 class OptiSolWrapper:
@@ -102,8 +107,5 @@ class OptiSolWrapper:
         self.sol = sol
 
     def value(self, expr,*args,**kwargs):
-        placeholders = self.opti_wrapper.placeholders
-        ks = list(placeholders.keys())
-        vs = [placeholders[k] for k in ks]
-        res = substitute([expr], ks, vs)[0]
-        return self.sol.value(res, *args,**kwargs)
+        placeholders = self.opti_wrapper.ocp.placeholders_transcribed
+        return self.sol.value(placeholders(expr), *args, **kwargs)

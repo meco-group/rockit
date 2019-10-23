@@ -54,11 +54,11 @@ class OcpSolutionTests(unittest.TestCase):
             assert_allclose(us, u_ref, atol=tolerance)
 
     def test_shapes(self):
-      ocp = Ocp(T=1)
       N = 3
       M = 5
       R = 2
       for xshape in [(), (7,), (7, 11), (1, 1), (7, 1), (1, 7)]:
+        ocp = Ocp(T=1)
         target_shape = tuple([e for e in xshape if e!=1])
         x = ocp.state(*xshape)
         ocp.set_der(x,DM.ones(*xshape))

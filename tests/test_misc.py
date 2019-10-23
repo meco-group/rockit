@@ -106,8 +106,8 @@ class MiscTests(unittest.TestCase):
                         self.assertAlmostEqual(sol.value(ocp.tf), t0 + (xf - x0) / b)
 
                         # issue #91
-                        #self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
-                        #self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
+                        self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
+                        self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
 
                         ts, xs = sol.sample(x, grid='control')
 

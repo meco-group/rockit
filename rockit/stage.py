@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
@@ -32,6 +32,8 @@ class Stage:
     """
         A stage is defined on a time domain and has particular system dynamics
         associated with it.
+
+        Each stage has a transcription method associated with it.
     """
     def __init__(self, parent=None, t0=0, T=1):
         """Create an Optimal Control Problem stage.
@@ -500,22 +502,15 @@ class Stage:
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
         self._placeholders[r] = expr
         self._placeholder_callbacks[r] = callback_name
+        if self.master is not None:
+            self.master._transcribed_placeholders.mark_dirty()
         return r
 
-    def _bake_placeholders(self, method):
-        placeholders = dict()
-        ks = list(self._placeholders.keys())
-        vs = [self._placeholders[k] for k in ks]
-
-        #if depends_on(vcat(expr), vcat(subst_from)):
-
-        #vs = substitute(vs, subst_from, subs_to)
-
-        for k, v in zip(ks, vs):
-            callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
-            placeholders[k] = callback(self, v)
-
-        return placeholders
+    def _transcribe_placeholders(self, method, placeholders):
+        for k, v in self._placeholders.items():
+            if k not in placeholders:
+                callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
+                placeholders[k] = callback(self, v)
 
     def _create_variables(self, t0, T):
         self.T = self._create_placeholder_expr(0, 'T')
@@ -588,16 +583,20 @@ class Stage:
         else:
             return False
 
-    def _transcribe(self):
+    def _transcribe_recurse(self):
         opti = self.master.opti
-        placeholders = {}
         if self._method is not None:
-            placeholders.update(self._method.transcribe(self, opti))
+            self._method.transcribe(self, opti)
 
         for s in self._stages:
-            stage_placeholders = s._transcribe()
-            placeholders.update(stage_placeholders)
-        return placeholders
+            s._transcribe_recurse()
+
+    def _placeholders_transcribe_recurse(self, placeholders):
+        if self._method is not None:
+            self._method.transcribe_placeholders(self, placeholders)
+
+        for s in self._stages:
+            s._placeholders_transcribe_recurse(placeholders)
 
     def clone(self, parent, **kwargs):
         ret = Stage(parent, **kwargs)

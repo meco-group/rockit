@@ -124,6 +124,11 @@ class SamplingMethod(DirectMethod):
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
         return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
 
+    def transcribe_placeholders(self, stage, placeholders):
+        """
+        Transcription is the process of going from a continuous-time OCP to an NLP
+        """
+        return stage._transcribe_placeholders(self, placeholders)
 
     def transcribe(self, stage, opti):
         """
@@ -143,8 +148,6 @@ class SamplingMethod(DirectMethod):
         self.add_objective(stage, opti)
         self.set_initial(stage, opti, stage._initial)
         self.set_parameter(stage, opti)
-        placeholders = stage._bake_placeholders(self)
-        return placeholders
 
     def add_inf_constraints(self, stage, opti, c, k, l, meta):
         coeff = stage._method.poly_coeff[k * self.M + l]
