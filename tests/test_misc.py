@@ -19,6 +19,10 @@ class MiscTests(unittest.TestCase):
       import matplotlib.pylab as plt
       self.assertEqual(plt.gca().title._text, "Lagrange Hessian: 101x101,0nz")
 
+    def test_ocp_objective(self):
+      ocp, x, u = integrator_control_problem()
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(ocp.objective),sol.value(ocp.at_tf(x)))
 
     def test_basic(self):
         for T in [1, 3.2]:

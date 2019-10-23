@@ -434,6 +434,10 @@ class Stage:
         self._method = deepcopy(method)
         self._method.register(self)
 
+    @property
+    def objective(self):
+        return self._objective
+
     def is_free_time(self):
         """Does the stage have a free horizon length T?
 
