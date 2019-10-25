@@ -116,3 +116,6 @@ class Ocp(Stage):
 
         """
         return vertcat(self.opti.x, self.opti.p)
+
+    def to_function(self, name, args, results):
+        return self.opti.to_function(name, [self.value(a) for a in args], results)

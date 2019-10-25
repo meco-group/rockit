@@ -515,7 +515,7 @@ class SamplingMethod(DirectMethod):
         for p in stage.parameters['']:
             self.P.append(opti.parameter(p.shape[0], p.shape[1]))
         for p in stage.parameters['control']:
-            self.P_control.append(opti.parameter(p.shape[0], self.N * p.shape[1]))
+            self.P_control.append(hcat([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)]))
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):

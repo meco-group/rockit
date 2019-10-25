@@ -698,7 +698,7 @@ class Stage:
             include_last = False
         return grid, include_first, include_last
 
-    def sample(self, expr, grid, **kwargs):
+    def sample(self, expr, grid='control', **kwargs):
         """Sample expression symbolically on a given grid.
 
         Parameters
@@ -734,6 +734,8 @@ class Stage:
         kwargs["include_last"] = include_last
         if grid == 'control':
             time, res = self._grid_control(self, expr, grid, **kwargs)
+        elif grid == 'control-':
+            time, res = self._grid_control(self, expr, grid, include_last=False, **kwargs)
         elif grid == 'integrator':
             if 'refine' in kwargs:
                 time, res = self._grid_intg_fine(self, expr, grid, **kwargs)
@@ -843,7 +845,9 @@ class Stage:
         expr : :obj:`casadi.MX`
             Arbitrary expression containing no signals (states, controls) ...
         """
-        return self._method.eval(self, expr)
+        self.master._transcribe()
+        placeholders = self.master.placeholders_transcribed
+        return placeholders(self._method.eval(self, expr))
 
     def sampler(self, *args):
         """Returns a function that samples given expressions
