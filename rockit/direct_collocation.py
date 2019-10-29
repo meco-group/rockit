@@ -23,7 +23,7 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
-                   repmat, DM, sum2
+                   repmat, DM, sum2, mtimes
 from .casadi_helpers import get_ranges_dict
 from itertools import repeat
 try:
@@ -51,8 +51,8 @@ except:
 import numpy as np
 
 class DirectCollocation(SamplingMethod):
-    def __init__(self, *args, degree=4, scheme='radau', **kwargs):
-        SamplingMethod.__init__(self, *args, **kwargs)
+    def __init__(self, degree=4, scheme='radau', **kwargs):
+        SamplingMethod.__init__(self, **kwargs)
         self.degree = degree
         self.tau = collocation_points(degree, scheme)
         [self.C, self.D, self.B] = collocation_coeff(self.tau)
@@ -133,14 +133,14 @@ class DirectCollocation(SamplingMethod):
             dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
             S_z = 1/repmat(hcat([dt**i for i in range(self.degree)]), self.degree, 1)
-            self.Z.append(self.Zc[k][0] @ poly_z[:,0])
+            self.Z.append(mtimes(self.Zc[k][0],poly_z[:,0]))
             for i in range(self.M):
                 self.xk.append(self.Xc[k][i][:,0])
-                self.poly_coeff.append(self.Xc[k][i] @ (poly*S))
-                self.poly_coeff_z.append(self.Zc[k][i] @ (poly_z*S_z))
-                self.zk.append(self.Zc[k][i] @ poly_z[:,0])
+                self.poly_coeff.append(mtimes(self.Xc[k][i],poly*S))
+                self.poly_coeff_z.append(mtimes(self.Zc[k][i],poly_z*S_z))
+                self.zk.append(mtimes(self.Zc[k][i],poly_z[:,0]))
                 for j in range(self.degree):
-                    Pidot_j = self.Xc[k][i] @ self.C[:,j]/ dt
+                    Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
                     res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=self.P, t=self.tr[k][i][j])
                     # Collocation constraints
                     opti.subject_to(Pidot_j == res["ode"])
@@ -152,7 +152,7 @@ class DirectCollocation(SamplingMethod):
 
                 # Continuity constraints
                 x_next = self.X[k + 1] if i==self.M-1 else self.Xc[k][i+1][:,0]
-                opti.subject_to(self.Xc[k][i] @ self.D == x_next)
+                opti.subject_to(mtimes(self.Xc[k][i],self.D) == x_next)
 
                 for c, meta, _ in stage._constraints["integrator"]:
                     opti.subject_to(self.eval_at_integrator(stage, c, k, i), meta=meta)
@@ -164,7 +164,7 @@ class DirectCollocation(SamplingMethod):
                 # Add it to the optimizer, but first make x,u concrete.
                 opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
 
-        self.Z.append(self.Zc[-1][-1] @ sum2(poly_z))
+        self.Z.append(mtimes(self.Zc[-1][-1],sum2(poly_z)))
 
         for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
@@ -184,7 +184,7 @@ class DirectCollocation(SamplingMethod):
                         e_shape = e[algs[a],:].shape
                         opti.set_initial(e[algs[a],:], repmat(v,1,e_shape[1]))
                 del initial[a]
-        super().set_initial(stage, opti, initial)
+        SamplingMethod.set_initial(self,stage, opti, initial)
         for k in range(self.N):
             x0 = DM(opti.debug.value(self.X[k], opti.initial()))
             for e in self.Xc[k]:

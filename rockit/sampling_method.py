@@ -20,7 +20,9 @@
 #
 #
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit
+from __future__ import division
+
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
@@ -158,7 +160,7 @@ class SamplingMethod(DirectMethod):
         coeff = coeff * repmat(tpower.T,stage.nx,1)
         # TODO: bernstein transformation as function of degree
         Poly_to_Bernstein_matrix_4 = DM([[1,0,0,0,0],[1,1.0/4, 0, 0, 0],[1, 1.0/2, 1.0/6, 0, 0],[1, 3.0/4, 1.0/2, 1.0/4, 0],[1, 1, 1, 1, 1]])
-        state_coeff = Poly_to_Bernstein_matrix_4 @ coeff.T
+        state_coeff = mtimes(Poly_to_Bernstein_matrix_4,coeff.T)
         
         statesize = [0] + [elem.nnz() for elem in stage.states]
         statessizecum = np.cumsum(statesize)

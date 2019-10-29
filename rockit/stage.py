@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
@@ -460,23 +460,23 @@ class Stage:
 
     @property
     def x(self):
-        return veccat(*self.states)
+        return vvcat(self.states)
 
     @property
     def xq(self):
-        return veccat(*self.qstates)
+        return vvcat(self.qstates)
 
     @property
     def u(self):
-        return veccat(*self.controls)
+        return vvcat(self.controls)
 
     @property
     def z(self):
-        return veccat(*self.algebraics)
+        return vvcat(self.algebraics)
 
     @property
     def p(self):
-        return veccat((*self.parameters['']+self.parameters['control']))
+        return vvcat(self.parameters['']+self.parameters['control'])
 
     @property
     def nx(self):
@@ -662,7 +662,7 @@ class Stage:
         if include_self:
             yield self
         for s in self._stages:
-            yield from s.iter_stages(include_self=True)
+            for e in s.iter_stages(include_self=True): yield e
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression symbolically on a given grid.
@@ -768,10 +768,10 @@ class Stage:
                 if stage._method.poly_coeff_z:
                     coeff_z = stage._method.poly_coeff_z[k * M + l]
                     tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
-                    z = coeff_z @ tpower_z
+                    z = mtimes(coeff_z,tpower_z)
                 else:
                     z = nan
-                sub_expr.append(expr_f(coeff @ tpower, z, stage._method.U[k]))
+                sub_expr.append(expr_f(mtimes(coeff,tpower), z, stage._method.U[k]))
                 t0+=dt
 
         ts = tlocal[-1,:]
@@ -779,11 +779,11 @@ class Stage:
         tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
         if stage._method.poly_coeff_z:
             tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
-            z = coeff_z @ tpower_z
+            z = mtimes(coeff_z,tpower_z)
         else:
             z = nan
 
-        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
+        sub_expr.append(expr_f(mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]))
 
         return vcat(total_time), hcat(sub_expr)
 

@@ -28,6 +28,8 @@ class DirectMethod:
     Base class for 'direct' solution methods for Optimal Control Problems:
       'first discretize, then optimize'
     """
+    def __init__(self):
+        pass
 
     def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
@@ -58,7 +60,7 @@ from casadi import substitute
 class OptiWrapper(Opti):
     def __init__(self, ocp):
         self.ocp = ocp
-        super().__init__()
+        Opti.__init__(self)
 
     def subject_to(self, expr=None, meta=None):
         meta = merge_meta(meta, get_meta())
@@ -78,34 +80,35 @@ class OptiWrapper(Opti):
 
     @property
     def non_converged_solution(self):
-        return OptiSolWrapper(self, super().debug)
+        return OptiSolWrapper(self, self.debug)
 
     def variable(self,n=1,m=1):
         if n==0 or m==0:
             return MX(n, m)
         else:
-            return super().variable(n, m)
+            return Opti.variable(self,n, m)
 
     def transcribe_placeholders(self,placeholders):
-        super().subject_to()
+        Opti.subject_to(self)
         res = placeholders([c[0] for c in self.constraints] + [self.objective])
         for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
             try:
-                super().subject_to(c)
+                Opti.subject_to(self,c)
             except Exception as e:
                 print(meta)
                 raise e
             self.update_user_dict(c, single_stacktrace(meta))
-        super().minimize(res[-1])
+        Opti.minimize(self,res[-1])
+
 
     def solve(self):
-        return OptiSolWrapper(self, super().solve())
+        return OptiSolWrapper(self, Opti.solve(self))
 
 class OptiSolWrapper:
     def __init__(self, opti_wrapper, sol):
         self.opti_wrapper = opti_wrapper
         self.sol = sol
 
-    def value(self, expr,*args,**kwargs):
+    def value(self, expr, *args,**kwargs):
         placeholders = self.opti_wrapper.ocp.placeholders_transcribed
         return self.sol.value(placeholders(expr), *args, **kwargs)

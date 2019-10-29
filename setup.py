@@ -5,7 +5,7 @@
 
 from setuptools import setup, find_packages
 
-version = "0.1.4"
+version = "0.1.5"
 
 setup(
     name='rockit-meco',
@@ -28,6 +28,7 @@ setup(
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
+        'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],

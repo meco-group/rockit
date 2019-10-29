@@ -4,7 +4,10 @@ from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocat
 from problems import integrator_control_problem, vdp, vdp_dae
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
-from contextlib import redirect_stdout
+try:
+  from contextlib import redirect_stdout
+except:
+  redirect_stdout = None
 from io import StringIO
 import numpy as np
 
@@ -83,7 +86,7 @@ class MiscTests(unittest.TestCase):
         xf = 2
         for t0 in [0, 1]:
             for x0 in [0, 1]:
-                for b in [1, 2]:
+                for b in [1.0, 2.0]:
                     for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
                         ocp = Ocp(t0=t0, T=FreeTime(1))
 
@@ -207,10 +210,11 @@ class MiscTests(unittest.TestCase):
         ocp.subject_to(ocp.at_t0(x)==2)   
         with self.assertRaises(Exception):
           sol = ocp.solve()
-        with StringIO() as buf, redirect_stdout(buf):
-          ocp.show_infeasibilities(1e-4)
-          out = buf.getvalue()
-        self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
+        if redirect_stdout is not None:
+          with StringIO() as buf, redirect_stdout(buf):
+            ocp.show_infeasibilities(1e-4)
+            out = buf.getvalue()
+          self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
       
 
     def test_time_dep_ode(self):
