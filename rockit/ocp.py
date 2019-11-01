@@ -20,6 +20,7 @@
 #
 #
 
+from casadi import vertcat
 from .stage import Stage
 from .solution import OcpSolution
 from .direct_method import OptiWrapper
@@ -102,3 +103,16 @@ class Ocp(Stage):
 
     def show_infeasibilities(self, *args, **kwargs):
         self.opti.debug.show_infeasibilities(*args, **kwargs)
+
+    @property
+    def gist(self):
+        """Obtain an expression packing all information needed to obtain value/sample
+
+        The composition of this array may vary between rockit versions
+
+        Returns
+        -------
+        :obj:`~casadi.MX` column vector
+
+        """
+        return vertcat(self.opti.x, self.opti.p)

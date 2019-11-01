@@ -22,15 +22,16 @@
 
 import numpy as np
 from casadi import vertcat, vcat, DM, Function, hcat, MX
+from .casadi_helpers import DM2numpy
 from numpy import nan
+import functools
 
 class OcpSolution:
     def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
-
-        # Current stage (not always ocp)
-        self.stage = stage
+        self.stage = stage # SHould this be ocP?
+        self._gist = np.array(nlpsol.value(self.stage.master.gist)).squeeze()
 
     def __call__(self, stage):
         """Sample expression at solution on a given grid.
@@ -82,14 +83,67 @@ class OcpSolution:
         >>> tx, xs = sol.sample(x, grid='control')
         """
         time, res = self.stage.sample(expr, grid, **kwargs)
+        res = self.sol.value(res)
+        return self.sol.value(time), DM2numpy(res, MX(expr).shape, time.numel())
 
-        expr_shape = MX(expr).shape
-        expr_prod = expr_shape[0]*expr_shape[1]
+    def sampler(self, *args):
+        """Returns a function that samples given expressions
 
-        tdim = time.numel()
-        target_shape = (tdim,)+tuple([e for e in expr_shape if e!=1])
 
-        res = self.sol.value(res).reshape(expr_shape[0], tdim, expr_shape[1])
-        res = np.transpose(res,[1,0,2])
-        res = res.reshape(target_shape)
-        return self.sol.value(time), res
+        This function has two modes of usage:
+        1)  sampler(exprs)  -> Python function
+        2)  sampler(name, exprs, options) -> CasADi function
+
+        Parameters
+        ----------
+        exprs : :obj:`casadi.MX` or list of :obj:`casadi.MX`
+            List of arbitrary expression containing states, controls, ...
+        name : `str`
+            Name for CasADi Function
+        options : dict, optional
+            Options for CasADi Function
+
+        Returns
+        -------
+        t -> output
+
+        mode 1 : Python Function
+            Symbolically evaluated expression at points in time vector.
+        mode 2 : :obj:`casadi.Function`
+            Time from zero to final time, same length as res
+
+        Examples
+        --------
+        Assume an ocp with a stage is already defined.
+
+        >>> sol = ocp.solve()
+        >>> s = sol.sampler(x)
+        >>> s(1.0) # Value of x at t=1.0
+        """
+        s = self.stage.sampler(*args)
+        ret = functools.partial(s, self.gist)
+        ret.__doc__ = """
+                Parameters
+                ----------
+                t : float or float vector
+                    time or time-points to sample at
+
+                Returns
+                -------
+                :obj:`np.array`
+
+                """
+        return ret
+
+    @property
+    def gist(self):
+        """All numerical information needed to compute any value/sample
+
+        Returns
+        -------
+        1D numpy.ndarray
+           The composition of this array may vary between rockit versions
+
+
+        """
+        return self._gist

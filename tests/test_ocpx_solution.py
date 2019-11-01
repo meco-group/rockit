@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
-from casadi import vertcat, DM
+from casadi import vertcat, DM, hcat
 from rockit import MultipleShooting, DirectCollocation, Ocp
 
 class OcpSolutionTests(unittest.TestCase):
@@ -81,36 +81,38 @@ class OcpSolutionTests(unittest.TestCase):
         self.assertTrue(t.is_column())
         sol = ocp.solve()
         
-        t, X = sol.sample(x,grid='control')
-        tdim = N+1
-        self.assertEqual(t.shape[0],tdim)
-        self.assertEqual(X.shape[0],tdim)
-        assert_allclose(X.shape[1:],target_shape)
-        for i in range(tdim):
-          assert_allclose(X[i,...],X0_target+t[i])
+        sampler_casadi = ocp.sampler('sampler',[x])
+        sampler_numpy1 = ocp.sampler([x])
+        sampler_numpy2 = ocp.sampler(x)
 
-        t, X = sol.sample(x,grid='integrator')
-        tdim = N*M+1
-        self.assertEqual(t.shape[0],tdim)
-        self.assertEqual(X.shape[0],tdim)
-        assert_allclose(X.shape[1:],target_shape)
-        for i in range(tdim):
-          assert_allclose(X[i,...],X0_target+t[i])
-
-        t, X = sol.sample(x,grid='integrator',refine=R)
-        tdim = N*M*R+1
-        self.assertEqual(t.shape[0],tdim)
-        self.assertEqual(X.shape[0],tdim)
-        for i in range(tdim):
-          assert_allclose(X[i,...],X0_target+t[i])
+        for kwargs, tdim in [ (dict(grid='control'),N+1),
+                              (dict(grid='integrator'),N*M+1),
+                              (dict(grid='integrator',refine=R),N*M*R+1),
+                              (dict(grid='integrator_roots'),N*M*degree)]:
+          t, X = sol.sample(x,**kwargs)
+          self.assertEqual(t.shape[0],tdim)
+          self.assertEqual(X.shape[0],tdim)
+          assert_allclose(X.shape[1:],target_shape)
+          for i in range(tdim):
+            assert_allclose(X[i,...],X0_target+t[i])
+          if xshape != (1,7):
+            assert_allclose(sampler_casadi(sol.gist, DM(t).T),hcat(list(X)))
+          assert_allclose(sampler_numpy2(sol.gist, t[1]), X[1,...])
+          assert_allclose(sampler_numpy1(sol.gist, t[1])[0], X[1,...])
+          assert_allclose(sampler_numpy2(sol.gist, t), X)
+          assert_allclose(sampler_numpy1(sol.gist, t)[0], X)
 
 
-        t, X = sol.sample(x,grid='integrator_roots')
-        tdim = N*M*degree
-        self.assertEqual(t.shape[0],tdim)
-        self.assertEqual(X.shape[0],tdim)
-        for i in range(tdim):
-          assert_allclose(X[i,...],X0_target+t[i])
+          sampler_casadi_sol = sol.sampler('sampler',[x])
+          sampler_numpy1_sol = sol.sampler([x])
+          sampler_numpy2_sol = sol.sampler(x)
+
+          if xshape != (1,7):
+            assert_allclose(sampler_casadi_sol(DM(t).T),hcat(list(X)))
+          assert_allclose(sampler_numpy2_sol(t[1]), X[1,...])
+          assert_allclose(sampler_numpy1_sol(t[1])[0], X[1,...])
+          assert_allclose(sampler_numpy2_sol(t), X)
+          assert_allclose(sampler_numpy1_sol(t)[0], X)
 
 if __name__ == '__main__':
     unittest.main()

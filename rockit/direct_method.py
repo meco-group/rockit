@@ -76,7 +76,7 @@ class OptiWrapper(Opti):
         self.objective = 0
 
     def callback(self,fun):
-        super().callback(fun)
+        Opti.callback(self, fun)
 
     @property
     def non_converged_solution(self):

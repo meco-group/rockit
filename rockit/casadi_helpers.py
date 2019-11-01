@@ -122,3 +122,17 @@ def single_stacktrace(m):
     m = deepcopy(m)
     m["stacktrace"] = m["stacktrace"][0]
     return m
+
+
+
+def DM2numpy(dm, expr_shape, tdim=None):
+    if tdim is None:
+        return np.array(dm).squeeze()
+    expr_prod = expr_shape[0]*expr_shape[1]
+
+    target_shape = (tdim,)+tuple([e for e in expr_shape if e!=1])
+
+    res = np.array(dm).reshape(expr_shape[0], tdim, expr_shape[1])
+    res = np.transpose(res,[1,0,2])
+    res = res.reshape(target_shape)
+    return res

@@ -20,13 +20,14 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from collections import defaultdict
 from .casadi_helpers import get_meta
 from contextlib import contextmanager
+from .casadi_helpers import DM2numpy
 
 import numpy as np
 from numpy import nan
@@ -796,3 +797,112 @@ class Stage:
             Arbitrary expression containing no signals (states, controls) ...
         """
         return self._method.eval(self, expr)
+
+    def sampler(self, *args):
+        """Returns a function that samples given expressions
+
+
+        This function has two modes of usage:
+        1)  sampler(exprs)  -> Python function
+        2)  sampler(name, exprs, options) -> CasADi function
+
+        Parameters
+        ----------
+        exprs : :obj:`casadi.MX` or list of :obj:`casadi.MX`
+            List of arbitrary expression containing states, controls, ...
+        name : `str`
+            Name for CasADi Function
+        options : dict, optional
+            Options for CasADi Function
+
+        Returns
+        -------
+        (gist, t) -> output
+        mode 1 : Python Function
+            Symbolically evaluated expression at points in time vector.
+        mode 2 : :obj:`casadi.Function`
+            Time from zero to final time, same length as res
+        """
+
+        numpy = True
+        name = 'sampler'
+        options = {}
+        exprs = []
+        ret_list = True
+        if isinstance(args[0],str):
+            name = args[0]
+            exprs = args[1]
+            if len(args)>=3: options = args[2]
+            numpy = False
+        else:
+            exprs = args[0]
+        if not isinstance(exprs, list):
+            ret_list = False
+            exprs = [exprs]
+
+        self.master._transcribe()
+        t = MX.sym('t')
+
+        """Evaluate expression at extra fine integrator discretization points."""
+        if self._method.poly_coeff is None:
+            msg = "No polynomal coefficients for the {} integration method".format(self._method.intg)
+            raise Exception(msg)
+        N, M = self._method.N, self._method.M
+
+        expr_f = Function('expr', [self.x, self.z, self.u], exprs)
+
+        time = vcat(self._method.integrator_grid)
+        k = low(self._method.control_grid, t)        
+        i = low(time, t)
+        ti = time[i]
+        tlocal = t-ti
+
+        for c in self._method.poly_coeff:
+            assert c.shape == self._method.poly_coeff[0].shape
+
+        coeffs = hcat(self._method.poly_coeff)
+        s = self._method.poly_coeff[0].shape[1]
+        coeff = coeffs[:,(i*s+DM(range(s)).T)]
+
+        tpower = constpow(tlocal,range(s))
+        if self._method.poly_coeff_z:
+            for c in self._method.poly_coeff_z:
+                assert c.shape == self._method.poly_coeff_z[0].shape
+            coeffs_z = hcat(self._method.poly_coeff_z)
+            s_z = self._method.poly_coeff_z[0].shape[1]
+            coeff_z = coeffs_z[:,i*s_z+DM(range(s_z)).T]
+            tpower_z = constpow(tlocal,range(s_z))
+            z = mtimes(coeff_z,tpower_z)
+        else:
+            z = nan
+
+        Us = hcat(self._method.U)
+        f = Function(name,[self.gist, t],expr_f.call([mtimes(coeff,tpower), z, Us[:,k]]), options)
+
+        if numpy:
+            def wrapper(gist, t):
+                """
+                Parameters
+                ----------
+                gist : float vector
+                    The gist of the solution, provided from `sol.gist` or
+                    the evaluation of `ocp.gist`
+                t : float or float vector
+                    time or time-points to sample at
+
+                Returns
+                -------
+                :obj:`np.array`
+
+                """
+                tdim = None if isinstance(t, float) or len(t.shape)==0 else DM(t).numel()
+                t = DM(t)
+                if t.is_column(): t = t.T
+                res = f.call([gist, t])
+                if ret_list:
+                    return [DM2numpy(r, expr_f.size_out(i), tdim) for i,r in enumerate(res)]
+                else:
+                    return DM2numpy(res[0], expr_f.size_out(0), tdim)
+            return wrapper
+        else:
+            return f
