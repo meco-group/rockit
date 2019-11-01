@@ -42,7 +42,7 @@ g     = 9.81                # gravitation [m/s^2]
 
 nx    = 4                   # the system is composed of 4 states
 nu    = 1                   # the system has 1 input
-Tf    = 2                   # control horizon [s]
+Tf    = 2.0                 # control horizon [s]
 Nhor  = 50                  # number of control intervals
 dt    = Tf/Nhor             # sample time
 
