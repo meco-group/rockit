@@ -84,14 +84,14 @@ class Ocp(Stage):
 
     @property
     def non_converged_solution(self):
-        return OcpSolution(self.opti.non_converged_solution, self.master)
+        return OcpSolution(self.opti.non_converged_solution, self)
 
     def solve(self):
         self._transcribe()
         return OcpSolution(self.opti.solve(), self)
 
     def callback(self, fun):
-        self.opti.callback(lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, self.master)))
+        self.opti.callback(lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, self)))
 
     @property
     def debug(self):

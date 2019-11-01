@@ -28,6 +28,8 @@ class OcpSolution:
     def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
+
+        # Current stage (not always ocp)
         self.stage = stage
 
     def __call__(self, stage):
