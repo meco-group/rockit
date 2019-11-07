@@ -29,7 +29,6 @@ Some basic example on solving an Optimal Control Problem with rockit.
 
 # Import the project
 from rockit import *
-
 #%%
 # Problem specification
 # ---------------------
@@ -78,7 +77,7 @@ ocp.solver('ipopt')
 # Pick a solution method
 #  N -- number of control intervals
 #  M -- number of integration steps per control interval
-method = MultipleShooting(N=10, M=2, intg='rk')
+method = single_shooting.SingleShooting(N=10, M=2, intg='rk')
 #method = DirectCollocation(N=10, M=2)
 ocp.method(method)
 

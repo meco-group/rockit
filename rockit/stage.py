@@ -24,6 +24,7 @@ from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
+from .single_shooting import SingleShooting
 from collections import defaultdict
 from .casadi_helpers import get_meta
 from contextlib import contextmanager
