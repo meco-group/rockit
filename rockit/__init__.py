@@ -25,4 +25,5 @@ from .ocp import Ocp
 from .stage import Stage
 from .direct_method import DirectMethod
 from .direct_collocation import DirectCollocation
+from .single_shooting import SingleShooting
 from .freetime import FreeTime
