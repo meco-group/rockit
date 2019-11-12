@@ -3,7 +3,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
 from casadi import vertcat, DM, hcat
-from rockit import MultipleShooting, DirectCollocation, Ocp
+from rockit import MultipleShooting, DirectCollocation, Ocp, SingleShooting
 
 class OcpSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
@@ -30,7 +30,7 @@ class OcpSolutionTests(unittest.TestCase):
 
     def test_intg_refine(self):
         for M in [1, 2]:
-          for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk')]:
+          for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk'), SingleShooting(N=2,M=M,intg='rk')]:
             ocp, sol, p, v, u = bang_bang_problem(method)
             tolerance = 1e-6
 

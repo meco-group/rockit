@@ -1,6 +1,6 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting
 from problems import integrator_control_problem, vdp, vdp_dae
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
@@ -33,7 +33,7 @@ class MiscTests(unittest.TestCase):
                 for u_max in [1, 2]:
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
-                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4,M=M)]:
+                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4,M=M), SingleShooting(N=4,M=M,intg='rk')]:
                                 ocp, x, u = integrator_control_problem(
                                     T, u_max, x0, method, t0
                                 )
