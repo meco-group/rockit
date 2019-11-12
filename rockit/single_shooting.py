@@ -39,7 +39,7 @@ class SingleShooting(SamplingMethod):
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
-            self.X.append(MX(stage.nx,1))
+            self.X.append(None)
             self.add_variables_V_control(stage, opti, k)
 
     def add_constraints(self,stage,opti):
