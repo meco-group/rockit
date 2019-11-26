@@ -23,7 +23,7 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
-                   repmat, DM, sum2, mtimes
+                   repmat, DM, sum2, mtimes, vvcat
 from .casadi_helpers import get_ranges_dict
 from itertools import repeat
 try:
@@ -141,7 +141,7 @@ class DirectCollocation(SamplingMethod):
                 self.zk.append(mtimes(self.Zc[k][i],poly_z[:,0]))
                 for j in range(self.degree):
                     Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
-                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=self.P, t=self.tr[k][i][j])
+                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=vvcat(self.P), t=self.tr[k][i][j])
                     # Collocation constraints
                     opti.subject_to(Pidot_j == res["ode"])
                     self.q = self.q + res["quad"]*dt*self.B[j]

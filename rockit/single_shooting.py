@@ -21,7 +21,7 @@
 #
 
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat
 import numpy as np
 
 class SingleShooting(SamplingMethod):
@@ -59,7 +59,7 @@ class SingleShooting(SamplingMethod):
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=vertcat(veccat(*self.P), self.get_p_control_at(stage, k)))
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=vertcat(vvcat(self.P), self.get_p_control_at(stage, k)))
             # Dynamic constraints a.k.a. gap-closing constraints
             self.X[k + 1] = FF["xf"]
 
