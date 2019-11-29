@@ -288,7 +288,8 @@ class Stage:
         grid : str
             Possible entries:
                 inf: the integral is performed using the integrator defined for the stage
-                control: the integral is evaluated as a sum on the control grid (start of each control interval)
+                control: the integral is evaluated as a sum on the control grid (start of each control interval),
+                         with each term of the sum weighted with the time duration of the interval.
                          Note that the final state is not included in this definition
         """
         if grid=='inf':
