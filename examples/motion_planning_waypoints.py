@@ -20,6 +20,13 @@
 #
 #
 
+"""
+Motion planning with waypoints
+==============================
+
+Simple motion close to waypoints
+"""
+
 from rockit import *
 import matplotlib.pyplot as plt
 import numpy as np
