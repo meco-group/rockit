@@ -172,7 +172,7 @@ fig.tight_layout()
 # -------------------------------
 # Animate results
 # -------------------------------
-plt.ion() # Enable plt interactive
+#plt.ion() # Enable plt interactive
 if plt.isinteractive():
   fig2, ax3 = plt.subplots(1, 1)
   plt.ion()
