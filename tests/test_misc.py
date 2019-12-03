@@ -449,13 +449,16 @@ class MiscTests(unittest.TestCase):
         p = ocp.state()
         v = ocp.state()
         u = ocp.control()
+        u2 = ocp.control()
 
         ocp.set_der(p, v)
-        ocp.set_der(v, u)
+        ocp.set_der(v, u+u2)
 
         pp = ocp.parameter()
         ocp.subject_to(u <= p)
         ocp.subject_to(-1 <= u)
+        ocp.subject_to(u2 <= p)
+        ocp.subject_to(-1 <= u2)
 
         ocp.add_objective(ocp.T)
         ocp.subject_to(ocp.at_t0(p) == 0)
