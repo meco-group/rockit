@@ -667,6 +667,18 @@ class Stage:
         for s in self._stages:
             for e in s.iter_stages(include_self=True): yield e
 
+    @staticmethod
+    def _parse_grid(grid):
+        include_last = True
+        include_first = True
+        if grid.startswith('-'):
+            grid = grid[1:]
+            include_last = False
+        if grid.endswith('-'):
+            grid = grid[:-1]
+            include_last = False
+        return grid, include_first, include_last
+
     def sample(self, expr, grid, **kwargs):
         """Sample expression symbolically on a given grid.
 
@@ -698,6 +710,9 @@ class Stage:
         """
         self.master._transcribe()
         placeholders = self.master.placeholders_transcribed
+        grid, include_first, include_last = self._parse_grid(grid)
+        kwargs["include_first"] = include_first
+        kwargs["include_last"] = include_last
         if grid == 'control':
             time, res = self._grid_control(self, expr, grid, **kwargs)
         elif grid == 'integrator':
@@ -714,31 +729,40 @@ class Stage:
 
         return placeholders(time), placeholders(res)
 
-    def _grid_control(self, stage, expr, grid):
+    def _grid_control(self, stage, expr, grid, include_first=True, include_last=True):
         """Evaluate expression at (N + 1) control points."""
         sub_expr = []
-        for k in list(range(stage._method.N))+[-1]:
+        ks = list(range(1, stage._method.N))
+        if include_first:
+            ks = [0]+ks
+        if include_last:
+            ks = ks+[-1]
+        for k in ks:
             sub_expr.append(stage._method.eval_at_control(stage, expr, k))
         res = hcat(sub_expr)
         time = stage._method.control_grid
         return time, res
 
-    def _grid_integrator(self, stage, expr, grid):
+    def _grid_integrator(self, stage, expr, grid, include_first=True, include_last=True):
         """Evaluate expression at (N*M + 1) integrator discretization points."""
         sub_expr = []
         time = []
+        assert include_first
         for k in range(stage._method.N):
             for l in range(stage._method.M):
                 sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
             time.append(stage._method.integrator_grid[k])
-        sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
+        if include_last:
+            sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
         return vcat(time), hcat(sub_expr)
 
 
-    def _grid_integrator_roots(self, stage, expr, grid):
+    def _grid_integrator_roots(self, stage, expr, grid, include_first=True, include_last=True):
         """Evaluate expression at integrator roots."""
         sub_expr = []
         tr = []
+        assert include_first
+        assert include_last
         for k in range(stage._method.N):
             for l in range(stage._method.M):
                 for j in range(stage._method.xr[k][l].shape[1]):
@@ -746,8 +770,10 @@ class Stage:
                 tr.extend(stage._method.tr[k][l])
         return hcat(tr).T, hcat(sub_expr)
 
-    def _grid_intg_fine(self, stage, expr, grid, refine):
+    def _grid_intg_fine(self, stage, expr, grid, refine, include_first=True, include_last=True):
         """Evaluate expression at extra fine integrator discretization points."""
+        assert include_first
+        assert include_last
         if stage._method.poly_coeff is None:
             msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
             raise Exception(msg)

@@ -32,12 +32,12 @@ class MultipleShooting(SamplingMethod):
         self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(opti.variable(stage.nx))
+        self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu))
-            self.X.append(opti.variable(stage.nx))
+            self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
             self.add_variables_V_control(stage, opti, k)
 
     def add_constraints(self, stage, opti):

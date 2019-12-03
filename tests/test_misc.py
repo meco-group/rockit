@@ -443,6 +443,38 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(sol.sample(xa, grid='control')[1][0], 9.81011622448889)
         assert_array_almost_equal(sol.sample(xa, grid='control')[1][1], 9.865726317147214)
 
-        
+    def test_to_function(self):
+        ocp = Ocp(T=FreeTime(1))
+
+        p = ocp.state()
+        v = ocp.state()
+        u = ocp.control()
+
+        ocp.set_der(p, v)
+        ocp.set_der(v, u)
+
+        pp = ocp.parameter()
+        ocp.subject_to(u <= p)
+        ocp.subject_to(-1 <= u)
+
+        ocp.add_objective(ocp.T)
+        ocp.subject_to(ocp.at_t0(p) == 0)
+        ocp.subject_to(ocp.at_t0(v) == 0)
+        ocp.subject_to(ocp.at_tf(p) == 1)
+        ocp.subject_to(ocp.at_tf(v) == 0)
+
+        ocp.solver('ipopt')
+
+        N = 6
+        ocp.method(MultipleShooting(N=N))
+
+        ocp.set_value(pp, 1)
+        sol = ocp.solve()
+
+        f = ocp.opti.to_function('f',[ocp.value(pp,grid='control'),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
+
+        print(f(1,1,2,3))
+
+
 if __name__ == '__main__':
     unittest.main()
