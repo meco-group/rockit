@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import Opti, jacobian, dot, hessian
+from casadi import Opti, jacobian, dot, hessian, symvar
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 
 class DirectMethod:
@@ -61,6 +61,8 @@ class OptiWrapper(Opti):
     def __init__(self, ocp):
         self.ocp = ocp
         Opti.__init__(self)
+        self.initial_keys = []
+        self.initial_values = []
 
     def subject_to(self, expr=None, meta=None):
         meta = merge_meta(meta, get_meta())
@@ -88,17 +90,30 @@ class OptiWrapper(Opti):
         else:
             return Opti.variable(self,n, m)
 
+    def set_initial(self, key, value):
+        a = set([hash(e) for e in self.advanced.symvar()])
+        b = set([hash(e) for e in symvar(key)])
+        if len(a | b)==len(a):
+            Opti.set_initial(self, key, value) # set_initial logic in direct_collocation needs this
+        else:
+            self.initial_keys.append(key)
+            self.initial_values.append(value)
+
     def transcribe_placeholders(self,placeholders):
         Opti.subject_to(self)
-        res = placeholders([c[0] for c in self.constraints] + [self.objective])
-        for c, meta in zip(res[:-1], [c[1] for c in self.constraints]):
+        n_constr = len(self.constraints)
+        res = placeholders([c[0] for c in self.constraints] + [self.objective]+self.initial_keys)
+        for c, meta in zip(res[:n_constr], [c[1] for c in self.constraints]):
             try:
+                print(c)
                 Opti.subject_to(self,c)
             except Exception as e:
                 print(meta)
                 raise e
             self.update_user_dict(c, single_stacktrace(meta))
-        Opti.minimize(self,res[-1])
+        Opti.minimize(self,res[n_constr])
+        for k_orig, k, v in zip(self.initial_keys,res[n_constr+1:],self.initial_values):
+            Opti.set_initial(self, k, v)
 
 
     def solve(self):

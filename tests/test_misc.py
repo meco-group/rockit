@@ -88,40 +88,49 @@ class MiscTests(unittest.TestCase):
             for x0 in [0, 1]:
                 for b in [1.0, 2.0]:
                     for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
-                        ocp = Ocp(t0=t0, T=FreeTime(1))
+                        for pos in ["pre","post"]:
+                          if pos=="pre":
+                            ocp = Ocp(t0=t0, T=FreeTime(1))
+                          else:
+                            ocp = Ocp(t0=t0)
 
-                        x = ocp.state()
-                        u = ocp.control()
+                          x = ocp.state()
+                          u = ocp.control()
 
-                        ocp.set_der(x, u)
+                          ocp.set_der(x, u)
 
-                        ocp.subject_to(u <= b)
-                        ocp.subject_to(-b <= u)
+                          ocp.subject_to(u <= b)
+                          ocp.subject_to(-b <= u)
 
-                        ocp.add_objective(ocp.T)
-                        ocp.subject_to(ocp.at_t0(x) == x0)
-                        ocp.subject_to(ocp.at_tf(x) == xf)
+                          ocp.add_objective(ocp.T)
+                          ocp.subject_to(ocp.at_t0(x) == x0)
+                          ocp.subject_to(ocp.at_tf(x) == xf)
 
-                        ocp.solver('ipopt')
+                          ocp.solver('ipopt')
 
-                        ocp.method(method)
+                          ocp.method(method)
 
-                        sol = ocp.solve()
+                          if pos=="post":
+                            ocp.set_T(ocp.variable())
+                            ocp.set_initial(ocp.T, 1)
+                            ocp.subject_to(ocp.T>=0)
 
-                        self.assertAlmostEqual(sol.value(ocp.t0), t0)
-                        self.assertAlmostEqual(sol.value(ocp.T),(xf-x0)/b)
-                        self.assertAlmostEqual(sol.value(ocp.tf), t0 + (xf - x0) / b)
+                          sol = ocp.solve()
 
-                        # issue #91
-                        self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
-                        self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
+                          self.assertAlmostEqual(sol.value(ocp.t0), t0)
+                          self.assertAlmostEqual(sol.value(ocp.T),(xf-x0)/b)
+                          self.assertAlmostEqual(sol.value(ocp.tf), t0 + (xf - x0) / b)
 
-                        ts, xs = sol.sample(x, grid='control')
+                          # issue #91
+                          self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
+                          self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
 
-                        self.assertAlmostEqual(xs[0], x0, places=6)
-                        self.assertAlmostEqual(xs[-1], xf, places=6)
-                        self.assertAlmostEqual(ts[0], t0)
-                        self.assertAlmostEqual(ts[-1], t0 + (xf - x0) / b)
+                          ts, xs = sol.sample(x, grid='control')
+
+                          self.assertAlmostEqual(xs[0], x0, places=6)
+                          self.assertAlmostEqual(xs[-1], xf, places=6)
+                          self.assertAlmostEqual(ts[0], t0)
+                          self.assertAlmostEqual(ts[-1], t0 + (xf - x0) / b)
 
     def test_basic_t0_free(self):
         xf = 2

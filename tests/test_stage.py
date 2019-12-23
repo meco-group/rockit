@@ -43,8 +43,9 @@ class StageTests(unittest.TestCase):
                             kwargs["T"] = T
                         mystage = ocp.stage(stage, **kwargs)
 
-                        if mystage.is_free_starttime():
-                            ocp.subject_to(mystage.t0 >= t0_sol)
+                        if isinstance(t0,FreeTime) or (t0 is None and isinstance(t0_stage,FreeTime)):
+                          print("stage", mystage.t0)
+                          ocp.subject_to(mystage.t0 >= t0_sol)
 
                         ocp.solver('ipopt')
 

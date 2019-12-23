@@ -26,9 +26,9 @@ from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from .single_shooting import SingleShooting
 from collections import defaultdict
-from .casadi_helpers import get_meta
+from .casadi_helpers import DM2numpy, get_meta, merge_meta
 from contextlib import contextmanager
-from .casadi_helpers import DM2numpy
+from collections import OrderedDict
 
 import numpy as np
 from numpy import nan
@@ -40,7 +40,7 @@ class Stage:
 
         Each stage has a transcription method associated with it.
     """
-    def __init__(self, parent=None, t0=0, T=1):
+    def __init__(self, parent=None, t0=0, T=1, clone=False):
         """Create an Optimal Control Problem stage.
         
         Only call this constructer when you need abstract stages,
@@ -79,16 +79,37 @@ class Stage:
         self._alg = []
         self._constraints = defaultdict(list)
         self._objective = 0
-        self._initial = dict()
-        self._T = T
-        self._t0 = t0
-        self.t0_init = t0.T_init if isinstance(t0, FreeTime) else t0
-        self.T_init = T.T_init if isinstance(T, FreeTime) else T
+        self._initial = OrderedDict()
+
         self._placeholders = dict()
         self._placeholder_callbacks = dict()
-        self._create_variables(t0, T)
+        self.t = MX.sym('t')
         self._stages = []
         self._method = DirectMethod()
+        self._t0 = t0
+        self._T = T
+        self.T = self._create_placeholder_expr(0, 'T')
+        self.t0 = self._create_placeholder_expr(0, 't0')
+        self.tf = self.T + self.t0
+        if not clone:
+            self._check_free_time()
+
+    def _check_free_time(self):
+        if isinstance(self._t0, FreeTime):
+            init = self._t0.T_init
+            self.set_t0(self.variable())
+            self.set_initial(self._t0, init)
+        if isinstance(self._T, FreeTime):
+            init = self._T.T_init
+            self.set_T(self.variable())
+            self.subject_to(self._T>=0)
+            self.set_initial(self._T, init)
+
+    def set_t0(self, t0):
+        self._t0 = t0
+
+    def set_T(self, T):
+        self._T = T
 
     def stage(self, template=None, **kwargs):
         """Create a new :obj:`~rockit.stage.Stage` and add it as to the :obj:`~rockit.ocp.Ocp`.
@@ -110,7 +131,7 @@ class Stage:
             New stage
         """
         if template:
-            s = template.clone(self, **kwargs)
+            s = template.clone(self, clone=True, **kwargs)
         else:
             s = Stage(self, **kwargs)
         self._stages.append(s)
@@ -180,7 +201,7 @@ class Stage:
 
     def variable(self, n_rows=1, n_cols=1, grid = ''):
         # Create a placeholder symbol with a dummy name (see #25)
-        v = MX.sym("v", n_rows, n_cols)
+        v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
@@ -236,14 +257,14 @@ class Stage:
         return u
 
     def set_value(self, parameter, value):
-        if self.master.is_transcribed:
+        if self.master is not None and self.master.is_transcribed:
             self._method.set_value(self, self.master.opti, parameter, value)            
         else:
             self._param_vals[parameter] = value
 
     def set_initial(self, var, value):
         self._initial[var] = value
-        if self.master.is_transcribed:
+        if self.master is not None and self.master.is_transcribed:
             self._method.set_initial(self, self.master.opti, self._initial)
 
     def set_der(self, state, der):
@@ -441,26 +462,6 @@ class Stage:
     def objective(self):
         return self._objective
 
-    def is_free_time(self):
-        """Does the stage have a free horizon length T?
-
-        Returns
-        -------
-        res : bool
-
-        """
-        return isinstance(self._T, FreeTime)
-
-    def is_free_starttime(self):
-        """Does the stage have a free horizon start time t0?
-
-        Returns
-        -------
-        res : bool
-
-        """
-        return isinstance(self._t0, FreeTime)
-
     @property
     def x(self):
         return vvcat(self.states)
@@ -522,13 +523,6 @@ class Stage:
                 callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
                 placeholders[k] = callback(self, v)
 
-    def _create_variables(self, t0, T):
-        self.T = self._create_placeholder_expr(0, 'T')
-        self.t0 = self._create_placeholder_expr(0, 't0')
-        self.tf = self.t0 + self.T
-
-        self.t = MX.sym('t')
-
     # Internal methods
     def _ode(self):
         ode = veccat(*[self._state_der[k] for k in self.states])
@@ -556,6 +550,12 @@ class Stage:
         if "z" in kwargs:
             subst_from.append(self.z)
             subst_to.append(kwargs["z"])
+        if "t0" in kwargs and kwargs["t0"] is not None:
+            subst_from.append(self.t0)
+            subst_to.append(kwargs["t0"])
+        if "T" in kwargs and kwargs["T"] is not None:
+            subst_from.append(self.T)
+            subst_to.append(kwargs["T"])
         if "xq" in kwargs:
             subst_from.append(self.xq)
             subst_to.append(kwargs["xq"])
@@ -634,27 +634,28 @@ class Stage:
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
         constr_types = self._constraints.keys()
-        orig = [self._objective]
+        orig = []
         for k in constr_types:
             orig.extend([c for c, _, _ in self._constraints[k]])
+        n_constr = len(orig)
+        orig.append(self._objective)
+        orig.extend(self._initial.keys())
         res = substitute(orig, subst_from, subst_to)
-        ret._objective = res[0]
-        res = res[1:]
+        ret._objective = res[n_constr]
+        r = res[:n_constr]
         ret._constraints = defaultdict(list)
         for k in constr_types:
             v = self._constraints[k]
-            ret._constraints[k] = list(zip(res, [m for _, m, _ in v], [d for _, _, d in v]))
-            res = res[len(v):]
+            ret._constraints[k] = list(zip(r, [merge_meta(m, get_meta()) for _, m, _ in v], [d for _, _, d in v]))
+            r = r[len(v):]
 
-        ret._initial = copy(self._initial)
+        ret._initial = dict(zip(res[n_constr+1:], self._initial.values()))
+        ret._check_free_time()
 
-        if 'T' not in kwargs:
+        if "T" not in kwargs:
             ret._T = copy(self._T)
-            ret.T = substitute([MX(self.T)], subst_from, subst_to)[0]
-        if 't0' not in kwargs:
+        if "t0" not in kwargs:
             ret._t0 = copy(self._t0)
-            ret.t0 = substitute([MX(self.t0)], subst_from, subst_to)[0]
-        ret.tf = substitute([MX(self.tf)], subst_from, subst_to)[0]
         ret.t = self.t
         ret._method = deepcopy(self._method)
 

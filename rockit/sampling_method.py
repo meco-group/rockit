@@ -141,6 +141,8 @@ class SamplingMethod(DirectMethod):
         self.add_parameter(stage, opti)
 
         # Create time grid (might be symbolic)
+        self.T = self.eval(stage, stage._T)
+        self.t0 = self.eval(stage, stage._t0)
         self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
         self.integrator_grid = []
         for k in range(self.N):
@@ -193,19 +195,6 @@ class SamplingMethod(DirectMethod):
     def add_objective(self, stage, opti):
         opti.add_objective(self.eval(stage, stage._objective))
 
-    def add_time_variables(self, stage, opti):
-        if stage.is_free_time():
-            self.T = opti.variable()
-            opti.set_initial(self.T, stage.T_init)
-        else:
-            self.T = stage._T
-
-        if stage.is_free_starttime():
-            self.t0 = opti.variable()
-            opti.set_initial(self.t0, stage.t0_init)
-        else:
-            self.t0 = stage._t0
-
     def add_variables_V(self, stage, opti):
         V = []
         for v in stage.variables['']:
@@ -227,19 +216,23 @@ class SamplingMethod(DirectMethod):
         return veccat(*[v[k] for v in self.V_control])
 
     def eval(self, stage, expr):
-        return stage._expr_apply(expr, p=veccat(*self.P), v=self.V)
+        return stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T)
 
     def eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.control_grid[k])
 
     def eval_at_integrator(self, stage, expr, k, i):
-        return stage._expr_apply(expr, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.integrator_grid[k][i])
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.integrator_grid[k][i])
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
-        return stage._expr_apply(expr, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j])
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j])
 
     def set_initial(self, stage, opti, initial):
         for var, expr in initial.items():
+            if var is stage.T:
+                var = self.T
+            if var is stage.t0:
+                var = self.t0
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
                 value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))

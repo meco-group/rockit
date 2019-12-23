@@ -60,7 +60,6 @@ class DirectCollocation(SamplingMethod):
         self.Xc = []  # List that will hold helper collocation states
 
     def add_variables(self, stage, opti):
-        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         x = opti.variable(stage.nx)
@@ -94,9 +93,6 @@ class DirectCollocation(SamplingMethod):
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         f = stage._ode()
-
-        if stage.is_free_time():
-            opti.subject_to(self.T >= 0)
 
         ps = []
         tau_root = [0] + self.tau
@@ -177,7 +173,6 @@ class DirectCollocation(SamplingMethod):
         initial = dict(initial)
         algs = get_ranges_dict(stage.algebraics)
         for a, v in list(initial.items()):
-            # from casadi import *;x=MX.sym('x');a=MX.sym('a');print(x is x+0)
             if a in algs:
                 for k in range(self.N):
                     for e in self.Zc[k]:

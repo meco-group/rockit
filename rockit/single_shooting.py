@@ -31,7 +31,6 @@ class SingleShooting(SamplingMethod):
 
     def add_variables(self,stage,opti):
 
-        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         self.X.append(opti.variable(stage.nx))
@@ -46,11 +45,8 @@ class SingleShooting(SamplingMethod):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
-        if stage.is_free_time():
-            opti.subject_to(self.T>=0)
-
-            self.xk = []
-            self.q = 0
+        self.xk = []
+        self.q = 0
         # we only save polynomal coeffs for runge-kutta4
         if stage._method.intg == 'rk':
             self.poly_coeff = []

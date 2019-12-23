@@ -29,7 +29,6 @@ class MultipleShooting(SamplingMethod):
         SamplingMethod.__init__(self, *args, **kwargs)
 
     def add_variables(self, stage, opti):
-        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
@@ -43,9 +42,6 @@ class MultipleShooting(SamplingMethod):
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         F = self.discrete_system(stage)
-
-        if stage.is_free_time():
-            opti.subject_to(self.T >= 0)
 
         self.xk = []
         self.q = 0
