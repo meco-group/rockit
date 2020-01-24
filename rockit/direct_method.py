@@ -108,7 +108,8 @@ class OptiWrapper(Opti):
         res = placeholders([c[0] for c in self.constraints] + [self.objective]+self.initial_keys)
         for c, meta in zip(res[:n_constr], [c[1] for c in self.constraints]):
             try:
-                print(c)
+                if MX(c).is_constant() and MX(c).is_one():
+                    continue
                 Opti.subject_to(self,c)
             except Exception as e:
                 print(meta)
