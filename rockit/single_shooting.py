@@ -28,7 +28,6 @@ class SingleShooting(SamplingMethod):
     def __init__(self,*args,**kwargs):
         SamplingMethod.__init__(self,*args,**kwargs)
 
-
     def add_variables(self,stage,opti):
 
         # We are creating variables in a special order such that the resulting constraint Jacobian
@@ -40,6 +39,8 @@ class SingleShooting(SamplingMethod):
             self.U.append(opti.variable(stage.nu))
             self.X.append(None)
             self.add_variables_V_control(stage, opti, k)
+
+        self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self,stage,opti):
         # Obtain the discretised system

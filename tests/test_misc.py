@@ -2,6 +2,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting
 from problems import integrator_control_problem, vdp, vdp_dae
+from casadi import DM, jacobian, sum1, sum2
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 try:
@@ -486,6 +487,54 @@ class MiscTests(unittest.TestCase):
         f = ocp.opti.to_function('f',[ocp.value(pp,grid='control'),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
 
         print(f(1,1,2,3))
+
+    def test_localize_time(self):
+          for t0_stage in [FreeTime(-1), -1]:
+              for T_stage in [FreeTime(1), 2]:
+                  t0_free = isinstance(t0_stage, FreeTime)
+                  T_free = isinstance(T_stage, FreeTime)
+                  ocp = Ocp(t0=t0_stage,T=T_stage)
+
+                  p = ocp.state()
+                  v = ocp.state()
+                  u = ocp.control()
+
+                  ocp.set_der(p, v)
+                  ocp.set_der(v, u)
+
+                  ocp.add_objective(ocp.tf)
+                  ocp.subject_to(ocp.at_t0(p) == 0)
+                  ocp.subject_to(ocp.at_t0(v) == 0)
+                  ocp.subject_to(ocp.at_tf(p) == 1)
+                  ocp.subject_to(ocp.at_tf(v) == 0)
+
+
+                  ocp.subject_to(u <= 1)
+                  ocp.subject_to(-1 <= u)
+                  ocp.solver('ipopt')
+
+                  if t0_free:
+                      ocp.subject_to(ocp.t0 >= -1)
+                  for localize_t0 in [False,True]:
+                    if (not t0_free) and localize_t0: continue
+                    for localize_T in [False,True]:
+                      if (not T_free) and localize_T: continue
+
+
+                      N = 10
+                      ocp.method(MultipleShooting(N=N,localize_t0=localize_t0,localize_T=localize_T))
+
+                      sol = ocp.solve()
+
+                      self.assertTrue(sum2(sum1(DM(jacobian(ocp.opti.g, ocp.opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
+                      
+                      tolerance = 1e-6
+
+                      ts_ref = -1 + np.linspace(0, 2, 4*N+1)
+
+                      ts, _ = sol.sample(v, grid='integrator', refine=4)
+
+                      np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
 
 
 if __name__ == '__main__':

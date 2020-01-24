@@ -26,16 +26,50 @@ from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, vecc
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
-from numpy import nan
+from numpy import nan, inf
 import numpy as np
 
+
+# Agnostic about free or fixed start or end point: 
+
+# Agnostic about time?
+class Grid:
+    def __init__(self, min=0, max=inf):
+        self.min = min
+        self.max = max
+
+class UniformGrid(Grid):
+    pass
+
+#class Density(TimeGrid):
+#    def __init__(self, density, **kwargs): # [0,1]->R^+  integral = 1
+#        TimeGrid.__init__(self, **kwargs)
+#        self.density = density
+
+#class Fraction(TimeGrid):
+#    def __init__(self, grid):
+#        self.grid = (grid-grid[0])/grid[-1]
+
 class SamplingMethod(DirectMethod):
-    def __init__(self, N=50, M=1, intg='rk', intg_options=None, **kwargs):
+    def __init__(self, N=50, M=1, intg='rk', intg_options=None, time_grid=UniformGrid(), localize_t0=False, localize_T=False, **kwargs):
+        """
+        Parameters
+        ----------
+        grid : `str` or tuple of :obj:`casadi.MX`
+            List of arbitrary expression containing states, controls, ...
+        name : `str`
+            Name for CasADi Function
+        options : dict, optional
+            Options for CasADi Function
+        """
         DirectMethod.__init__(self, **kwargs)
         self.N = N
         self.M = M
         self.intg = intg
         self.intg_options = {} if intg_options is None else intg_options
+        self.localize_t0 = localize_t0
+        self.localize_T = localize_T
+        self.time_grid = time_grid
 
         self.X = []  # List that will hold N+1 decision variables for state vector
         self.U = []  # List that will hold N decision variables for control vector
@@ -74,7 +108,7 @@ class SamplingMethod(DirectMethod):
         Z = f.mx_in("z")
 
         X = [X0]
-        if hasattr(self, 'intg_'+ self.intg):
+        if hasattr(self, 'intg_' + self.intg):
             intg = getattr(self, "intg_" + self.intg)(f, X0, U, P, Z)
         else:
             intg = self.intg_builtin(f, X0, U, P, Z)
@@ -143,7 +177,22 @@ class SamplingMethod(DirectMethod):
         # Create time grid (might be symbolic)
         self.T = self.eval(stage, stage._T)
         self.t0 = self.eval(stage, stage._t0)
-        self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
+
+        self.set_initial(stage, opti, stage._initial)
+        T_init = opti.debug.value(self.T, opti.initial())
+        t0_init = opti.debug.value(self.t0, opti.initial())
+
+        # How to get initial value -> ask opti?
+
+        control_grid_init = linspace(t0_init, t0_init + T_init, self.N + 1)
+        if self.localize_t0:
+            for k in range(1, self.N):
+                stage.set_initial(self.t0_local[k], control_grid_init[k])
+            stage.set_initial(self.t0_local[self.N], control_grid_init[self.N])
+        if self.localize_T:
+            for k in range(1, self.N):
+                stage.set_initial(self.T_local[k], control_grid_init[k+1]-control_grid_init[k])
+
         self.integrator_grid = []
         for k in range(self.N):
             t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
@@ -201,6 +250,14 @@ class SamplingMethod(DirectMethod):
             V.append(opti.variable(v.shape[0], v.shape[1]))
         self.V = veccat(*V)
 
+        # Create time grid (might be symbolic)
+        self.T = self.eval(stage, stage._T)
+        self.t0 = self.eval(stage, stage._t0)
+
+        if self.localize_t0:
+            self.t0_local = [None]*(self.N+1)
+        if self.localize_T:
+            self.T_local = [None]*self.N
 
     def add_variables_V_control(self, stage, opti, k):
         if k==0:
@@ -208,6 +265,41 @@ class SamplingMethod(DirectMethod):
 
         for i, v in enumerate(stage.variables['control']):
             self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
+    
+        if self.localize_t0:
+            if k==0:
+                self.t0_local[k] = self.t0
+            else:
+                self.t0_local[k] = opti.variable()
+        if self.localize_T:
+            if k==0:
+                self.T_local[k] = self.T/self.N
+            else:
+                self.T_local[k] = opti.variable()
+
+    def add_variables_V_control_finalize(self, stage, opti):
+        if self.localize_t0:
+            self.t0_local[self.N] = opti.variable()
+            self.control_grid = hcat(self.t0_local)
+        elif self.localize_T:
+            t0 = self.t0
+            cumsum = [t0]
+            for e in self.T_local:
+                cumsum.append(cumsum[-1]+e)
+            self.control_grid = hcat(cumsum)
+        else:
+            self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
+
+    def add_coupling_constraints(self, stage, opti, k):
+        Tk = self.T/self.N
+        if self.localize_T:
+            Tk = self.T_local[k]
+            if k>=0 and k+1<self.N:
+                opti.subject_to(self.T_local[k+1]==self.T_local[k])
+        if k==0:
+            opti.subject_to(self.time_grid.min <= (Tk <= self.time_grid.max))
+        if self.localize_t0 and k>=0:
+            opti.subject_to(self.t0_local[k]+Tk==self.t0_local[k+1])
 
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[:,k] for p in self.P_control])

@@ -536,6 +536,9 @@ class Stage:
         or expressions involving decision variables
         """
         subst_from, subst_to = self._get_subst_set(**kwargs)
+        temp = [(f,t) for f,t in zip(subst_from, subst_to) if f is not None and not f.is_empty() and t is not None]
+        subst_from = [e[0] for e in temp]
+        subst_to = [e[1] for e in temp]
         return substitute([MX(expr)], subst_from, subst_to)[0]
 
     def _get_subst_set(self, **kwargs):

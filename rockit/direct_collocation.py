@@ -90,6 +90,8 @@ class DirectCollocation(SamplingMethod):
             self.X.append(x)
             self.add_variables_V_control(stage, opti, k)
 
+        self.add_variables_V_control_finalize(stage, opti)
+
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         f = stage._ode()

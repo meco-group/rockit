@@ -36,8 +36,11 @@ class MultipleShooting(SamplingMethod):
 
         for k in range(self.N):
             self.U.append(vcat([opti.variable(s.numel()) for s in stage.controls]))
-            self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
             self.add_variables_V_control(stage, opti, k)
+            self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
+            
+
+        self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
@@ -74,6 +77,8 @@ class MultipleShooting(SamplingMethod):
 
             for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
                 opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+
+            self.add_coupling_constraints(stage, opti, k)
 
         for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
