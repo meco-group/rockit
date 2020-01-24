@@ -80,6 +80,9 @@ class OptiWrapper(Opti):
     def callback(self,fun):
         Opti.callback(self, fun)
 
+    def initial(self):
+        return [e for e in Opti.initial(self) if e.dep(0).is_symbolic() or e.dep(1).is_symbolic()]
+
     @property
     def non_converged_solution(self):
         return OptiSolWrapper(self, self.debug)
