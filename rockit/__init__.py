@@ -27,3 +27,4 @@ from .direct_method import DirectMethod
 from .direct_collocation import DirectCollocation
 from .single_shooting import SingleShooting
 from .freetime import FreeTime
+from .sampling_method import FreeGrid, UniformGrid, GeometricGrid

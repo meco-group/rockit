@@ -22,7 +22,7 @@
 
 from __future__ import division
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes, symvar
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes, symvar, horzcat
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
@@ -37,9 +37,103 @@ class Grid:
     def __init__(self, min=0, max=inf):
         self.min = min
         self.max = max
+        self.localize_T = False
+        self.localize_t0 = False
+
+    def __call__(self, t0, T, N):
+        return linspace(t0, T, N+1)
+
+def FreeGrid(self):
+    """Specify a grid with unprescribed spacing
+    
+    Parameters
+    ----------
+    min : float or  :obj:`casadi.MX`
+        Minimum size of control interval
+        Enforced with constraints
+        Default: 0
+    max : float or  :obj:`casadi.MX`
+        Maximum size of control interval
+        Enforced with constraints
+        Default: inf
+    """
+    def __init__(self, *args, **kwargs):
+        Grid.__init__(self, *args, **kwargs)
+        self.localize_T = True
+
+    def constrain_T(self,opti,T,Tnext,N):
+        return
 
 class UniformGrid(Grid):
-    pass
+    """Specify a grid with uniform spacing
+    
+    Parameters
+    ----------
+    min : float or  :obj:`casadi.MX`
+        Minimum size of control interval
+        Enforced with constraints
+        Default: 0
+    max : float or  :obj:`casadi.MX`
+        Maximum size of control interval
+        Enforced with constraints
+        Default: inf
+    """
+    def __init__(self, *args, **kwargs):
+        Grid.__init__(self, *args, **kwargs)
+
+    def constrain_T(self,opti,T,Tnext,N):
+        opti.subject_to(T==Tnext)
+
+class GeometricGrid(Grid):
+    """Specify a geometrically growing grid
+    
+    Each control interval is a constant factor larger than its predecessor
+
+    Parameters
+    ----------
+    growth_factor : float>1
+        See `local` for interpretation
+    local : bool, optional
+        if False, last interval is growth_factor larger than first
+        if True, interval k+1 is growth_factor larger than interval k
+        Default: False
+    min : float or  :obj:`casadi.MX`
+        Minimum size of control interval
+        Enforced with constraints
+        Default: 0
+    max : float or  :obj:`casadi.MX`
+        Maximum size of control interval
+        Enforced with constraints
+        Default: inf
+
+    Examples
+    --------
+
+    >>> MultipleShooting(N=3, time_grid=GeometricGrid(2)) # grid = [0, 1, 3, 7]*T/7
+    >>> MultipleShooting(N=3, time_grid=GeometricGrid(2,local=True)) # grid = [0, 1, 5, 21]*T/21
+    """
+    def __init__(self, growth_factor, local=False, *args, **kwargs):
+        assert growth_factor>=1
+        self._growth_factor = growth_factor
+        self.local = local
+        Grid.__init__(self, *args, **kwargs)
+
+    def growth_factor(self, N):
+        if not self.local:
+            return self._growth_factor**(1.0/(N-1))
+        return self._growth_factor
+
+    def constrain_T(self,opti,T,Tnext,N):
+        opti.subject_to(T*self.growth_factor(N)==Tnext)
+
+    def __call__(self, t0, T, N):
+        g = self.growth_factor(N)
+        base = 1.0
+        vec = [0]
+        for i in range(N):
+            vec.append(vec[-1]+base)
+            base *= g
+        return t0 + hcat(vec)/vec[-1]*T
 
 #class Density(TimeGrid):
 #    def __init__(self, density, **kwargs): # [0,1]->R^+  integral = 1
@@ -67,9 +161,9 @@ class SamplingMethod(DirectMethod):
         self.M = M
         self.intg = intg
         self.intg_options = {} if intg_options is None else intg_options
+        self.time_grid = time_grid
         self.localize_t0 = localize_t0
         self.localize_T = localize_T
-        self.time_grid = time_grid
 
         self.X = []  # List that will hold N+1 decision variables for state vector
         self.U = []  # List that will hold N decision variables for control vector
@@ -184,12 +278,12 @@ class SamplingMethod(DirectMethod):
 
         # How to get initial value -> ask opti?
 
-        control_grid_init = linspace(t0_init, t0_init + T_init, self.N + 1)
-        if self.localize_t0:
+        control_grid_init = self.time_grid(t0_init, t0_init + T_init, self.N)
+        if self.localize_t0 or self.time_grid.localize_t0:
             for k in range(1, self.N):
                 stage.set_initial(self.t0_local[k], control_grid_init[k])
             stage.set_initial(self.t0_local[self.N], control_grid_init[self.N])
-        if self.localize_T:
+        if self.localize_T or self.time_grid.localize_T:
             for k in range(1, self.N):
                 stage.set_initial(self.T_local[k], control_grid_init[k+1]-control_grid_init[k])
 
@@ -269,9 +363,9 @@ class SamplingMethod(DirectMethod):
         self.T = self.eval(stage, stage._T)
         self.t0 = self.eval(stage, stage._t0)
 
-        if self.localize_t0:
+        if self.localize_t0 or self.time_grid.localize_t0:
             self.t0_local = [None]*(self.N+1)
-        if self.localize_T:
+        if self.localize_T or self.time_grid.localize_T:
             self.T_local = [None]*self.N
 
     def add_variables_V_control(self, stage, opti, k):
@@ -281,39 +375,39 @@ class SamplingMethod(DirectMethod):
         for i, v in enumerate(stage.variables['control']):
             self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
     
-        if self.localize_t0:
+        if self.localize_t0 or self.time_grid.localize_t0:
             if k==0:
                 self.t0_local[k] = self.t0
             else:
                 self.t0_local[k] = opti.variable()
-        if self.localize_T:
+        if self.localize_T or self.time_grid.localize_T:
             if k==0:
                 self.T_local[k] = self.T/self.N
             else:
                 self.T_local[k] = opti.variable()
 
     def add_variables_V_control_finalize(self, stage, opti):
-        if self.localize_t0:
+        if self.localize_t0 or self.time_grid.localize_t0:
             self.t0_local[self.N] = opti.variable()
             self.control_grid = hcat(self.t0_local)
-        elif self.localize_T:
+        elif self.localize_T or self.time_grid.localize_T:
             t0 = self.t0
             cumsum = [t0]
             for e in self.T_local:
                 cumsum.append(cumsum[-1]+e)
             self.control_grid = hcat(cumsum)
         else:
-            self.control_grid = linspace(MX(self.t0), self.t0 + self.T, self.N + 1)
+            self.control_grid = self.time_grid(MX(self.t0), self.t0 + self.T, self.N)
 
     def add_coupling_constraints(self, stage, opti, k):
         Tk = self.T/self.N
-        if self.localize_T:
+        if self.localize_T or self.time_grid.localize_T:
             Tk = self.T_local[k]
             if k>=0 and k+1<self.N:
-                opti.subject_to(self.T_local[k+1]==self.T_local[k])
+                self.time_grid.constrain_T(opti, self.T_local[k], self.T_local[k+1], self.N)
         if k==0:
             opti.subject_to(self.time_grid.min <= (Tk <= self.time_grid.max))
-        if self.localize_t0 and k>=0:
+        if (self.localize_t0 or self.time_grid.localize_t0) and k>=0:
             opti.subject_to(self.t0_local[k]+Tk==self.t0_local[k+1])
 
     def get_p_control_at(self, stage, k=-1):
