@@ -168,9 +168,6 @@ class DirectCollocation(SamplingMethod):
             # Add it to the optimizer, but first make x,u concrete.
             opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
-        for c, meta, _ in stage._constraints["point"]:  # Append boundary conditions to the end
-            opti.subject_to(self.eval(stage, c), meta=meta)
-
     def set_initial(self, stage, opti, initial):
         initial = dict(initial)
         algs = get_ranges_dict(stage.algebraics)

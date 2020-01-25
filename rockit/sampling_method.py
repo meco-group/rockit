@@ -22,7 +22,7 @@
 
 from __future__ import division
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, mtimes, symvar
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
@@ -197,10 +197,25 @@ class SamplingMethod(DirectMethod):
         for k in range(self.N):
             t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
             self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
+        self.add_constraints_before(stage, opti)
         self.add_constraints(stage, opti)
+        self.add_constraints_after(stage, opti)
         self.add_objective(stage, opti)
         self.set_initial(stage, opti, stage._initial)
         self.set_parameter(stage, opti)
+
+
+    def add_constraints_before(self, stage, opti):
+        for c, meta, _ in stage._constraints["point"]:
+            e = self.eval(stage, c)
+            if 'r_at_tf' not in [a.name() for a in symvar(e)]:
+                opti.subject_to(e, meta=meta)
+
+    def add_constraints_after(self, stage, opti):
+        for c, meta, _ in stage._constraints["point"]:
+            e = self.eval(stage, c)
+            if 'r_at_tf' in [a.name() for a in symvar(e)]:
+                opti.subject_to(e, meta=meta)
 
     def add_inf_constraints(self, stage, opti, c, k, l, meta):
         coeff = stage._method.poly_coeff[k * self.M + l]

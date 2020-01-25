@@ -85,6 +85,3 @@ class MultipleShooting(SamplingMethod):
             opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
         self.xk.append(self.X[-1])
-
-        for c, meta, _ in stage._constraints["point"]:  # Append boundary conditions to the end
-            opti.subject_to(self.eval(stage, c), meta=meta)

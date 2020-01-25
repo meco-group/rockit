@@ -84,5 +84,3 @@ class SingleShooting(SamplingMethod):
 
             self.xk.append(self.X[-1])
 
-        for c, meta, _ in stage._constraints["point"]:  # Append boundary conditions to the end
-            opti.subject_to(self.eval(stage, c), meta=meta)
