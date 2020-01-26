@@ -20,7 +20,8 @@
 #
 #
 
-from casadi import Opti, jacobian, dot, hessian, symvar
+from casadi import Opti, jacobian, dot, hessian, symvar, evalf
+import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 
 class DirectMethod:
@@ -69,6 +70,11 @@ class OptiWrapper(Opti):
         if expr is None:
             self.constraints = []
         else:
+            if isinstance(expr,MX) and expr.is_constant():
+                if np.all(np.array(evalf(expr)).squeeze()==1):
+                    return
+                else:
+                    raise Exception("You have a constraint that is never statisfied.")
             self.constraints.append((expr, meta))
 
     def add_objective(self, expr):
