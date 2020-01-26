@@ -43,16 +43,16 @@ class Grid:
     def __call__(self, t0, T, N):
         return linspace(t0, T, N+1)
 
-def FreeGrid(self):
+class FreeGrid(Grid):
     """Specify a grid with unprescribed spacing
     
     Parameters
     ----------
-    min : float or  :obj:`casadi.MX`
+    min : float or  :obj:`casadi.MX`, optional
         Minimum size of control interval
         Enforced with constraints
         Default: 0
-    max : float or  :obj:`casadi.MX`
+    max : float or  :obj:`casadi.MX`, optional
         Maximum size of control interval
         Enforced with constraints
         Default: inf
@@ -69,11 +69,11 @@ class UniformGrid(Grid):
     
     Parameters
     ----------
-    min : float or  :obj:`casadi.MX`
+    min : float or  :obj:`casadi.MX`, optional
         Minimum size of control interval
         Enforced with constraints
         Default: 0
-    max : float or  :obj:`casadi.MX`
+    max : float or  :obj:`casadi.MX`, optional
         Maximum size of control interval
         Enforced with constraints
         Default: inf
@@ -97,11 +97,11 @@ class GeometricGrid(Grid):
         if False, last interval is growth_factor larger than first
         if True, interval k+1 is growth_factor larger than interval k
         Default: False
-    min : float or  :obj:`casadi.MX`
+    min : float or  :obj:`casadi.MX`, optional
         Minimum size of control interval
         Enforced with constraints
         Default: 0
-    max : float or  :obj:`casadi.MX`
+    max : float or  :obj:`casadi.MX`, optional
         Maximum size of control interval
         Enforced with constraints
         Default: inf
@@ -109,8 +109,8 @@ class GeometricGrid(Grid):
     Examples
     --------
 
-    >>> MultipleShooting(N=3, time_grid=GeometricGrid(2)) # grid = [0, 1, 3, 7]*T/7
-    >>> MultipleShooting(N=3, time_grid=GeometricGrid(2,local=True)) # grid = [0, 1, 5, 21]*T/21
+    >>> MultipleShooting(N=3, grid=GeometricGrid(2)) # grid = [0, 1, 3, 7]*T/7
+    >>> MultipleShooting(N=3, grid=GeometricGrid(2,local=True)) # grid = [0, 1, 5, 21]*T/21
     """
     def __init__(self, growth_factor, local=False, *args, **kwargs):
         assert growth_factor>=1
@@ -145,7 +145,7 @@ class GeometricGrid(Grid):
 #        self.grid = (grid-grid[0])/grid[-1]
 
 class SamplingMethod(DirectMethod):
-    def __init__(self, N=50, M=1, intg='rk', intg_options=None, time_grid=UniformGrid(), localize_t0=False, localize_T=False, **kwargs):
+    def __init__(self, N=50, M=1, intg='rk', intg_options=None, grid=UniformGrid(), localize_t0=False, localize_T=False, **kwargs):
         """
         Parameters
         ----------
@@ -161,7 +161,7 @@ class SamplingMethod(DirectMethod):
         self.M = M
         self.intg = intg
         self.intg_options = {} if intg_options is None else intg_options
-        self.time_grid = time_grid
+        self.time_grid = grid
         self.localize_t0 = localize_t0
         self.localize_T = localize_T
 
