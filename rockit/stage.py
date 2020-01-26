@@ -487,6 +487,7 @@ class Stage:
 
     @property
     def u(self):
+        if len(self.controls)==0: return MX(0, 1)
         return vvcat(self.controls)
 
     @property

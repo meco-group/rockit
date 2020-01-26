@@ -36,7 +36,7 @@ class SingleShooting(SamplingMethod):
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(opti.variable(stage.nu))
+            self.U.append(opti.variable(stage.nu) if stage.nu>0 else MX(0,1))
             self.X.append(None)
             self.add_variables_V_control(stage, opti, k)
 

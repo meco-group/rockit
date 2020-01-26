@@ -35,7 +35,7 @@ class MultipleShooting(SamplingMethod):
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(vcat([opti.variable(s.numel()) for s in stage.controls]))
+            self.U.append(vcat([opti.variable(s.numel()) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.add_variables_V_control(stage, opti, k)
             self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
             
