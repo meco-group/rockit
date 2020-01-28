@@ -1,8 +1,8 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, UniformGrid, GeometricGrid, FreeGrid
 from problems import integrator_control_problem, vdp, vdp_dae
-from casadi import DM, jacobian, sum1, sum2
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 try:
@@ -489,53 +489,114 @@ class MiscTests(unittest.TestCase):
         print(f(1,1,2,3))
 
     def test_localize_time(self):
-          for t0_stage in [FreeTime(-1), -1]:
-              for T_stage in [FreeTime(1), 2]:
-                  t0_free = isinstance(t0_stage, FreeTime)
-                  T_free = isinstance(T_stage, FreeTime)
-                  ocp = Ocp(t0=t0_stage,T=T_stage)
+      N = 10
+      for t0_stage in [FreeTime(-1), -1]:
+          for T_stage in [FreeTime(2), 2]:
+              t0_free = isinstance(t0_stage, FreeTime)
+              T_free = isinstance(T_stage, FreeTime)
+              ocp = Ocp(t0=t0_stage,T=T_stage)
 
-                  p = ocp.state()
-                  v = ocp.state()
-                  u = ocp.control()
+              p = ocp.state()
+              v = ocp.state()
+              u = ocp.control()
 
-                  ocp.set_der(p, v)
-                  ocp.set_der(v, u)
+              ocp.set_der(p, v)
+              ocp.set_der(v, u)
 
-                  ocp.add_objective(ocp.tf)
-                  ocp.subject_to(ocp.at_t0(p) == 0)
-                  ocp.subject_to(ocp.at_t0(v) == 0)
-                  ocp.subject_to(ocp.at_tf(p) == 1)
-                  ocp.subject_to(ocp.at_tf(v) == 0)
+              ocp.add_objective(ocp.tf)
+              ocp.subject_to(ocp.at_t0(p) == 0)
+              ocp.subject_to(ocp.at_t0(v) == 0)
+              ocp.subject_to(ocp.at_tf(p) == 1)
+              ocp.subject_to(ocp.at_tf(v) == 0)
+
+              ocp.subject_to(u <= 1)
+              ocp.subject_to(-1 <= u)
+ 
+              ocp.solver('ipopt',{"ipopt.tol":1e-12})
+
+              if t0_free:
+                  ocp.subject_to(ocp.t0 >= -1)
+
+              for localize_t0 in [False,True]:
+                if (not t0_free) and localize_t0: continue
+                for localize_T in [False,True]:
+                  if (not T_free) and localize_T: continue
+  
+                  ocp.method(MultipleShooting(N=N,grid=UniformGrid(localize_T=localize_T,localize_t0=localize_t0)))
+
+                  sol = ocp.solve()
+                  self.assertTrue(sum2(sum1(DM(jacobian(ocp.opti.g, ocp.opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
+                    
+
+    def test_control_grid(self):
+      N = 4
+      # Be careful for loss of symmetry for non-uniform grids; bang-bang is only optimal if normalized(t=0.5) is included
+      # e.g. for local growth factor r: (1-r^7)/(1-r^10) = 0.5 -> r = 
+      r = MX.sym("r")
+      rf = rootfinder("rf","newton",{"x": r, "g": (1-r**3)/(1-r**N)-0.5})
+      r = float(rf(x0=1.2)["x"])
+      for t0_stage in [FreeTime(-1), -1]:
+          for T_stage in [FreeTime(2), 2]:
+              t0_free = isinstance(t0_stage, FreeTime)
+              T_free = isinstance(T_stage, FreeTime)
+              ocp = Ocp(t0=t0_stage,T=T_stage)
+
+              p = ocp.state()
+              v = ocp.state()
+              u = ocp.control()
+
+              ocp.set_der(p, v)
+              ocp.set_der(v, u)
+
+              ocp.add_objective(ocp.tf)
+              ocp.subject_to(ocp.at_t0(p) == 0)
+              ocp.subject_to(ocp.at_t0(v) == 0)
+              ocp.subject_to(ocp.at_tf(p) == 1)
+              ocp.subject_to(ocp.at_tf(v) == 0)
 
 
-                  ocp.subject_to(u <= 1)
-                  ocp.subject_to(-1 <= u)
-                  ocp.solver('ipopt')
+              ocp.subject_to(-1 <= (u <= 1))
+              ocp.solver('ipopt',{"ipopt.tol":1e-12})
 
-                  if t0_free:
-                      ocp.subject_to(ocp.t0 >= -1)
-                  for localize_t0 in [False,True]:
-                    if (not t0_free) and localize_t0: continue
-                    for localize_T in [False,True]:
-                      if (not T_free) and localize_T: continue
+              if t0_free:
+                  ocp.subject_to(ocp.t0 >= -1)
 
+              for localize_t0 in [False,True]:
+                if (not t0_free) and localize_t0: continue
+                for localize_T in [False,True]:
+                  if (not T_free) and localize_T: continue
 
-                      N = 10
-                      ocp.method(MultipleShooting(N=N,localize_t0=localize_t0,localize_T=localize_T))
+                  for grid in [
+                    UniformGrid(localize_T=localize_T,localize_t0=localize_t0),
+                    GeometricGrid(r,local=True,localize_T=localize_T,localize_t0=localize_t0),
+                    GeometricGrid(r**(N-1),local=False,localize_T=localize_T,localize_t0=localize_t0),
+                    FreeGrid(min=0.01,max=0.5)]:
+                      ocp.method(MultipleShooting(N=N,grid=grid))
 
                       sol = ocp.solve()
 
-                      self.assertTrue(sum2(sum1(DM(jacobian(ocp.opti.g, ocp.opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
-                      
                       tolerance = 1e-6
 
-                      ts_ref = -1 + np.linspace(0, 2, 4*N+1)
+                      if isinstance(grid, UniformGrid):
 
-                      ts, _ = sol.sample(v, grid='integrator', refine=4)
+                        ts_ref = -1 + np.linspace(0, 2, 4*N+1)
 
-                      np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
+                        ts, _ = sol.sample(v, grid='integrator', refine=4)
+                        np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
 
+                      if not isinstance(grid, FreeGrid):
+
+                        ts_ref = -1 + 2*np.array(grid.normalized(N))
+
+                        ts, _ = sol.sample(v, grid='control')
+                        np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
+
+                      np.testing.assert_allclose(ts[0], -1, atol=tolerance)
+                      np.testing.assert_allclose(ts[-1], 1, atol=tolerance)
+
+                      self.assertAlmostEqual(sol.value(ocp.t0),-1, places=5)
+                      self.assertAlmostEqual(sol.value(ocp.T),2, places=5)
+                      self.assertAlmostEqual(sol.value(ocp.tf),1, places=5)
 
 if __name__ == '__main__':
     unittest.main()
