@@ -93,8 +93,11 @@ class OptiWrapper(Opti):
         else:
             return Opti.variable(self,n, m)
 
-    def set_initial(self, key, value):
-        a = set([hash(e) for e in self.advanced.symvar()])
+    def cache_advanced(self):
+        self._advanced_cache = self.advanced
+
+    def set_initial(self, key, value, cache_advanced=False):
+        a = set([hash(e) for e in (self._advanced_cache if cache_advanced else self.advanced).symvar()])
         b = set([hash(e) for e in symvar(key)])
         if len(a | b)==len(a):
             Opti.set_initial(self, key, value) # set_initial logic in direct_collocation needs this

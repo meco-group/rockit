@@ -474,14 +474,16 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j])
 
     def set_initial(self, stage, opti, initial):
+        opti.cache_advanced()
         for var, expr in initial.items():
             if var is stage.T:
                 var = self.T
             if var is stage.t0:
                 var = self.t0
+            opti_initial = opti.initial()
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
-                value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti.initial()))
+                value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti_initial)) # HOT line
                 if target.numel()*(self.N)==value.numel():
                     if repmat(target, self.N, 1).shape==value.shape:
                         value = value[k,:]
@@ -493,7 +495,7 @@ class SamplingMethod(DirectMethod):
                         value = value[k,:]
                     elif repmat(target, 1, self.N+1).shape==value.shape:
                         value = value[:,k]
-                opti.set_initial(target, value)
+                opti.set_initial(target, value, cache_advanced=True)
 
     def set_value(self, stage, opti, parameter, value):
         for i, p in enumerate(stage.parameters['']):
