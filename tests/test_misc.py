@@ -584,11 +584,11 @@ class MiscTests(unittest.TestCase):
                         ts, _ = sol.sample(v, grid='integrator', refine=4)
                         np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
 
+                      ts, _ = sol.sample(v, grid='control')
                       if not isinstance(grid, FreeGrid):
 
                         ts_ref = -1 + 2*np.array(grid.normalized(N))
 
-                        ts, _ = sol.sample(v, grid='control')
                         np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
 
                       np.testing.assert_allclose(ts[0], -1, atol=tolerance)

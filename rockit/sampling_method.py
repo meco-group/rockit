@@ -39,10 +39,44 @@ class Grid:
     def __call__(self, t0, T, N):
         return linspace(t0+0.0, t0+T+0.0, N+1)
 
-    def bounds_finalize(self, opti, t0_local, tf, N):
+    def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
         pass
 
-class FreeGrid(Grid):
+class FixedGrid(Grid):
+    def __init__(self, localize_t0=False, localize_T=False, *args, **kwargs):
+        Grid.__init__(self, *args, **kwargs)
+        self.localize_t0 = localize_t0
+        self.localize_T = localize_T
+
+    def bounds_T(self, opti, T_local, t0_local, k, T, N):
+        if self.localize_T:
+            Tk = T_local[k]
+            if k>=0 and k+1<N:
+                self.constrain_T(opti, T_local[k], T_local[k+1], N)
+        else:
+            Tk = T*(self.normalized(N)[k+1]-self.normalized(N)[k])
+        if self.localize_t0 and k>=0:
+            opti.subject_to(t0_local[k]+Tk==t0_local[k+1])
+
+    def get_t0_local(self, opti, k, t0, N):
+        if self.localize_t0:
+            if k==0:
+                return t0
+            else:
+                return opti.variable()
+        else:
+            return None
+
+    def get_T_local(self, opti, k, T, N):
+        if self.localize_T:
+            if k==0:
+                return T*self.scale_first(N)
+            else:
+                return opti.variable()
+        else:
+            return None
+
+class FreeGrid(FixedGrid):
     """Specify a grid with unprescribed spacing
     
     Parameters
@@ -57,38 +91,22 @@ class FreeGrid(Grid):
         Default: inf
     """
     def __init__(self, *args, **kwargs):
-        Grid.__init__(self, *args, **kwargs)
+        FixedGrid.__init__(self, *args, **kwargs)
+        self.localize_T = True
 
-    @property
-    def localize_t0(self):
-        return True
-
-    @property
-    def localize_T(self):
-        return False
+    def constrain_T(self,opti,T,Tnext,N):
+        pass
 
     def bounds_T(self, opti, T_local, t0_local, k, T, N):
-        opti.subject_to(self.min <= (t0_local[k+1]-t0_local[k] <= self.max))
+        opti.subject_to(self.min <= (T_local[k] <= self.max))
+        FixedGrid.bounds_T(self, opti, T_local, t0_local, k, T, N)
 
-    def bounds_finalize(self, opti, t0_local, tf, N):
-        opti.subject_to(t0_local[-1]==tf)
+    def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
+        opti.subject_to(control_grid[-1]==tf)
 
-class FixedGrid(Grid):
-    def __init__(self, localize_t0=False, localize_T=False, *args, **kwargs):
-        Grid.__init__(self, *args, **kwargs)
-        self.localize_t0 = localize_t0
-        self.localize_T = localize_T
+    def get_T_local(self, opti, k, T, N):
+        return opti.variable()
 
-    def bounds_T(self, opti, T_local, t0_local, k, T, N):
-        Tk = T*(self.normalized(N)[k+1]-self.normalized(N)[k])
-        if self.localize_T:
-            Tk = T_local[k]
-            if k>=0 and k+1<N:
-                self.constrain_T(opti, T_local[k], T_local[k+1], N)
-        
-        if self.localize_t0 and k>=0:
-            opti.subject_to(t0_local[k]+Tk==t0_local[k+1])
-    
 class UniformGrid(FixedGrid):
     """Specify a grid with uniform spacing
     
@@ -334,7 +352,7 @@ class SamplingMethod(DirectMethod):
                 stage.set_initial(self.t0_local[k], control_grid_init[k])
             stage.set_initial(self.t0_local[self.N], control_grid_init[self.N])
         if self.time_grid.localize_T:
-            for k in range(1, self.N):
+            for k in range(not isinstance(self.time_grid, FreeGrid), self.N):
                 stage.set_initial(self.T_local[k], control_grid_init[k+1]-control_grid_init[k])
 
         self.integrator_grid = []
@@ -432,22 +450,13 @@ class SamplingMethod(DirectMethod):
         for i, v in enumerate(stage.variables['states']):
             self.V_states[i].append(opti.variable(v.shape[0], v.shape[1]))
 
-        if self.time_grid.localize_t0:
-            if k==0:
-                self.t0_local[k] = self.t0
-            else:
-                self.t0_local[k] = opti.variable()
-        if self.time_grid.localize_T:
-            if k==0:
-                self.T_local[k] = self.T*self.time_grid.scale_first(self.N)
-            else:
-                self.T_local[k] = opti.variable()
+        self.t0_local[k] = self.time_grid.get_t0_local(opti, k, self.t0, self.N)
+        self.T_local[k] = self.time_grid.get_T_local(opti, k, self.T, self.N)
 
     def add_variables_V_control_finalize(self, stage, opti):
         if self.time_grid.localize_t0:
             self.t0_local[self.N] = opti.variable()
             self.control_grid = hcat(self.t0_local)
-            self.time_grid.bounds_finalize(opti, self.t0_local, self.t0+self.T, self.N)
 
         elif self.time_grid.localize_T:
             t0 = self.t0
@@ -457,6 +466,8 @@ class SamplingMethod(DirectMethod):
             self.control_grid = hcat(cumsum)
         else:
             self.control_grid = self.time_grid(self.t0, self.T, self.N)
+
+        self.time_grid.bounds_finalize(opti, self.control_grid, self.t0_local, self.t0+self.T, self.N)
 
     def add_coupling_constraints(self, stage, opti, k):
         self.time_grid.bounds_T(opti, self.T_local, self.t0_local, k, self.T, self.N)
