@@ -1,2 +1,6 @@
+#!/bin/bash
+
 pwd
 ls
+
+sleep 15
