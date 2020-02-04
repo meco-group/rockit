@@ -50,7 +50,6 @@ sphinx_gallery_conf = {
       'branch': 'master',
       'binderhub_url': 'https://mybinder.org',
       'dependencies': ['../../.binder/requirements.txt'],
-      'notebooks_dir': 'examples'
     }
 }
 
