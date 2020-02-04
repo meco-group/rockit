@@ -42,6 +42,8 @@ docs:sphinx:
     - cd docs/sphinx && mkdir -p apidoc
     - sphinx-apidoc -f -o ./apidoc/ ../../rockit/
     - make html
+    - find -name "*.html" -exec grep --color -n -H ${@:2} {} \;
+    - https://mybinder.org/v2/gh/https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git/rockit.git/master?filepath=notebooks/examples/bounce.ipynb  https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git
   artifacts:
     paths:
       - docs/sphinx/build

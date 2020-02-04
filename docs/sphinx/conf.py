@@ -37,30 +37,6 @@ extensions = [
     'sphinx_gallery.gen_gallery'
 ]
 
-
-import sphinx_gallery
-def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
-    """Generate the RST + link for the Binder badge.
-    ...
-    """
-    binder_conf = sphinx_gallery.binder.check_binder_conf(binder_conf)
-    binder_url = sphinx_gallery.binder.gen_binder_url(fpath, binder_conf, gallery_conf)
-
-    # We rely on .binder/postBuild for the actual notebooks
-    # Explicit dependence on github needs to be dropped
-    binder_url = binder_url.replace("/gh/","/git/").binder_url.replace("/notebooks/","/")
-    print("foobar", binder_url)
-
-    rst = (
-            "\n"
-            "  .. container:: binder-badge\n\n"
-            "    .. image:: https://mybinder.org/badge_logo.svg\n"
-            "      :target: {}\n"
-            "      :width: 150 px\n").format(binder_url)
-    return rst
-
-sphinx_gallery.binder.gen_binder_rst = patched_gen_binder_rst
-
 from sphinx_gallery.sorting import ExampleTitleSortKey
 
 sphinx_gallery_conf = {
@@ -69,15 +45,13 @@ sphinx_gallery_conf = {
     'filename_pattern': '/',
     'within_subsection_order': ExampleTitleSortKey,
     'binder': {
-      'org': 'https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git',
-      'repo': 'rockit.git',
+      'org': 'meco-software',
+      'repo': 'rockit.git', # URL will be fixed in .gitlab-ci.yml
       'branch': 'master',
       'binderhub_url': 'https://mybinder.org',
       'dependencies': ['../../.binder/requirements.txt'],
     }
 }
-
-
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
