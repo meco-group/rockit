@@ -49,8 +49,9 @@ u = ocp.control()
 
 Compose time-dependent expressions a.k.a. signals
 _(explicit time-dependence is supported with `ocp.t`)_
-e = (1 - x2**2)
-
+```
+e = 1 - x2**2
+```
 Specify differential equations for states
 _(DAEs also supported with `ocp.algebraic` and `add_alg`)_
 ```
@@ -70,8 +71,10 @@ ocp.add_objective(ocp.at_tf(x1**2))
 Path constraints
 _(must be valid on the whole time domain running from `t0` to `tf`,
    grid options available such as `grid='integrator'` or `grid='inf'`)_
+```
 ocp.subject_to(x1 >= -0.25)
 ocp.subject_to(-1 <= (u <= 1 ))
+```
 
 Boundary constraints
 ```
