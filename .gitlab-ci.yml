@@ -1,6 +1,6 @@
 stages:
-  - docs
   - testing
+  - docs
   - publish
 
 # shorthand for testing
