@@ -49,7 +49,7 @@ sphinx_gallery_conf = {
       'repo': 'rockit.git',
       'branch': 'master',
       'binderhub_url': 'https://mybinder.org',
-      'dependencies': ['~/.binder/requirements.txt'],
+      'dependencies': ['../../.binder/requirements.txt'],
       'notebooks_dir': 'examples'
     }
 }
