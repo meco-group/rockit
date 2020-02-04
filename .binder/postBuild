@@ -1,3 +1,4 @@
 #!/bin/bash
 
 find examples -maxdepth 1 -name "*.py" -exec python docs/py2notebook.py {} \;
+python setup.py install

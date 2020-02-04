@@ -18,11 +18,11 @@ with open(sys.argv[1],"r") as f_in:
   preamble = []
   for l in f_in:
     if not l.startswith('"""'):
-      break
+      preamble.append(l)
   
   for l in f_in:
-    preamble.append(l)
     if l.startswith('"""'): break
+    preamble.append(l)
 
   data["cells"][-4]["source"] = preamble
   data["cells"][-1]["source"] = f_in.readlines()
