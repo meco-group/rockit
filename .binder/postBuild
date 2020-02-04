@@ -1,6 +1,3 @@
 #!/bin/bash
 
-pwd
-ls
-
-sleep 15
+find examples -maxdepth 1 -name "*.py" -exec python docs/py2notebook.py {} \;
