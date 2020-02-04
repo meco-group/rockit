@@ -44,7 +44,14 @@ sphinx_gallery_conf = {
      'gallery_dirs': 'examples',  # path where to save gallery generated examples
     'filename_pattern': '/',
     'within_subsection_order': ExampleTitleSortKey,
-
+    'binder': {
+      'org': 'https://gitlab.mech.kuleuven.be/meco-software',
+      'repo': 'rockit.git',
+      'branch': 'master',
+      'binderhub_url': 'https://mybinder.org',
+      'dependencies': [],
+      'notebooks_dir': 'examples'
+    }
 }
 
 # Add any paths that contain templates here, relative to this directory.
