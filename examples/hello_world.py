@@ -48,7 +48,7 @@ u = ocp.control()
 
 # Compose time-dependent expressions a.k.a. signals
 #  (explicit time-dependence is supported with `ocp.t`)
-e = (1 - x2**2)
+e = 1 - x2**2
 
 # Specify differential equations for states
 #  (DAEs also supported with `ocp.algebraic` and `add_alg`)
