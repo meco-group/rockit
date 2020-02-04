@@ -37,21 +37,6 @@ extensions = [
     'sphinx_gallery.gen_gallery'
 ]
 
-from sphinx_gallery.sorting import ExampleTitleSortKey
-
-sphinx_gallery_conf = {
-     'examples_dirs': '../../examples',   # path to your example scripts
-     'gallery_dirs': 'examples',  # path where to save gallery generated examples
-    'filename_pattern': '/',
-    'within_subsection_order': ExampleTitleSortKey,
-    'binder': {
-      'org': 'https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git',
-      'repo': 'rockit.git',
-      'branch': 'master',
-      'binderhub_url': 'https://mybinder.org',
-      'dependencies': ['../../.binder/requirements.txt'],
-    }
-}
 
 import sphinx_gallery
 def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
@@ -75,6 +60,24 @@ def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
     return rst
 
 sphinx_gallery.binder.gen_binder_rst = patched_gen_binder_rst
+
+from sphinx_gallery.sorting import ExampleTitleSortKey
+
+sphinx_gallery_conf = {
+     'examples_dirs': '../../examples',   # path to your example scripts
+     'gallery_dirs': 'examples',  # path where to save gallery generated examples
+    'filename_pattern': '/',
+    'within_subsection_order': ExampleTitleSortKey,
+    'binder': {
+      'org': 'https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git',
+      'repo': 'rockit.git',
+      'branch': 'master',
+      'binderhub_url': 'https://mybinder.org',
+      'dependencies': ['../../.binder/requirements.txt'],
+    }
+}
+
+
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
