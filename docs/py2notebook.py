@@ -19,8 +19,10 @@ with open(sys.argv[1],"r") as f_in:
   for l in f_in:
     if not l.startswith('"""'):
       preamble.append(l)
+      break
   
   for l in f_in:
+    print(l)
     if l.startswith('"""'): break
     preamble.append(l)
 

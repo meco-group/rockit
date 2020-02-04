@@ -49,10 +49,30 @@ sphinx_gallery_conf = {
       'repo': 'rockit.git',
       'branch': 'master',
       'binderhub_url': 'https://mybinder.org',
-      'dependencies': ['.binder/requirements.txt'],
+      'dependencies': ['~/.binder/requirements.txt'],
       'notebooks_dir': 'examples'
     }
 }
+
+import sphinx_gallery.binder
+def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
+    """Generate the RST + link for the Binder badge.
+    ...
+    """
+    binder_conf = sphinx_gallery.binder.check_binder_conf(binder_conf)
+    binder_url = sphinx_gallery.binder.gen_binder_url(fpath, binder_conf, gallery_conf)
+
+    binder_url = binder_url.replace("/gh/","/git/")
+
+    rst = (
+            "\n"
+            "  .. container:: binder-badge\n\n"
+            "    .. image:: https://mybinder.org/badge_logo.svg\n"
+            "      :target: {}\n"
+            "      :width: 150 px\n").format(binder_url)
+    return rst
+
+sphinx_gallery.binder.gen_binder_rst = patched_gen_binder_rst
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
