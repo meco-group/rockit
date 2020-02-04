@@ -28,60 +28,71 @@ Import the project:
 from rockit import *
 ```
 
-Start an optimal control environment with a time horizon of 10 seconds (free time problems can be configured with `FreeTime(initial_guess)`):
-```python
-ocp = Ocp(T=10)
+Start an optimal control environment with a time horizon of 10 seconds
+starting from t0=0s.
+_(free-time problems can be configured with `FreeTime(initial_guess))_
+```
+ocp = Ocp(t0=0, T=10)
 ```
 
-Define two scalar states (vectors and matrices also supported):
-```python
+Define two scalar states (vectors and matrices also supported)
+```
 x1 = ocp.state()
 x2 = ocp.state()
 ```
 
-Define one piece-wise constant control input (use `order=1` for piecewise linear):
-```python
+Define one piecewise constant control input
+_(use `order=1` for piecewise linear)_
+```
 u = ocp.control()
 ```
 
-Specify differential equations for states (time dependency supported with `ocp.t`, DAEs also supported with `ocp.algebraic` and `add_alg`):
-```python
-ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+Compose time-dependent expressions a.k.a. signals
+_(explicit time-dependence is supported with `ocp.t`)_
+e = (1 - x2**2)
+
+Specify differential equations for states
+_(DAEs also supported with `ocp.algebraic` and `add_alg`)_
+```
+ocp.set_der(x1, e * x1 - x2 + u)
 ocp.set_der(x2, x1)
 ```
 
-Lagrange objective term:
-```python
+Lagrange objective term: signals in an integrand
+```
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 ```
-
-```Mayer objective term
+Mayer objective term: signals evaluated at t_f = t0_+T
+```
 ocp.add_objective(ocp.at_tf(x1**2))
 ```
 
-Path constraints (must be valid on the whole time domain running from `t0` to `tf=t0+T`, grid options available):
-```python
+Path constraints
+_(must be valid on the whole time domain running from `t0` to `tf`,
+   grid options available such as `grid='integrator'` or `grid='inf'`)_
 ocp.subject_to(x1 >= -0.25)
 ocp.subject_to(-1 <= (u <= 1 ))
-```
 
-Boundary constraints:
-```python
+Boundary constraints
+```
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
 ```
 
-Pick an NLP solver backend (CasADi `nlpsol` plugin):
-```python
+Pick an NLP solver backend
+_(CasADi `nlpsol` plugin)_
+```
 ocp.solver('ipopt')
 ```
 
-Pick a solution method:
-  N -- number of control intervals
-  M -- number of integration steps per control interval
-```python
-method = MultipleShooting(N=10, M=2, intg='rk')
-#method = DirectCollocation(N=10, M=2)
+Pick a solution method
+such as `SingleShooting`, `MultipleShooting`, `DirectCollocation`
+with arguments:
+ * N -- number of control intervals
+ * M -- number of integration steps per control interval
+ * grid -- could specify e.g. UniformGrid() or GeometricGrid(4)
+```
+method = MultipleShooting(N=10, intg='rk')
 ocp.method(method)
 ```
 
