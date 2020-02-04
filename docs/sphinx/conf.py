@@ -45,7 +45,7 @@ sphinx_gallery_conf = {
     'filename_pattern': '/',
     'within_subsection_order': ExampleTitleSortKey,
     'binder': {
-      'org': 'https://gitlab.mech.kuleuven.be/meco-software',
+      'org': 'https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git',
       'repo': 'rockit.git',
       'branch': 'master',
       'binderhub_url': 'https://mybinder.org',
@@ -53,7 +53,6 @@ sphinx_gallery_conf = {
     }
 }
 
-import sphinx_gallery.binder
 def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
     """Generate the RST + link for the Binder badge.
     ...
@@ -62,6 +61,7 @@ def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
     binder_url = sphinx_gallery.binder.gen_binder_url(fpath, binder_conf, gallery_conf)
 
     binder_url = binder_url.replace("/gh/","/git/")
+    print("foobar", binder_url)
 
     rst = (
             "\n"
