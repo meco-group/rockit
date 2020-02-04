@@ -53,6 +53,7 @@ sphinx_gallery_conf = {
     }
 }
 
+import sphinx_gallery
 def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
     """Generate the RST + link for the Binder badge.
     ...
@@ -60,7 +61,9 @@ def patched_gen_binder_rst(fpath, binder_conf, gallery_conf):
     binder_conf = sphinx_gallery.binder.check_binder_conf(binder_conf)
     binder_url = sphinx_gallery.binder.gen_binder_url(fpath, binder_conf, gallery_conf)
 
-    binder_url = binder_url.replace("/gh/","/git/")
+    # We rely on .binder/postBuild for the actual notebooks
+    # Explicit dependence on github needs to be dropped
+    binder_url = binder_url.replace("/gh/","/git/").binder_url.replace("/notebooks/","/")
     print("foobar", binder_url)
 
     rst = (

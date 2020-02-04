@@ -22,7 +22,6 @@ with open(sys.argv[1],"r") as f_in:
       break
   
   for l in f_in:
-    print(l)
     if l.startswith('"""'): break
     preamble.append(l)
 
