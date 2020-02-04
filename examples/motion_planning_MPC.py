@@ -5,6 +5,11 @@ import numpy as np
 from numpy import pi, cos, sin, tan, square
 from casadi import vertcat, horzcat, sumsqr
 
+"""
+Motion planning model predictive control scheme
+===============================================
+
+"""
 
 # -------------------------------
 # Define some functions to match current position with reference path
