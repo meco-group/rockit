@@ -362,6 +362,16 @@ class Stage:
         """
         return self.offset(expr, 1)
 
+    def prev(self, expr):
+        """Get the value of a signal at the previous control interval
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            An expression
+        """
+        return self.offset(expr, -1)
+
     def subject_to(self, constr, grid=None):
         """Adds a constraint to the problem
 
