@@ -85,6 +85,7 @@ class Stage:
         self._placeholder_callbacks = dict()
         self._offsets = dict()
         self._inf_inert = OrderedDict()
+        self._inf_der = OrderedDict()
         self.t = MX.sym('t')
         self._stages = []
         self._method = DirectMethod()
@@ -370,6 +371,13 @@ class Stage:
         self._inf_inert[ret] = expr
         return ret
 
+    def inf_der(self, expr):
+        """Specify that expression should be treated as constant for grid=inf constraints
+        """
+        ret = MX.sym("der", MX(expr).sparsity())
+        self._inf_der[ret] = expr
+        return ret
+
     def prev(self, expr):
         """Get the value of a signal at the previous control interval
 
@@ -568,7 +576,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.t, vcat(self.variables['control']+self.variables['states'])))
+        return depends_on(expr, vertcat(self.x, self.u, self.t, vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def _create_placeholder_expr(self, expr, callback_name):
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())

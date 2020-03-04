@@ -394,8 +394,11 @@ class SamplingMethod(DirectMethod):
         statessizecum = np.cumsum(statesize)
 
         subst_from = list(stage.states)
+        subst_from += stage._inf_der.keys()
         state_coeff_split = horzsplit(state_coeff,statessizecum)
         subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
+        lookup = dict(zip(subst_from, subst_to))
+        subst_to += [lookup[e].derivative() for e in stage._inf_der.values()]
         subst_from += stage._inf_inert.keys()
         subst_to += stage._inf_inert.values()
         c_spline = reinterpret_expr(c, subst_from, subst_to)
