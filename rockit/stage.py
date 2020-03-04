@@ -84,6 +84,7 @@ class Stage:
         self._placeholders = dict()
         self._placeholder_callbacks = dict()
         self._offsets = dict()
+        self._inf_inert = OrderedDict()
         self.t = MX.sym('t')
         self._stages = []
         self._method = DirectMethod()
@@ -361,6 +362,13 @@ class Stage:
             An expression
         """
         return self.offset(expr, 1)
+
+    def inf_inert(self, expr):
+        """Specify that expression should be treated as constant for grid=inf constraints
+        """
+        ret = MX.sym("inert", MX(expr).sparsity())
+        self._inf_inert[ret] = expr
+        return ret
 
     def prev(self, expr):
         """Get the value of a signal at the previous control interval

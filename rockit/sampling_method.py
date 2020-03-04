@@ -393,12 +393,16 @@ class SamplingMethod(DirectMethod):
         statesize = [0] + [elem.nnz() for elem in stage.states]
         statessizecum = np.cumsum(statesize)
 
-        subst_from = stage.states
+        subst_from = list(stage.states)
         state_coeff_split = horzsplit(state_coeff,statessizecum)
         subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
+        subst_from += stage._inf_inert.keys()
+        subst_to += stage._inf_inert.values()
         c_spline = reinterpret_expr(c, subst_from, subst_to)
-        opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
-
+        try:
+            opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
+        except IndexError:
+            pass
     def fill_placeholders_integral_control(self, stage, expr, *args):
         r = 0
         for k in range(self.N):
@@ -412,7 +416,7 @@ class SamplingMethod(DirectMethod):
             r = r + self.eval_at_control(stage, expr, k)
         return r
 
-    def fill_placeholders_next(self, stage, expr, *args):
+    def placeholders_next(self, stage, expr, *args):
         self.eval_at_control(stage, expr, k+1)
 
     def fill_placeholders_at_t0(self, stage, expr, *args):
@@ -513,7 +517,40 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
 
     def _eval_at_control(self, stage, expr, k):
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
+        kwargs = dict(t0=self.t0, T=self.T, v=self.V, p=veccat(*self.P))
+        try:
+            kwargs["x"] = self.X[k]
+        except IndexError:
+            pass
+        try:
+            kwargs["z"] = self.Z[k] if self.Z else nan
+        except IndexError:
+            pass
+        try:
+            kwargs["xq"] = self.q if k==-1 else nan
+        except IndexError:
+            pass
+        try:
+            kwargs["u"] = self.control_grid[k]
+        except IndexError:
+            pass
+        try:
+            kwargs["p_control"] = self.get_p_control_at(stage, k)
+        except IndexError:
+            pass
+        try:
+            kwargs["v_control"] = self.get_v_control_at(stage, k)
+        except IndexError:
+            pass
+        try:
+            kwargs["v_states"] = self.get_v_states_at(stage, k)
+        except IndexError:
+            pass
+        try:
+            kwargs["t"] = self.control_grid[k]
+        except IndexError:
+            pass
+        return stage._expr_apply(expr, **kwargs)
 
     def eval_at_integrator(self, stage, expr, k, i):
         return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i])
