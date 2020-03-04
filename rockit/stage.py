@@ -83,6 +83,7 @@ class Stage:
 
         self._placeholders = dict()
         self._placeholder_callbacks = dict()
+        self._offsets = dict()
         self.t = MX.sym('t')
         self._stages = []
         self._method = DirectMethod()
@@ -335,6 +336,32 @@ class Stage:
         """
         return self._create_placeholder_expr(expr, 'sum_control')
 
+    def offset(self, expr, offset):
+        """Get the value of a signal at control interval current+offset
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            An expression
+        offset : (positive or negative) integer
+        """
+        if int(offset)!=offset:
+            raise Exception("Integer expected")
+        offset = int(offset)
+        ret = MX.sym("offset", expr.shape)
+        self._offsets[ret] = (expr, offset)
+        return ret
+
+    def next(self, expr):
+        """Get the value of a signal at the next control interval
+
+        Parameters
+        ----------
+        expr : :obj:`~casadi.MX`
+            An expression
+        """
+        return self.offset(expr, 1)
+
     def subject_to(self, constr, grid=None):
         """Adds a constraint to the problem
 
@@ -560,6 +587,9 @@ class Stage:
     def _get_subst_set(self, **kwargs):
         subst_from = []
         subst_to = []
+        if "sub" in kwargs:
+            subst_from += kwargs["sub"][0]
+            subst_to += kwargs["sub"][1]
         if "t" in kwargs:
             subst_from.append(self.t)
             subst_to.append(kwargs["t"])

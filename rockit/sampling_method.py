@@ -20,13 +20,13 @@
 #
 #
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
 from numpy import nan, inf
 import numpy as np
-
+from collections import defaultdict
 
 # Agnostic about free or fixed start or end point: 
 
@@ -412,6 +412,9 @@ class SamplingMethod(DirectMethod):
             r = r + self.eval_at_control(stage, expr, k)
         return r
 
+    def fill_placeholders_next(self, stage, expr, *args):
+        self.eval_at_control(stage, expr, k+1)
+
     def fill_placeholders_at_t0(self, stage, expr, *args):
         return self.eval_at_control(stage, expr, 0)
 
@@ -485,6 +488,31 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T)
 
     def eval_at_control(self, stage, expr, k):
+        try:
+            syms = symvar(expr)
+        except:
+            syms = []
+        offsets = defaultdict(list)
+        symbols = defaultdict(list)
+        for s in syms:
+            if s in stage._offsets:
+                e, offset = stage._offsets[s]
+                offsets[offset].append(e)
+                symbols[offset].append(s)
+
+        subst_from = []
+        subst_to = []
+        for offset in offsets.keys():
+            if k==-1 and offset>0:
+                raise IndexError()
+            if k+offset<0:
+                raise IndexError()
+            subst_from.append(vvcat(symbols[offset]))
+            subst_to.append(self._eval_at_control(stage, vvcat(offsets[offset]), k+offset))
+            #print(expr, subst_from, subst_to)
+        return stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
+
+    def _eval_at_control(self, stage, expr, k):
         return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
 
     def eval_at_integrator(self, stage, expr, k, i):

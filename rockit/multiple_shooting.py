@@ -76,12 +76,18 @@ class MultipleShooting(SamplingMethod):
                     self.add_inf_constraints(stage, opti, c, k, l, meta)
 
             for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
-                opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                try:
+                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                except IndexError:
+                    pass # Can be caused by ocp.offset -> drop constraint
 
             self.add_coupling_constraints(stage, opti, k)
 
         for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.
-            opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
-
+            try:
+                opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+            except IndexError:
+                pass 
+            
         self.xk.append(self.X[-1])
