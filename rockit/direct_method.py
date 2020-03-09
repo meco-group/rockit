@@ -35,14 +35,14 @@ class DirectMethod:
     def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
         J = jacobian(opti.g, opti.x).sparsity()
-        plt.spy(J)
+        plt.spy(np.array(J),vmin=0,vmax=1)
         plt.title("Constraint Jacobian: " + J.dim(True))
 
     def spy_hessian(self, opti):
         import matplotlib.pylab as plt
         lag = opti.f + dot(opti.lam_g, opti.g)
         H = hessian(lag, opti.x)[0].sparsity()
-        plt.spy(H)
+        plt.spy(np.array(H),vmin=0,vmax=1)
         plt.title("Lagrange Hessian: " + H.dim(True))
     
     def register(self, stage):
