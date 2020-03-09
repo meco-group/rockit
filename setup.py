@@ -5,7 +5,7 @@
 
 from setuptools import setup, find_packages
 
-version = "0.1.8"
+version = "0.1.9"
 
 setup(
     name='rockit-meco',
@@ -20,7 +20,7 @@ setup(
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     install_requires=[
-        'casadi>=3.4,<4.0',
+        'casadi>=3.5,<4.0',
         'numpy',
         'matplotlib',
         'scipy'
