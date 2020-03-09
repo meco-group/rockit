@@ -491,6 +491,9 @@ class SamplingMethod(DirectMethod):
     def get_v_states_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_states])
 
+    def get_p_sys(self, stage, k):
+        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.V, self.get_v_control_at(stage, k))
+
     def eval(self, stage, expr):
         return stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T)
 

@@ -132,6 +132,7 @@ class DirectCollocation(SamplingMethod):
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
             S_z = 1/repmat(hcat([dt**i for i in range(self.degree)]), self.degree, 1)
             self.Z.append(mtimes(self.Zc[k][0],poly_z[:,0]))
+            p = self.get_p_sys(stage,k)
             for i in range(self.M):
                 self.xk.append(self.Xc[k][i][:,0])
                 self.poly_coeff.append(mtimes(self.Xc[k][i],poly*S))
@@ -139,7 +140,7 @@ class DirectCollocation(SamplingMethod):
                 self.zk.append(mtimes(self.Zc[k][i],poly_z[:,0]))
                 for j in range(self.degree):
                     Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
-                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=vvcat(self.P), t=self.tr[k][i][j])
+                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=p, t=self.tr[k][i][j])
                     # Collocation constraints
                     opti.subject_to(Pidot_j == res["ode"])
                     self.q = self.q + res["quad"]*dt*self.B[j]

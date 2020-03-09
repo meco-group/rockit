@@ -552,6 +552,10 @@ class Stage:
         return vvcat(self.parameters['']+self.parameters['control'])
 
     @property
+    def v(self):
+        return vvcat(self.variables['']+self.variables['control'])
+
+    @property
     def nx(self):
         return self.x.numel()
 
@@ -597,7 +601,7 @@ class Stage:
         ode = veccat(*[self._state_der[k] for k in self.states])
         quad = veccat(*[self._state_der[k] for k in self.qstates])
         alg = veccat(*self._alg)
-        return Function('ode', [self.x, self.u, self.z, self.p, self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
+        return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
     def _expr_apply(self, expr, **kwargs):
         """
