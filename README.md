@@ -8,6 +8,10 @@
 
 ![Rockit logo](docs/logo.png)
 
+<figure class="video_container">
+  <iframe src="https://www.youtube.com/embed/enMumwvLAug" frameborder="0" allowfullscreen="true"> </iframe>
+</figure>
+
 Rockit (Rapid Optimal Control kit) is a software framework to quickly prototype optimal control problems (aka dynamic optimization) that may arise in engineering:
 iterative learning (ILC), model predictive control (NMPC), motion planning.
 
@@ -122,3 +126,7 @@ plot(tsc, x1c, '.')
 ```
 
 ![Solution trajectory of states](docs/hello_world_states.png)
+
+# Presentations
+
+ * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
