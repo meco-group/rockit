@@ -483,7 +483,7 @@ class SamplingMethod(DirectMethod):
         self.time_grid.bounds_T(opti, self.T_local, self.t0_local, k, self.T, self.N)
 
     def get_p_control_at(self, stage, k=-1):
-        return veccat(*[p[:,k] for p in self.P_control])
+        return veccat(*[p[k] for p in self.P_control])
 
     def get_v_control_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_control])
@@ -523,6 +523,7 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
 
     def _eval_at_control(self, stage, expr, k):
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
         kwargs = dict(t0=self.t0, T=self.T, v=self.V, p=veccat(*self.P))
         try:
             kwargs["x"] = self.X[k]
@@ -537,7 +538,7 @@ class SamplingMethod(DirectMethod):
         except IndexError:
             pass
         try:
-            kwargs["u"] = self.control_grid[k]
+            kwargs["u"] = self.U[k]
         except IndexError:
             pass
         try:
@@ -594,16 +595,16 @@ class SamplingMethod(DirectMethod):
                 opti.set_value(self.P[i], value)
         for i, p in enumerate(stage.parameters['control']):
             if parameter is p:
-                opti.set_value(self.P_control[i], value)
+                opti.set_value(hcat(self.P_control[i]), value)
 
     def add_parameter(self, stage, opti):
         for p in stage.parameters['']:
             self.P.append(opti.parameter(p.shape[0], p.shape[1]))
         for p in stage.parameters['control']:
-            self.P_control.append(hcat([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)]))
+            self.P_control.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)])
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
             opti.set_value(self.P[i], stage._param_vals[p])
         for i, p in enumerate(stage.parameters['control']):
-            opti.set_value(self.P_control[i], stage._param_vals[p])
+            opti.set_value(hcat(self.P_control[i]), stage._param_vals[p])
