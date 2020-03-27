@@ -3,7 +3,28 @@ import unittest
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
 import numpy as np
 
+from problems import bang_bang_problem
+
 class StageTests(unittest.TestCase):
+
+    def test_stage_next(self):
+      (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
+
+      ocp.subject_to(-0.3 <= (ocp.next(u)-u <=0.3)  )
+      #ocp.subject_to(-0.3 <= ((ocp.next(u)-u)/(ocp.next(ocp.t) - ocp.t)<=0.3) )
+
+      sol = ocp.solve()
+
+      usol = sol.sample(u,grid='control')[1]
+
+      self.assertAlmostEqual(np.linalg.norm(np.diff(usol,axis=0),np.inf), 0.3, places=5)
+
+    def test_inf_der(self):
+      (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
+
+      ocp.subject_to(-0.3 <= (ocp.inf_der(v) <= 0.3),grid='inf' )
+
+      sol = ocp.solve()
 
     def test_stage_cloning_t0_T(self):
         for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:

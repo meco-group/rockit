@@ -31,7 +31,8 @@ class OcpSolutionTests(unittest.TestCase):
     def test_intg_refine(self):
         for M in [1, 2]:
           for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk'), SingleShooting(N=2,M=M,intg='rk')]:
-            ocp, sol, p, v, u = bang_bang_problem(method)
+            ocp, p, v, u = bang_bang_problem(method)
+            sol = ocp.solve()
             tolerance = 1e-6
 
             ts, ps = sol.sample(p, grid='integrator', refine=10)

@@ -47,7 +47,7 @@ def bang_bang_problem(stage_method):
 
     ocp.method(stage_method)
 
-    return (ocp, ocp.solve(), p, v, u)
+    return (ocp, p, v, u)
 
 
 def vdp_dae(method):
