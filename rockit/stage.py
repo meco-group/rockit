@@ -76,6 +76,7 @@ class Stage:
 
         self._param_vals = dict()
         self._state_der = dict()
+        self._state_next = dict()
         self._alg = []
         self._constraints = defaultdict(list)
         self._objective = 0
@@ -290,7 +291,31 @@ class Stage:
         >>> ocp.set_der(x, -x)
         """
         self._set_transcribed(False)
+        assert not self._state_next
         self._state_der[state] = der
+
+    def set_next(self, state, next):
+        """Assign an update rule for a discrete state
+
+        Parameters
+        ----------
+        state : `~casadi.MX`
+            A CasADi symbol created with :obj:`~rockit.stage.Stage.state`.
+        next : `~casadi.MX`
+            A CasADi symbolic expression of the same size as `state`
+
+        Examples
+        --------
+
+        Defining the first-order difference equation :  :math:`x^{+} = -x`
+        
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> ocp.set_next(x, -x)
+        """
+        self._set_transcribed(False)
+        self._state_next[state] = next
+        assert not self._state_der
 
     def add_alg(self, constr):
         self._set_transcribed(False)
@@ -603,6 +628,14 @@ class Stage:
         alg = veccat(*self._alg)
         return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
+    # Internal methods
+    def _diffeq(self):
+        next = veccat(*[self._state_next[k] for k in self.states])
+        quad = veccat(*[self._state_next[k] for k in self.qstates])
+
+        dt = MX(1,1)
+        return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf"])
+
     def _expr_apply(self, expr, **kwargs):
         """
         Substitute placeholder symbols with actual decision variables,
@@ -716,6 +749,7 @@ class Stage:
 
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
+        ret._state_next = copy(self._state_next)
         constr_types = self._constraints.keys()
         orig = []
         for k in constr_types:

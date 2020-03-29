@@ -253,8 +253,6 @@ class SamplingMethod(DirectMethod):
         self.q = 0
 
     def discrete_system(self, stage):
-        f = stage._ode()
-
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
         poly_coeffs = []
@@ -264,21 +262,25 @@ class SamplingMethod(DirectMethod):
         DT = T / self.M
 
         # Size of integrator interval
-        X0 = f.mx_in("x")            # Initial state
-        U = f.mx_in("u")             # Control
-        P = f.mx_in("p")
-        Z = f.mx_in("z")
+        X0 = MX.sym("x", stage.nx)            # Initial state
+        U = MX.sym("u", stage.nu)             # Control
+        P = MX.sym("p", stage.np+stage.v.shape[0])
+        Z = MX.sym("z", stage.nz)
 
         X = [X0]
-        if hasattr(self, 'intg_' + self.intg):
-            intg = getattr(self, "intg_" + self.intg)(f, X0, U, P, Z)
-        else:
-            intg = self.intg_builtin(f, X0, U, P, Z)
-        assert not intg.has_free()
 
         # Compute local start time
         t0_local = t0
         quad = 0
+
+        if stage._state_next:
+            intg = stage._diffeq()
+        elif hasattr(self, 'intg_' + self.intg):
+            intg = getattr(self, "intg_" + self.intg)(stage._ode(), X0, U, P, Z)
+        else:
+            intg = self.intg_builtin(stage._ode(), X0, U, P, Z)
+        assert not intg.has_free()
+    
         for j in range(self.M):
             intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, p=P)
             X.append(intg_res["xf"])
@@ -394,11 +396,15 @@ class SamplingMethod(DirectMethod):
         statessizecum = np.cumsum(statesize)
 
         subst_from = list(stage.states)
-        subst_from += stage._inf_der.keys()
         state_coeff_split = horzsplit(state_coeff,statessizecum)
         subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
+
+
         lookup = dict(zip(subst_from, subst_to))
+
+        subst_from += stage._inf_der.keys()
         subst_to += [lookup[e].derivative() for e in stage._inf_der.values()]
+
         subst_from += stage._inf_inert.keys()
         subst_to += stage._inf_inert.values()
         c_spline = reinterpret_expr(c, subst_from, subst_to)

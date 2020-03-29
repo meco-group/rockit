@@ -46,13 +46,13 @@ class MultipleShooting(SamplingMethod):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
+        if F.numel_out("poly_coeff")==0:
+            self.poly_coeff = None
+        else:
+            self.poly_coeff = []
+
         self.xk = []
         self.q = 0
-        # we only save polynomal coeffs for runge-kutta4
-        if stage._method.intg == 'rk':
-            self.poly_coeff = []
-        else:
-            self.poly_coeff = None
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],

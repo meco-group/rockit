@@ -2,6 +2,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
 import numpy as np
+from casadi import kron, DM
 
 from problems import bang_bang_problem
 
@@ -25,6 +26,40 @@ class StageTests(unittest.TestCase):
       ocp.subject_to(-0.3 <= (ocp.inf_der(v) <= 0.3),grid='inf' )
 
       sol = ocp.solve()
+
+    def test_set_next(self):
+      ocp = Ocp(T=10)
+
+      x1 = ocp.state()
+      x2 = ocp.state()
+
+      u = ocp.control()
+
+      ocp.set_next(x1, (1 - x2**2) * x1 - x2 + u)
+      ocp.set_next(x2, x1)
+
+      ocp.add_objective(ocp.sum(x1**2 + x2**2 + u**2))
+
+      ocp.subject_to(-1 <= (u <= 1))
+      ocp.subject_to(x1 >= -0.25)
+
+      ocp.subject_to(ocp.at_t0(x1) == 0)
+      ocp.subject_to(ocp.at_t0(x2) == 1)
+
+      ocp.solver('ipopt')
+
+      N = 10
+      M = 2
+      ocp.method(MultipleShooting(N=N,M=M))
+      
+      sol = ocp.solve()
+
+      x1sol = sol.sample(x1, grid='integrator')[1]
+      x2sol = sol.sample(x2, grid='integrator')[1]
+      usol = kron(DM.ones(1,M),sol.sample(u, grid='integrator')[1])
+      for k in range(N*M):
+        self.assertAlmostEqual(x2sol[k+1], x1sol[k])
+        self.assertAlmostEqual(x1sol[k+1], (1 - x2sol[k]**2) * x1sol[k] - x2sol[k] + usol[k])
 
     def test_stage_cloning_t0_T(self):
         for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:
