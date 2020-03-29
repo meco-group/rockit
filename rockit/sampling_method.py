@@ -403,7 +403,8 @@ class SamplingMethod(DirectMethod):
         lookup = dict(zip(subst_from, subst_to))
 
         subst_from += stage._inf_der.keys()
-        subst_to += [lookup[e].derivative() for e in stage._inf_der.values()]
+        dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
+        subst_to += [lookup[e].derivative()*(1/dt) for e in stage._inf_der.values()]
 
         subst_from += stage._inf_inert.keys()
         subst_to += stage._inf_inert.values()

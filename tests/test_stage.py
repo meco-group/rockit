@@ -23,9 +23,12 @@ class StageTests(unittest.TestCase):
     def test_inf_der(self):
       (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
 
-      ocp.subject_to(-0.3 <= (ocp.inf_der(v) <= 0.3),grid='inf' )
+      ocp.subject_to(-0.3 <= (ocp.inf_der(p) <= 0.3),grid='inf' )
 
       sol = ocp.solve()
+
+      vsol = sol.sample(v,grid='control')[1]
+      self.assertAlmostEqual(np.linalg.norm(vsol,np.inf),0.3, places=5)
 
     def test_set_next(self):
       ocp = Ocp(T=10)
