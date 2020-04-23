@@ -21,7 +21,7 @@ Install using pip: `pip install rockit-meco`
 # Hello world
 (Taken from the [example gallery](https://meco-software.pages.mech.kuleuven.be/rockit/examples/))
 
-You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.mech.kuleuven.be%2Fmeco-software%2Frockit.git/v0.1.9?filepath=examples%2Fhello_world.ipynb).
+You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.kuleuven.be%2Fmeco-software%2Frockit.git/v0.1.9?filepath=examples%2Fhello_world.ipynb).
 
 Import the project:
 ```python
