@@ -413,6 +413,13 @@ class Stage:
         """
         return self.offset(expr, -1)
 
+    def clear_constraints(self):
+        """
+        Remove any previously declared constraints from the problem
+        """
+        self._set_transcribed(False)
+        self._constraints = defaultdict(list)
+
     def subject_to(self, constr, grid=None):
         """Adds a constraint to the problem
 
