@@ -1,8 +1,8 @@
 # rockit
-[![pipeline status](https://gitlab.mech.kuleuven.be/meco-software/rockit/badges/master/pipeline.svg)](https://gitlab.mech.kuleuven.be/meco-software/rockit/commits/master)
-[![coverage report](https://gitlab.mech.kuleuven.be/meco-software/rockit/badges/master/coverage.svg)](https://meco-software.pages.mech.kuleuven.be/rockit/coverage/index.html)
-[![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.mech.kuleuven.be/rockit)
-[![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.mech.kuleuven.be/rockit/documentation-rockit.pdf)
+[![pipeline status](https://gitlab.kuleuven.be/meco-software/rockit/badges/master/pipeline.svg)](https://gitlab.kuleuven.be/meco-software/rockit/commits/master)
+[![coverage report](https://gitlab.kuleuven.be/meco-software/rockit/badges/master/coverage.svg)](https://meco-software.pages.gitlab.kuleuven.be/rockit/coverage/index.html)
+[![html docs](https://img.shields.io/static/v1.svg?label=docs&message=online&color=informational)](http://meco-software.pages.gitlab.kuleuven.be/rockit)
+[![pdf docs](https://img.shields.io/static/v1.svg?label=docs&message=pdf&color=red)](http://meco-software.pages.gitlab.kuleuven.be/rockit/documentation-rockit.pdf)
 
 # Description
 
@@ -19,7 +19,7 @@ The software is developed by the [KU Leuven MECO research team](https://www.mech
 Install using pip: `pip install rockit-meco`
 
 # Hello world
-(Taken from the [example gallery](https://meco-software.pages.mech.kuleuven.be/rockit/examples/))
+(Taken from the [example gallery](https://meco-software.pages.gitlab.kuleuven.be/rockit/examples/))
 
 You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.kuleuven.be%2Fmeco-software%2Frockit.git/v0.1.9?filepath=examples%2Fhello_world.ipynb).
 

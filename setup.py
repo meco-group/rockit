@@ -15,7 +15,7 @@ setup(
     description="Rapid Optimal Control Kit",
     license='LICENSE',
     keywords="OCP optimal control casadi",
-    url='https://gitlab.mech.kuleuven.be/meco-software/rockit',
+    url='https://gitlab.kuleuven.be/meco-software/rockit',
     packages=find_packages(exclude=['tests', 'examples']),
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
@@ -32,5 +32,5 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],
-    download_url='https://gitlab.mech.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version)
+    download_url='https://gitlab.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version)
 )
