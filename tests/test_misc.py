@@ -345,6 +345,54 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(x2_a,x2_b,decimal=12)
         assert_array_almost_equal(u_a,u_b,decimal=12)
 
+    def test_dae_methods(self):
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+
+        uref = sol.sample(u, grid='control')[1]
+
+        zsol = sol.sample(ocp.z, grid='control')[1]
+        zref = sol.sample(1 - x2**2, grid='control')[1]
+        print(zsol)
+        assert_array_almost_equal(zsol,zref,decimal=2)
+
+        for method in [SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method)
+           ocp.solver("ipopt")
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+
+           assert_array_almost_equal(uref,usol,decimal=3)
+        
+        # Constraints with algebraic variables
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
+
+        ocp.subject_to(ocp.at_tf(ocp.z) <= 0.8)
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+
+        zref = sol.sample(ocp.z, grid='control')[1]
+        assert_array_almost_equal(zref[-1],0.8,decimal=6)
+        uref = sol.sample(u, grid='control')[1]
+
+        """
+        for method in [SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method)
+           ocp.solver("ipopt")
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+
+           assert_array_almost_equal(uref,usol,decimal=3)
+       """
+
+
     def test_grid_inf_subject_to(self):
         ocp, x1, x2, u = vdp(MultipleShooting(N=10))
         sol = ocp.solve()
@@ -430,7 +478,7 @@ class MiscTests(unittest.TestCase):
         ocp.subject_to(ocp.at_t0(dx)==0)
         ocp.subject_to(ocp.at_t0(dy)==0)
         ocp.subject_to(ocp.at_t0(dw)==0)
-        #ocp.subject_to(xa>=0,grid='integrator_roots')
+        ocp.subject_to(xa>=0,grid='integrator_roots')
 
         ocp.set_initial(y, l)
         ocp.set_initial(xa, 9.81)
