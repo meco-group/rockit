@@ -256,6 +256,7 @@ class SamplingMethod(DirectMethod):
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
         poly_coeffs = []
+        poly_coeffs_z = []
 
         t0 = MX.sym('t0')
         T = MX.sym('T')
@@ -268,6 +269,7 @@ class SamplingMethod(DirectMethod):
         Z = MX.sym("z", stage.nz)
 
         X = [X0]
+        Zs = []
 
         # Compute local start time
         t0_local = t0
@@ -284,12 +286,14 @@ class SamplingMethod(DirectMethod):
         for j in range(self.M):
             intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, p=P)
             X.append(intg_res["xf"])
+            Zs.append(intg_res["zf"])
             quad = quad + intg_res["qf"]
             poly_coeffs.append(intg_res["poly_coeff"])
+            poly_coeffs_z.append(intg_res["poly_coeff_z"])
             t0_local += DT
 
-        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs), quad],
-                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff', 'qf'])
+        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs), quad, Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
+                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff', 'qf', 'zf', 'Zi', 'poly_coeff_z'])
         assert not ret.has_free()
         return ret
 
@@ -298,8 +302,8 @@ class SamplingMethod(DirectMethod):
         DT = MX.sym("DT")
         t0 = MX.sym("t0")
         # A single Runge-Kutta 4 step
-        k1 = f(x=X, u=U, p=P, t=t0, z=Z)
-        k2 = f(x=X + DT / 2 * k1["ode"], u=U, p=P, t=t0+DT/2, z=Z)
+        k1 = f(x=X, u=U, p=P, t=t0)
+        k2 = f(x=X + DT / 2 * k1["ode"], u=U, p=P, t=t0+DT/2)
         k3 = f(x=X + DT / 2 * k2["ode"], u=U, p=P, t=t0+DT/2)
         k4 = f(x=X + DT * k3["ode"], u=U, p=P, t=t0+DT)
 
@@ -308,7 +312,7 @@ class SamplingMethod(DirectMethod):
         f2 = 4/DT**2*(k3["ode"]-k2["ode"])/6
         f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
-        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"])], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf'])
+        return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
 
     def intg_builtin(self, f, X, U, P, Z):
         # A single CVODES step
@@ -322,9 +326,9 @@ class SamplingMethod(DirectMethod):
             # In rockit, M replaces number_of_finite_elements on a higher level
             if "number_of_finite_elements" not in options:
                 options["number_of_finite_elements"] = 1
-        I = integrator('intg_cvodes', self.intg, data, options)
+        I = integrator('intg_'+self.intg, self.intg, data, options)
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
-        return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
+        return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
 
     def transcribe_placeholders(self, stage, placeholders):
         """

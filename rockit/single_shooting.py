@@ -46,13 +46,12 @@ class SingleShooting(SamplingMethod):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
-        self.xk = []
         self.q = 0
         # we only save polynomal coeffs for runge-kutta4
-        if stage._method.intg == 'rk':
-            self.poly_coeff = []
-        else:
+        if F.numel_out("poly_coeff")==0:
             self.poly_coeff = None
+        if F.numel_out("poly_coeff_z")==0:
+            self.poly_coeff_z = None
 
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
@@ -62,12 +61,21 @@ class SingleShooting(SamplingMethod):
 
             # Save intermediate info
             poly_coeff_temp = FF["poly_coeff"]
+            poly_coeff_z_temp = FF["poly_coeff_z"]
             xk_temp = FF["Xi"]
+            zk_temp = FF["Zi"]
             self.q = self.q + FF["qf"]
+
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
+            self.zk.extend([zk_temp[:, i] for i in range(self.M)])
+            if k==0:
+                self.Z.append(zk_temp[:, 0])
+            self.Z.append(FF["zf"])
             if self.poly_coeff is not None:
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
+            if self.poly_coeff_z is not None:
+                self.poly_coeff_z.extend(horzsplit(poly_coeff_z_temp, poly_coeff_z_temp.shape[1]//self.M))
 
             for l in range(self.M):
                 for c, meta, _ in stage._constraints["integrator"]:
@@ -87,5 +95,5 @@ class SingleShooting(SamplingMethod):
                 opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
             except IndexError:
                 pass # Can be caused by ocp.offset -> drop constraint
-            self.xk.append(self.X[-1])
-
+        self.xk.append(self.X[-1])
+        self.zk.append(self.zk[-1])

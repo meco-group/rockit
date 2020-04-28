@@ -372,7 +372,9 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(x2_a,x2_b,decimal=12)
         assert_array_almost_equal(u_a,u_b,decimal=12)
 
+
     def test_dae_methods(self):
+     
         ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
         ocp.solver("ipopt")
         sol = ocp.solve()
@@ -381,7 +383,6 @@ class MiscTests(unittest.TestCase):
 
         zsol = sol.sample(ocp.z, grid='control')[1]
         zref = sol.sample(1 - x2**2, grid='control')[1]
-        print(zsol)
         assert_array_almost_equal(zsol,zref,decimal=2)
 
         for method in [SingleShooting(N=6,intg='idas'),
@@ -392,9 +393,10 @@ class MiscTests(unittest.TestCase):
            sol = ocp.solve()
 
            usol = sol.sample(u, grid='control')[1]
-
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
            assert_array_almost_equal(uref,usol,decimal=3)
-        
+
         # Constraints with algebraic variables
         ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
 
@@ -406,20 +408,47 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(zref[-1],0.8,decimal=6)
         uref = sol.sample(u, grid='control')[1]
 
-        """
-        for method in [SingleShooting(N=6,intg='idas'),
+        for method in [#SingleShooting(N=6,intg='idas'),
                        MultipleShooting(N=6,intg='idas'),
                        MultipleShooting(N=6,intg='collocation')]:
            ocp, x1, x2, u = vdp_dae(method)
+
+           ocp.subject_to(ocp.at_tf(ocp.z) <= 0.8)
            ocp.solver("ipopt")
            sol = ocp.solve()
 
            usol = sol.sample(u, grid='control')[1]
-
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
            assert_array_almost_equal(uref,usol,decimal=3)
-       """
 
+        
+        # Path constraints with algebraic variables
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1),x1limit=False)
 
+        ocp.subject_to(0 <= (ocp.z <= 0.8))
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+        ts,zref = sol.sample(ocp.z, grid='control')
+        print(zref,ts/10+0.1)
+        uref = sol.sample(u, grid='control')[1]
+
+        for method in [SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas')]:
+                       #MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method,x1limit=False)
+
+           ocp.subject_to(0 <= (ocp.z <= 0.8))
+           ocp.solver("ipopt",{"ipopt.tol": 1e-5})
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           #assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
+           #assert_array_almost_equal(uref,usol,decimal=3)
+
+           assert_array_almost_equal(np.max(zsol),0.8,decimal=3)
+     
     def test_grid_inf_subject_to(self):
         ocp, x1, x2, u = vdp(MultipleShooting(N=10))
         sol = ocp.solve()

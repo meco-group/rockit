@@ -641,7 +641,7 @@ class Stage:
         quad = veccat(*[self._state_next[k] for k in self.qstates])
 
         dt = MX(1,1)
-        return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf"])
+        return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
         """
