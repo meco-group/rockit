@@ -16,6 +16,33 @@ import numpy as np
 
 class MiscTests(unittest.TestCase):
 
+    def test_grid_convergence(self):
+        f_exact = 4.414113817112848
+
+        DM.set_precision(16)
+        fss = []
+        for method,order in [
+          (lambda M: MultipleShooting(N=6,intg='collocation',intg_options={"number_of_finite_elements": M, "interpolation_order": 4}),6),
+          (lambda M: MultipleShooting(N=6,intg='rk',M=M), 4),
+          (lambda M: MultipleShooting(N=6,intg='cvodes',intg_options={"reltol":10**(-M),"abstol":10**(-M)}),2),
+          (lambda M: DirectCollocation(N=6,M=M),7)]:
+          fs = []
+          for M in [1,2,4,8]:
+
+            ocp, x1, x2, u = vdp(method(M))
+            ocp.solver("ipopt",{"ipopt.tol":1e-14})
+            sol = ocp.solve()
+
+
+            f = sol.value(ocp.objective)
+            fs.append(f_exact-f)
+
+          print(fs)
+          # An increase of factor 2 in M results in a factor 2**order in objective accuracy
+          order_meas = -np.log(np.abs(np.array(fs[1:])/np.array(fs[:-1])))/np.log(2)
+          print(order_meas)
+          self.assertTrue(np.max(order_meas)>order-0.01)
+
     def test_spy(self):
       ocp, _, _ = integrator_control_problem()
       ocp.solve()

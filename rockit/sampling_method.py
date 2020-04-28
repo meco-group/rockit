@@ -319,7 +319,9 @@ class SamplingMethod(DirectMethod):
         data = {'x': X, 'p': vertcat(U, DT, P, t0), 'z': Z, 't': t, 'ode': DT * res["ode"], 'quad': DT * res["quad"], 'alg': res["alg"]}
         options = dict(self.intg_options)
         if self.intg in ["collocation"]:
-            options["number_of_finite_elements"] = 1
+            # In rockit, M replaces number_of_finite_elements on a higher level
+            if "number_of_finite_elements" not in options:
+                options["number_of_finite_elements"] = 1
         I = integrator('intg_cvodes', self.intg, data, options)
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
         return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"]], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf'])
