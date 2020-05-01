@@ -453,6 +453,7 @@ class Stage:
         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
         """
         self._set_transcribed(False)
+        #import ipdb; ipdb.set_trace()
         if grid is None:
             grid = 'control' if self.is_signal(constr) else 'point'
         if grid not in ['point', 'control', 'inf', 'integrator', 'integrator_roots']:
@@ -865,7 +866,11 @@ class Stage:
         if include_last:
             ks = ks+[-1]
         for k in ks:
-            sub_expr.append(stage._method.eval_at_control(stage, expr, k))
+            try:
+                r = stage._method.eval_at_control(stage, expr, k)
+            except IndexError as e:
+                r = DM.nan(MX(expr).shape)
+            sub_expr.append(r)
         res = hcat(sub_expr)
         time = stage._method.control_grid
         return time, res

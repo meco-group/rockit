@@ -127,17 +127,26 @@ class DirectCollocation(SamplingMethod):
                 tr.append([self.integrator_grid[k][i]+dt*self.tau[j] for j in range(self.degree)])        
             self.tr.append(tr)
 
+        dts = []
+        # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
+            dts.append(dt)
             S = 1/repmat(hcat([dt**i for i in range(self.degree + 1)]), self.degree + 1, 1)
             S_z = 1/repmat(hcat([dt**i for i in range(self.degree)]), self.degree, 1)
             self.Z.append(mtimes(self.Zc[k][0],poly_z[:,0]))
-            p = self.get_p_sys(stage,k)
             for i in range(self.M):
                 self.xk.append(self.Xc[k][i][:,0])
+                self.zk.append(mtimes(self.Zc[k][i],poly_z[:,0]))
                 self.poly_coeff.append(mtimes(self.Xc[k][i],poly*S))
                 self.poly_coeff_z.append(mtimes(self.Zc[k][i],poly_z*S_z))
-                self.zk.append(mtimes(self.Zc[k][i],poly_z[:,0]))
+
+        self.Z.append(mtimes(self.Zc[-1][-1],sum2(poly_z)))
+
+        for k in range(self.N):
+            dt = dts[k]
+            p = self.get_p_sys(stage,k)
+            for i in range(self.M):
                 for j in range(self.degree):
                     Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
                     res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=p, t=self.tr[k][i][j])
@@ -165,8 +174,6 @@ class DirectCollocation(SamplingMethod):
                     opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
-
-        self.Z.append(mtimes(self.Zc[-1][-1],sum2(poly_z)))
 
         for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
             # Add it to the optimizer, but first make x,u concrete.

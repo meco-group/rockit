@@ -53,19 +53,16 @@ class SingleShooting(SamplingMethod):
         if F.numel_out("poly_coeff_z")==0:
             self.poly_coeff_z = None
 
+        FFs = []
+        # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
                    T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k))
-            # Dynamic constraints a.k.a. gap-closing constraints
             self.X[k + 1] = FF["xf"]
-
-            # Save intermediate info
             poly_coeff_temp = FF["poly_coeff"]
             poly_coeff_z_temp = FF["poly_coeff_z"]
             xk_temp = FF["Xi"]
             zk_temp = FF["Zi"]
-            self.q = self.q + FF["qf"]
-
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
             self.zk.extend([zk_temp[:, i] for i in range(self.M)])
@@ -76,6 +73,16 @@ class SingleShooting(SamplingMethod):
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
             if self.poly_coeff_z is not None:
                 self.poly_coeff_z.extend(horzsplit(poly_coeff_z_temp, poly_coeff_z_temp.shape[1]//self.M))
+            FFs.append(FF)
+
+        self.xk.append(self.X[-1])
+        self.zk.append(self.zk[-1])
+
+        for k in range(self.N):
+            FF = FFs[k]
+
+            # Save intermediate info
+            self.q = self.q + FF["qf"]
 
             for l in range(self.M):
                 for c, meta, _ in stage._constraints["integrator"]:
@@ -95,5 +102,3 @@ class SingleShooting(SamplingMethod):
                 opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
             except IndexError:
                 pass # Can be caused by ocp.offset -> drop constraint
-        self.xk.append(self.X[-1])
-        self.zk.append(self.zk[-1])
