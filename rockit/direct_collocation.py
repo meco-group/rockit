@@ -190,14 +190,19 @@ class DirectCollocation(SamplingMethod):
         opti.cache_advanced()
         initial = dict(initial)
         algs = get_ranges_dict(stage.algebraics)
+        initial_alg = {}
         for a, v in list(initial.items()):
             if a in algs:
-                for k in range(self.N):
-                    for e in self.Zc[k]:
-                        e_shape = e[algs[a],:].shape
-                        opti.set_initial(e[algs[a],:], repmat(v,1,e_shape[1]))
+                initial_alg[a] = v
                 del initial[a]
         SamplingMethod.set_initial(self,stage, opti, initial)
+        for a, v in list(initial_alg.items()):
+            opti_initial = opti.initial()
+            for k in range(self.N):
+                value = DM(opti.debug.value(self.eval_at_control(stage, v, k), opti_initial))
+                for e in self.Zc[k]:
+                    e_shape = e[algs[a],:].shape
+                    opti.set_initial(e[algs[a],:], repmat(value,1,e_shape[1]))
         for k in range(self.N):
             x0 = DM(opti.debug.value(self.X[k], opti.initial()))
             for e in self.Xc[k]:
