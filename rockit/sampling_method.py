@@ -344,6 +344,15 @@ class SamplingMethod(DirectMethod):
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
 
+        self.integrator_grid = []
+        for k in range(self.N):
+            t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
+            self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
+        self.add_constraints_before(stage, opti)
+        self.add_constraints(stage, opti)
+        self.add_constraints_after(stage, opti)
+        self.add_objective(stage, opti)
+    
         # Create time grid (might be symbolic)
         self.T = self.eval(stage, stage._T)
         self.t0 = self.eval(stage, stage._t0)
@@ -363,14 +372,6 @@ class SamplingMethod(DirectMethod):
             for k in range(not isinstance(self.time_grid, FreeGrid), self.N):
                 stage.set_initial(self.T_local[k], control_grid_init[k+1]-control_grid_init[k])
 
-        self.integrator_grid = []
-        for k in range(self.N):
-            t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
-            self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
-        self.add_constraints_before(stage, opti)
-        self.add_constraints(stage, opti)
-        self.add_constraints_after(stage, opti)
-        self.add_objective(stage, opti)
         self.set_initial(stage, opti, stage._initial)
         self.set_parameter(stage, opti)
 
