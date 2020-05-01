@@ -932,7 +932,7 @@ class Stage:
                     z = mtimes(coeff_z,tpower_z)
                 else:
                     z = nan
-                sub_expr.append(expr_f(mtimes(coeff,tpower), z, stage._method.U[k]))
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(mtimes(coeff,tpower), z, stage._method.U[k]), k, l))
                 t0+=dt
 
         ts = tlocal[-1,:]
@@ -944,7 +944,7 @@ class Stage:
         else:
             z = nan
 
-        sub_expr.append(expr_f(mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]))
+        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]), k, l))
 
         return vcat(total_time), hcat(sub_expr)
 
