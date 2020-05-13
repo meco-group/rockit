@@ -207,6 +207,7 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         self.variables[grid].append(v)
+        print("variable creation", self.variables)
         self._set_transcribed(False)
         return v
 
@@ -604,6 +605,19 @@ class Stage:
     def np(self):
         return self.p.numel()
 
+    @property
+    def gist(self):
+        """Obtain an expression packing all information needed to obtain value/sample
+
+        The composition of this array may vary between rockit versions
+
+        Returns
+        -------
+        :obj:`~casadi.MX` column vector
+
+        """
+        return self.master.gist
+
     def is_signal(self, expr):
         """Does the expression represent a signal (does it depend on time)?
 
@@ -721,6 +735,8 @@ class Stage:
         opti = self.master.opti
         if self._method is not None:
             self._method.transcribe(self, opti)
+        else:
+            print("master",self)
 
         for s in self._stages:
             s._transcribe_recurse()
@@ -752,11 +768,15 @@ class Stage:
 
         ret.states = copy(self.states)
         ret.controls = copy(self.controls)
+        ret.algebraics = copy(self.algebraics)
         ret.parameters = deepcopy(self.parameters)
+        print("")
         ret.variables = deepcopy(self.variables)
 
+        ret._offsets = deepcopy(self._offsets)
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
+        ret._alg = copy(self._alg)
         ret._state_next = copy(self._state_next)
         constr_types = self._constraints.keys()
         orig = []

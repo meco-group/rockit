@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import Opti, jacobian, dot, hessian, symvar, evalf
+from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM
 import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 
@@ -48,10 +48,33 @@ class DirectMethod:
     def register(self, stage):
         pass
 
+    def eval(self, stage, expr):
+        return self.eval_top(stage, expr)
+
+    def eval_top(self, stage, expr):
+        return substitute(expr,veccat(*stage.variables[""]),self.V)
+
+    def add_variables(self, stage, opti):
+        V = []
+        for v in stage.variables['']:
+            V.append(opti.variable(v.shape[0], v.shape[1]))
+        self.V = veccat(*V)
+
     def transcribe(self, stage, opti):
+        self.add_variables(stage, opti)
+
         for c, m, _ in stage._constraints["point"]:
-            opti.subject_to(c, meta = m)
+            opti.subject_to(self.eval_top(stage, c), meta = m)
         opti.add_objective(stage._objective)
+        self.set_initial(stage, opti, stage._initial)
+
+    def set_initial(self, stage, opti, initial):
+        opti.cache_advanced()
+        for var, expr in initial.items():
+            opti_initial = opti.initial()
+            target = self.eval_top(stage, var)
+            value = DM(opti.debug.value(self.eval_top(stage, expr), opti_initial)) # HOT line
+            opti.set_initial(target, value, cache_advanced=True)
 
     def transcribe_placeholders(self, stage, placeholders):
         pass

@@ -200,9 +200,10 @@ class DirectCollocation(SamplingMethod):
             opti_initial = opti.initial()
             for k in range(self.N):
                 value = DM(opti.debug.value(self.eval_at_control(stage, v, k), opti_initial))
-                for e in self.Zc[k]:
+                for i, e in enumerate(self.Zc[k]):
                     e_shape = e[algs[a],:].shape
-                    opti.set_initial(e[algs[a],:], repmat(value,1,e_shape[1]))
+                    value = DM(opti.debug.value(hcat([self.eval_at_integrator_root(stage, v, k, i, j) for j in range(e_shape[1])]), opti_initial))                    
+                    opti.set_initial(e[algs[a],:], value)
         for k in range(self.N):
             x0 = DM(opti.debug.value(self.X[k], opti.initial()))
             for e in self.Xc[k]:

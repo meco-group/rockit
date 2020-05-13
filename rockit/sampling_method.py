@@ -180,7 +180,7 @@ class GeometricGrid(FixedGrid):
         return t0 + hcat(n)*T
 
     def growth_factor(self, N):
-        if not self.local:
+        if not self.local and N>1:
             return self._growth_factor**(1.0/(N-1))
         return self._growth_factor
 
@@ -452,10 +452,7 @@ class SamplingMethod(DirectMethod):
         opti.add_objective(self.eval(stage, stage._objective))
 
     def add_variables_V(self, stage, opti):
-        V = []
-        for v in stage.variables['']:
-            V.append(opti.variable(v.shape[0], v.shape[1]))
-        self.V = veccat(*V)
+        DirectMethod.add_variables(self, stage, opti)
 
         # Create time grid (might be symbolic)
         self.T = self.eval(stage, stage._T)
@@ -509,7 +506,7 @@ class SamplingMethod(DirectMethod):
         return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.V, self.get_v_control_at(stage, k))
 
     def eval(self, stage, expr):
-        return stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T)
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T))
 
     def eval_at_control(self, stage, expr, k):
         try:
@@ -534,7 +531,11 @@ class SamplingMethod(DirectMethod):
             subst_from.append(vvcat(symbols[offset]))
             subst_to.append(self._eval_at_control(stage, vvcat(offsets[offset]), k+offset))
             #print(expr, subst_from, subst_to)
-        return stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
+
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
+        expr = stage.master._method.eval_top(stage.master, expr)
+        #print("expr",expr)
+        return expr
 
     def _eval_at_control(self, stage, expr, k):
         x = self.X[k]
@@ -581,10 +582,10 @@ class SamplingMethod(DirectMethod):
         return stage._expr_apply(expr, **kwargs)
 
     def eval_at_integrator(self, stage, expr, k, i):
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i])
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i]))
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j])
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j]))
 
     def set_initial(self, stage, opti, initial):
         opti.cache_advanced()

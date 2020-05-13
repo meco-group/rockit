@@ -91,6 +91,10 @@ class Ocp(Stage):
         self._transcribe()
         return OcpSolution(self.opti.solve(), self)
 
+    def solve_limited(self):
+        self._transcribe()
+        return OcpSolution(self.opti.solve_limited(), self)
+
     def callback(self, fun):
         self.opti.callback(lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, self)))
 
