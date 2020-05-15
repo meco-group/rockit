@@ -86,12 +86,14 @@ class MultipleShooting(SamplingMethod):
             self.q = self.q + FF["qf"]
 
             for l in range(self.M):
-                for c, meta, _ in stage._constraints["integrator"]:
+                for c, meta, args in stage._constraints["integrator"]:
+                    if k==0 and l==0 and not args["include_first"]: continue
                     opti.subject_to(self.eval_at_integrator(stage, c, k, l), meta=meta)
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, l, meta)
 
-            for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
+            for c, meta, args in stage._constraints["control"]:  # for each constraint expression
+                if k==0 and not args["include_first"]: continue
                 try:
                     opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
                 except IndexError:
@@ -99,7 +101,8 @@ class MultipleShooting(SamplingMethod):
 
             self.add_coupling_constraints(stage, opti, k)
 
-        for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
+        for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
+            if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
             try:
                 opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)

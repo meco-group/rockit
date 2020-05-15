@@ -421,7 +421,7 @@ class Stage:
         self._set_transcribed(False)
         self._constraints = defaultdict(list)
 
-    def subject_to(self, constr, grid=None):
+    def subject_to(self, constr, grid=None,include_first=True,include_last=True):
         """Adds a constraint to the problem
 
         Parameters
@@ -466,7 +466,7 @@ class Stage:
             if grid != 'point': 
                 raise Exception("Expected signal expression since grid '" + grid + "' was given.")
         
-        args = {"grid": grid}
+        args = {"grid": grid, "include_last": include_last, "include_first": include_first}
         self._constraints[grid].append((constr, get_meta(), args))
 
     def at_t0(self, expr):
