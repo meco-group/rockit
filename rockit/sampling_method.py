@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat, is_equal
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr
@@ -43,8 +43,8 @@ class Grid:
         pass
 
 class FixedGrid(Grid):
-    def __init__(self, localize_t0=False, localize_T=False, *args, **kwargs):
-        Grid.__init__(self, *args, **kwargs)
+    def __init__(self, localize_t0=False, localize_T=False, **kwargs):
+        Grid.__init__(self, **kwargs)
         self.localize_t0 = localize_t0
         self.localize_T = localize_T
 
@@ -90,8 +90,8 @@ class FreeGrid(FixedGrid):
         Enforced with constraints
         Default: inf
     """
-    def __init__(self, *args, **kwargs):
-        FixedGrid.__init__(self, *args, **kwargs)
+    def __init__(self, **kwargs):
+        FixedGrid.__init__(self, **kwargs)
         self.localize_T = True
 
     def constrain_T(self,opti,T,Tnext,N):
@@ -121,8 +121,8 @@ class UniformGrid(FixedGrid):
         Enforced with constraints
         Default: inf
     """
-    def __init__(self, *args, **kwargs):
-        FixedGrid.__init__(self, *args, **kwargs)
+    def __init__(self, **kwargs):
+        FixedGrid.__init__(self, **kwargs)
 
     def constrain_T(self,opti,T,Tnext,N):
         opti.subject_to(T==Tnext)
@@ -169,11 +169,11 @@ class GeometricGrid(FixedGrid):
     >>> MultipleShooting(N=3, grid=GeometricGrid(2)) # grid = [0, 1, 3, 7]*T/7
     >>> MultipleShooting(N=3, grid=GeometricGrid(2,local=True)) # grid = [0, 1, 5, 21]*T/21
     """
-    def __init__(self, growth_factor, local=False, *args, **kwargs):
+    def __init__(self, growth_factor, local=False, **kwargs):
         assert growth_factor>=1
         self._growth_factor = growth_factor
         self.local = local
-        FixedGrid.__init__(self, *args, **kwargs)
+        FixedGrid.__init__(self, **kwargs)
 
     def __call__(self, t0, T, N):
         n = self.normalized(N)
@@ -590,9 +590,9 @@ class SamplingMethod(DirectMethod):
     def set_initial(self, stage, opti, initial):
         opti.cache_advanced()
         for var, expr in initial.items():
-            if var is stage.T:
+            if is_equal(var, stage.T):
                 var = self.T
-            if var is stage.t0:
+            if is_equal(var, stage.t0):
                 var = self.t0
             opti_initial = opti.initial()
             for k in list(range(self.N))+[-1]:
@@ -612,12 +612,16 @@ class SamplingMethod(DirectMethod):
                 opti.set_initial(target, value, cache_advanced=True)
 
     def set_value(self, stage, opti, parameter, value):
+        found = False
         for i, p in enumerate(stage.parameters['']):
-            if parameter is p:
+            if is_equal(parameter, p):
+                found = True
                 opti.set_value(self.P[i], value)
         for i, p in enumerate(stage.parameters['control']):
-            if parameter is p:
+            if is_equal(parameter, p):
+                found = True
                 opti.set_value(hcat(self.P_control[i]), value)
+        assert found, "Parameter not found"
 
     def add_parameter(self, stage, opti):
         for p in stage.parameters['']:

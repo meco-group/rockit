@@ -87,10 +87,8 @@ ocp.set_der(dtheta, (-m*L*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(mc
 ocp.add_objective(ocp.integral(F*2 + 100*pos**2))
 
 # Path constraints
-ocp.subject_to(      F <= 2  )
-ocp.subject_to(-2 <= F       )
-ocp.subject_to(-2 <= pos     )
-ocp.subject_to(      pos <= 2)
+ocp.subject_to(-2 <= (F <= 2 ))
+ocp.subject_to(-2 <= (pos <= 2))
 
 # Initial constraints
 X = vertcat(pos,theta,dpos,dtheta)
@@ -125,6 +123,7 @@ theta_history[0] = current_X[1]
 # Simulate the MPC solving the OCP (with the updated state) several times
 # -------------------------------
 
+DM.rng(0)
 
 for i in range(Nsim):
     print("timestep", i+1, "of", Nsim)
@@ -139,7 +138,7 @@ for i in range(Nsim):
             current_X = current_X + disturbance
     # Add measurement noise
     if add_noise:
-        meas_noise = 5e-4*(vertcat(np.random.rand(nx,1))-vertcat(1,1,1,1)) # 4x1 vector with values in [-1e-3, 1e-3]
+        meas_noise = 5e-4*(DM.rand(nx,1)-vertcat(1,1,1,1)) # 4x1 vector with values in [-1e-3, 1e-3]
         current_X = current_X + meas_noise
     # Set the parameter X0 to the new current_X
     ocp.set_value(X_0, current_X[:4])

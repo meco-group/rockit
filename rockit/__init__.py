@@ -19,6 +19,7 @@
 #     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 #
+import os
 
 from .multiple_shooting import MultipleShooting
 from .ocp import Ocp
@@ -28,3 +29,15 @@ from .direct_collocation import DirectCollocation
 from .single_shooting import SingleShooting
 from .freetime import FreeTime
 from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
+from .solution import OcpSolution
+
+try:
+  example_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)),"examples"))
+except:
+  example_dir = "not_found"
+
+try:
+  matlab_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)),"matlab"))
+except:
+  matlab_path = "not_found"
+

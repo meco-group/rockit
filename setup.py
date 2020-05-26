@@ -4,8 +4,10 @@
 """Optimal control problem."""
 
 from setuptools import setup, find_packages
+import glob
+import os
 
-version = "0.1.9"
+version = "0.1.10b5"
 
 setup(
     name='rockit-meco',
@@ -32,5 +34,6 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],
-    download_url='https://gitlab.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version)
+    download_url='https://gitlab.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version),
+    package_data = {"rockit": ["matlab/+rockit/*.m","examples/*.m","examples/*.py","examples/helpers/*.m","examples/helpers/*.py"]}
 )

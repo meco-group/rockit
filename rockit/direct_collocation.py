@@ -24,7 +24,7 @@ from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
                    repmat, DM, sum2, mtimes, vvcat
-from .casadi_helpers import get_ranges_dict
+from .casadi_helpers import get_ranges_dict, HashOrderedDict
 from itertools import repeat
 try:
     from casadi import collocation_coeff
@@ -192,7 +192,7 @@ class DirectCollocation(SamplingMethod):
 
     def set_initial(self, stage, opti, initial):
         opti.cache_advanced()
-        initial = dict(initial)
+        initial = HashOrderedDict(initial)
         algs = get_ranges_dict(stage.algebraics)
         initial_alg = {}
         for a, v in list(initial.items()):

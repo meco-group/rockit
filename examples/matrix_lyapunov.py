@@ -92,7 +92,11 @@ plt.legend(["x1"])
 ts, Psol = sol.sample(P,grid = 'control')
 
 o = np.array([[1,0]])
-sigma =  np.sqrt(o*Psol*o.T)[:,0,0]
+
+sigma = []
+for i in range(len(ts)):
+  sigma.append(float(np.sqrt(o @ Psol[i,:,:] @ o.T)))
+sigma =  np.array(sigma)
 plt.plot([ts,ts],[xsol-sigma,xsol+sigma],'k')
 
 plt.legend(('OCP trajectory x1','bound on x1'))

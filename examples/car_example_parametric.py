@@ -92,11 +92,11 @@ sol_states = 0
 sol_controls = 0
 
 # Solve problem for different values for parameters, initializing with previous solution
-signal1, sol_T, sol_states, sol_controls = test(0, 2500*np.ones(20), sol_T, sol_states, sol_controls)
-signal2, sol_T, sol_states, sol_controls = test(0, 2500*np.ones(20), sol_T, sol_states, sol_controls)
-signal3, sol_T, sol_states, sol_controls = test(0, 2000*np.ones(20), sol_T, sol_states, sol_controls)
+signal1, sol_T, sol_states1, sol_controls = test(0, 2500*np.ones(20), sol_T, sol_states, sol_controls)
+signal2, sol_T, sol_states2, sol_controls = test(0, 2500*np.ones(20), sol_T, sol_states1, sol_controls)
+signal3, sol_T, sol_states3, sol_controls = test(0, 2000*np.ones(20), sol_T, sol_states2, sol_controls)
 
 
-print(signal1[:4], sol_states[:4])
-print(signal2[:4], sol_states[:4])
-print(signal3[:4], sol_states[:4])
+print(signal1[:4], sol_states1[:4])
+print(signal2[:4], sol_states2[:4])
+print(signal3[:4], sol_states3[:4])

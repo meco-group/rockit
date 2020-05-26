@@ -32,18 +32,33 @@ class DirectMethod:
     def __init__(self):
         pass
 
+    def jacobian(self, opti, with_label=False):
+        J = jacobian(opti.g, opti.x).sparsity()
+        if with_label:
+            return J, "Constraint Jacobian: " + J.dim(True)
+        else:
+            return J
+
+    def hessian(self, opti, with_label=False):
+        lag = opti.f + dot(opti.lam_g, opti.g)
+        H = hessian(lag, opti.x)[0].sparsity()
+        if with_label:
+            return H, "Lagrange Hessian: " + H.dim(True)
+        else:
+            return H
+
     def spy_jacobian(self, opti):
         import matplotlib.pylab as plt
-        J = jacobian(opti.g, opti.x).sparsity()
+        J, title = self.jacobian(opti, with_label=True)
         plt.spy(np.array(J),vmin=0,vmax=1)
-        plt.title("Constraint Jacobian: " + J.dim(True))
+        plt.title(title)
 
     def spy_hessian(self, opti):
         import matplotlib.pylab as plt
         lag = opti.f + dot(opti.lam_g, opti.g)
-        H = hessian(lag, opti.x)[0].sparsity()
+        H, title = self.hessian(opti, with_label=True)
         plt.spy(np.array(H),vmin=0,vmax=1)
-        plt.title("Lagrange Hessian: " + H.dim(True))
+        plt.title(title)
     
     def register(self, stage):
         pass

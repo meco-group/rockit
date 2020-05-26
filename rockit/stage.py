@@ -20,13 +20,13 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM, is_equal
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from .single_shooting import SingleShooting
 from collections import defaultdict
-from .casadi_helpers import DM2numpy, get_meta, merge_meta
+from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict
 from contextlib import contextmanager
 from collections import OrderedDict
 
@@ -71,32 +71,52 @@ class Stage:
         self.parameters = defaultdict(list)
         self.variables = defaultdict(list)
 
-        self.master = parent.master if parent else None
+        self._master = parent.master if parent else None
         self.parent = parent
 
-        self._param_vals = dict()
-        self._state_der = dict()
-        self._state_next = dict()
+        self._param_vals = HashDict()
+        self._state_der = HashDict()
+        self._state_next = HashDict()
         self._alg = []
         self._constraints = defaultdict(list)
         self._objective = 0
-        self._initial = OrderedDict()
+        self._initial = HashOrderedDict()
 
-        self._placeholders = dict()
-        self._placeholder_callbacks = dict()
-        self._offsets = dict()
-        self._inf_inert = OrderedDict()
-        self._inf_der = OrderedDict()
-        self.t = MX.sym('t')
+        self._placeholders = HashDict()
+        self._placeholder_callbacks = HashDict()
+        self._offsets = HashDict()
+        self._inf_inert = HashOrderedDict()
+        self._inf_der = HashOrderedDict()
+        self._t = MX.sym('t')
         self._stages = []
         self._method = DirectMethod()
         self._t0 = t0
         self._T = T
-        self.T = self._create_placeholder_expr(0, 'T')
-        self.t0 = self._create_placeholder_expr(0, 't0')
-        self.tf = self.T + self.t0
+        self._public_T = self._create_placeholder_expr(0, 'T')
+        self._public_t0 = self._create_placeholder_expr(0, 't0')
+        self._tf = self.T + self.t0
         if not clone:
             self._check_free_time()
+    
+    @property
+    def master(self):
+        return self._master
+
+    @property
+    def t(self):
+        return self._t
+
+    @property
+    def T(self):
+        return self._public_T
+
+    @property
+    def t0(self):
+        return self._public_t0
+
+    @property
+    def tf(self):
+        return self._tf
 
     def _check_free_time(self):
         if isinstance(self._t0, FreeTime):
@@ -170,8 +190,9 @@ class Stage:
         >>> ocp.set_der(x, -x)
         >>> ocp.set_initial(x, sin(ocp.t)) # Optional: give initial guess
         """
+        import numpy
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x", n_rows, n_cols)
+        x = MX.sym("x"+str(int(numpy.random.rand()*10000)), n_rows, n_cols)
         if quad:
             self.qstates.append(x)
         else:
@@ -207,7 +228,6 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         self.variables[grid].append(v)
-        print("variable creation", self.variables)
         self._set_transcribed(False)
         return v
 
@@ -421,7 +441,7 @@ class Stage:
         self._set_transcribed(False)
         self._constraints = defaultdict(list)
 
-    def subject_to(self, constr, grid=None,include_first=True,include_last=True):
+    def subject_to(self, constr, grid=None,include_first=True,include_last=True,meta=None):
         """Adds a constraint to the problem
 
         Parameters
@@ -467,7 +487,7 @@ class Stage:
                 raise Exception("Expected signal expression since grid '" + grid + "' was given.")
         
         args = {"grid": grid, "include_last": include_last, "include_first": include_first}
-        self._constraints[grid].append((constr, get_meta(), args))
+        self._constraints[grid].append((constr, get_meta(meta), args))
 
     def at_t0(self, expr):
         """Evaluate a signal at the start of the horizon
@@ -756,9 +776,9 @@ class Stage:
         subst_from = list(self._placeholders.keys())
         subst_to = []
         for k in self._placeholders.keys():
-            if k is self.T:  # T and t0 already have new placeholder symbols
+            if is_equal(k, self.T):  # T and t0 already have new placeholder symbols
                 subst_to.append(ret.T)
-            elif k is self.t0:
+            elif is_equal(k, self.t0):
                 subst_to.append(ret.t0)
             else:
                 subst_to.append(MX.sym(k.name(), k.sparsity()))
@@ -770,7 +790,6 @@ class Stage:
         ret.controls = copy(self.controls)
         ret.algebraics = copy(self.algebraics)
         ret.parameters = deepcopy(self.parameters)
-        print("")
         ret.variables = deepcopy(self.variables)
 
         ret._offsets = deepcopy(self._offsets)
@@ -794,14 +813,14 @@ class Stage:
             ret._constraints[k] = list(zip(r, [merge_meta(m, get_meta()) for _, m, _ in v], [d for _, _, d in v]))
             r = r[len(v):]
 
-        ret._initial = dict(zip(res[n_constr+1:], self._initial.values()))
+        ret._initial = HashOrderedDict(zip(res[n_constr+1:], self._initial.values()))
         ret._check_free_time()
 
         if "T" not in kwargs:
             ret._T = copy(self._T)
         if "t0" not in kwargs:
             ret._t0 = copy(self._t0)
-        ret.t = self.t
+        ret._t = self.t
         ret._method = deepcopy(self._method)
 
         ret._is_transcribed = False
@@ -980,6 +999,10 @@ class Stage:
         placeholders = self.master.placeholders_transcribed
         return placeholders(self._method.eval(self, expr))
 
+    def discrete_system(self):
+        """Hack"""
+        return self._method.discrete_system(self)
+
     def sampler(self, *args):
         """Returns a function that samples given expressions
 
@@ -1077,7 +1100,7 @@ class Stage:
                 :obj:`np.array`
 
                 """
-                tdim = None if isinstance(t, float) or len(t.shape)==0 else DM(t).numel()
+                tdim = None if isinstance(t, float) or isinstance(t, int) or len(t.shape)==0 else DM(t).numel()
                 t = DM(t)
                 if t.is_column(): t = t.T
                 res = f.call([gist, t])

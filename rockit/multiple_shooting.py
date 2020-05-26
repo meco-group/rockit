@@ -25,8 +25,8 @@ from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzs
 import numpy as np
 
 class MultipleShooting(SamplingMethod):
-    def __init__(self, *args, **kwargs):
-        SamplingMethod.__init__(self, *args, **kwargs)
+    def __init__(self, **kwargs):
+        SamplingMethod.__init__(self, **kwargs)
 
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian

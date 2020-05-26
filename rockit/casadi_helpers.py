@@ -21,7 +21,7 @@
 #
 
 from casadi import *
-
+from collections import defaultdict, OrderedDict
 
 def get_ranges_dict(list_expr):
     ret = {}
@@ -99,12 +99,16 @@ def reinterpret_expr(expr, symbols_from, symbols_to):
     return output_val[0]
 
 
-def get_meta():
+def get_meta(base=None):
+    if base is not None: return base
     # Construct meta-data
     import sys
     import os
-    frame = sys._getframe(2)
-    meta = {"stacktrace": [{"file":os.path.abspath(frame.f_code.co_filename),"line":frame.f_lineno,"name":frame.f_code.co_name} ] }
+    try:
+        frame = sys._getframe(2)
+        meta = {"stacktrace": [{"file":os.path.abspath(frame.f_code.co_filename),"line":frame.f_lineno,"name":frame.f_code.co_name} ] }
+    except:
+        meta = {"stacktrace": []}
     return meta
 
 def merge_meta(a, b):
@@ -136,3 +140,101 @@ def DM2numpy(dm, expr_shape, tdim=None):
     res = np.transpose(res,[1,0,2])
     res = res.reshape(target_shape)
     return res
+
+class HashWrap:
+    def __init__(self, arg):
+        assert not isinstance(arg,HashWrap)
+        self.arg = arg
+
+    def __hash__(self):
+        return hash(self.arg)
+
+    def __eq__(self, b):
+        # key in dict
+        b_arg = b
+        if isinstance(b,HashWrap): b_arg = b.arg
+        if self.arg is b_arg: return True
+        r = self.arg==b_arg
+        return r.is_one()
+
+    def __str__(self):
+        return self.arg.__str__()
+    def __repr__(self):
+        return self.arg.__repr__()
+
+class HashDict(dict):
+    def __init__(self,*args,**kwargs):
+        r = dict(*args,**kwargs)
+        dict.__init__(self)
+        for k,v in r.items():
+            self[k] = v
+    def __getitem__(self, k):
+        return dict.__getitem__(self, HashWrap(k))
+    def __setitem__(self, k, v):
+        return dict.__setitem__(self, HashWrap(k), v)
+    def keys(self):
+        for k in dict.keys(self):
+            yield k.arg
+    def items(self):
+        for k,v in dict.items(self):
+            yield k.arg, v
+    __iter__ = keys
+    def __copy__(self):
+        r = HashDict()
+        for k,v in self.items():
+            r[k] = v
+        return r
+
+class HashDefaultDict(defaultdict):
+    def __init__(self,default_factory=None, *args,**kwargs):
+        r = defaultdict(default_factory,*args,**kwargs)
+        defaultdict.__init__(self)
+        for k,v in r.items():
+            self[k] = v
+    def __getitem__(self, k):
+        return defaultdict.__getitem__(self, HashWrap(k))
+    def __setitem__(self, k, v):
+        return defaultdict.__setitem__(self, HashWrap(k), v)
+    def keys(self):
+        ret = []
+        for k in defaultdict.keys(self):
+            ret.append(k.arg)
+        return ret
+    def items(self):
+        for k,v in defaultdict.items(self):
+            yield k.arg, v
+    def __iter__(self):
+        for k in defaultdict.__iter__(self):
+            yield k.arg
+    def __copy__(self):
+        r = HashDefaultDict(self.default_factory)
+        for k,v in self.items():
+            r[k] = v
+        return r
+
+class HashOrderedDict(OrderedDict):
+    def __init__(self,*args,**kwargs):
+        r = OrderedDict(*args,**kwargs)
+        OrderedDict.__init__(self)
+        for k,v in r.items():
+            self[k] = v
+    def __getitem__(self, k):
+        return OrderedDict.__getitem__(self, HashWrap(k))
+    def __setitem__(self, k, v):
+        return OrderedDict.__setitem__(self, HashWrap(k), v)
+    def keys(self):
+        ret = []
+        for k in self:
+            ret.append(k)
+        return ret
+    def items(self):
+        for k in self:
+            yield k, self[k]
+    def __iter__(self):
+        for k in OrderedDict.__iter__(self):
+            yield k.arg
+    def __copy__(self):
+        r = HashOrderedDict()
+        for k,v in self.items():
+            r[k] = v
+        return r

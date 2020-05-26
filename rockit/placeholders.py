@@ -1,12 +1,12 @@
 from casadi import substitute
-
+from .casadi_helpers import HashDict
 
 class TranscribedPlaceholders:
     def __init__(self):
         self.clear()
 
     def clear(self):
-        self.pool = {}
+        self.pool = HashDict()
         self.mark_dirty()
 
     def mark_dirty(self):

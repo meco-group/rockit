@@ -27,7 +27,7 @@ from .direct_method import OptiWrapper
 from .placeholders import TranscribedPlaceholders
 
 class Ocp(Stage):
-    def __init__(self, **kwargs):
+    def __init__(self,  t0=0, T=1, **kwargs):
         """Create an Optimal Control Problem environment
 
         Parameters
@@ -44,13 +44,19 @@ class Ocp(Stage):
 
         >>> ocp = Ocp()
         """
-        Stage.__init__(self, **kwargs)
-        self.master = self
+        Stage.__init__(self,  t0=t0, T=T, **kwargs)
+        self._master = self
         # Flag to make solve() faster when solving a second time
         # (e.g. with different parameter values)
         self._is_transcribed = False
         self._transcribed_placeholders = TranscribedPlaceholders()
         self.opti = OptiWrapper(self)
+
+    def jacobian(self, with_label=False):
+        return self._method.jacobian(self.opti, with_label=with_label)
+
+    def hessian(self, with_label=False):
+        return self._method.hessian(self.opti, with_label=with_label)
 
     def spy_jacobian(self):
         self._method.spy_jacobian(self.opti)
@@ -107,6 +113,10 @@ class Ocp(Stage):
 
     def show_infeasibilities(self, *args, **kwargs):
         self.opti.debug.show_infeasibilities(*args, **kwargs)
+
+    def debugme(self,e):
+        print(e,hash(e),e.__hash__())
+        return e
 
     @property
     def gist(self):
