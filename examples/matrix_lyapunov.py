@@ -55,8 +55,7 @@ P0 = diag([0.01**2,0.1**2])
 ocp.subject_to(ocp.at_t0(P) == P0)
 ocp.set_initial(P, P0)
 
-ocp.subject_to(       u <= 40)
-ocp.subject_to(-40 <= u      )
+ocp.subject_to(-40 <= (u <= 40))
 
 ocp.subject_to(x[0] >= -0.25)
 

@@ -51,8 +51,7 @@ template.set_der(x2, -0.1*(1-x1**2 + delta)*x2 - x1 + u + delta)
 
 template.set_der(u, 0)
 
-template.subject_to(u <= 40)
-template.subject_to(u >= -40)
+template.subject_to(-40 <= (u <= 40))
 template.subject_to(x1 >= -0.25)
 L = template.variable()
 template.add_objective(L)
