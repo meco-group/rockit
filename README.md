@@ -127,7 +127,7 @@ plot(tsc, x1c, '.')
 
 Rockit comes with a (almost) feature-complete interface to Matlab.
 Installation steps:
- 1. Install Python and rockit
+ 1. Install Python and a recent Rockit: `pip install rockit-meco>=0.1.10 casadi>=3.5.2`
  2. Launch Matlab from a terminal with the correct Python environment activated
  3. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
  4. Run `rockit_setup` (needed for every Matlab session that needs rockit)
