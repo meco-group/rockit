@@ -123,6 +123,15 @@ plot(tsc, x1c, '.')
 
 ![Solution trajectory of states](docs/hello_world_states.png)
 
+# Matlab interface
+
+Rockit comes with a (almost) feature-complete interface to Matlab.
+Installation steps:
+ 1. Install Python and rockit
+ 2. Launch Matlab from a terminal with the correct Python environment activated
+ 3. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
+ 4. Run `rockit_setup` (needed for every Matlab session that needs rockit)
+
 # Presentations
 
  * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
