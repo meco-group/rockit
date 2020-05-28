@@ -128,13 +128,13 @@ plot(tsc, x1c, '.')
 Rockit comes with a (almost) feature-complete interface to Matlab (Windows and Linux only).
 Installation steps:
  1. Open up a Python environment in a terminal (if you don't have one consider miniconda)
- 1. Perform `pip install rockit-meco==0.1.10b1 casadi==3.5.2b1`
+ 1. Perform `pip install rockit-meco==0.1.10b2 casadi==3.5.2b1`
  2. Launch Matlab from that same terminal
  3. Install CasADi for Matlab from https://github.com/casadi/binaries/releases/tag/commit-da3cb16: pick the latest applicable matlab archive, unzip it, and add it to the Matlab path (without subdirectories)
  4. Make sure you remove any other CasADi version from the Matlab path.
- 5. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv("ExecutionMode","OutOfProcess")`
+ 5. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv('ExecutionMode','InProcess')`
  6. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
- 7. Run the `hello_world` example from the example directory (`cd([char(py.rockit.matlab_path) filesep '..' filesep 'examples'])`)
+ 7. Run the `hello_world` example from the example directory (`cd(rockit.example_dir)`)
 
 # Presentations
 
