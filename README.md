@@ -125,13 +125,15 @@ plot(tsc, x1c, '.')
 
 # Matlab interface
 
-Rockit comes with a (almost) feature-complete interface to Matlab.
+Rockit comes with a (almost) feature-complete interface to Matlab (Windows and Linux only).
 Installation steps:
- 1. Install Python and a recent rockit: `pip install rockit-meco>=0.1.10 casadi>=3.5.2`
- 2. Launch Matlab from a terminal with the correct Python environment activated
+ 1. Open up a Python environment in a terminal (if you don't have one consider miniconda)
+ 1. Perform `pip install rockit-meco>=0.1.10 casadi>=3.5.2`
+ 2. Launch Matlab from that same terminal
  3. Install casadi for Matlab >= 3.5.2 from https://web.casadi.org/get/
- 3. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
- 4. Run `rockit_setup` (needed for every Matlab session that needs rockit)
+ 4. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed pyenv("ExecutionMode","OutOfProcess")
+ 5. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
+ 6. Run the `hello_world` example
 
 # Presentations
 
