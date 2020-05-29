@@ -136,6 +136,10 @@ Installation steps:
  6. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
  7. Run the `hello_world` example from the example directory (`cd(rockit.example_dir)`)
 
+Debugging:
+ * Check if the correct CasADi Python is found: py.imp.find_module('casadi')
+ * Check if the correct CasADi Matlab is found: `edit casadi.SerializerBase`, should have a method called 'connect'
+
 # Presentations
 
  * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
