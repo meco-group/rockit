@@ -139,7 +139,9 @@ Installation steps:
 Debugging:
  * Check if the correct CasADi Python is found: py.imp.find_module('casadi')
  * Check if the correct CasADi Matlab is found: `edit casadi.SerializerBase`, should have a method called 'connect'
-
+ * Matlab error "Conversion to double from py.numpy.ndarray is not possible." -> Consult your Matlab release notes to verify that your Python version is supported
+ * Matlab error "Python Error: RuntimeError: .../casadi/core/serializing_stream.hpp:171: Assertion "false" failed:" -> May occur on Linux for some configurations. Consult rockit authors
+ 
 # Presentations
 
  * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
