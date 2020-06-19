@@ -20,9 +20,10 @@
 #
 #
 
-from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM
+from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM, vertcat
 import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
+from .solution import OcpSolution
 
 class DirectMethod:
     """
@@ -30,38 +31,45 @@ class DirectMethod:
       'first discretize, then optimize'
     """
     def __init__(self):
-        pass
+        self._solver = None
+        self._solver_options = None
+        self._callback = None
 
-    def jacobian(self, opti, with_label=False):
-        J = jacobian(opti.g, opti.x).sparsity()
+    def jacobian(self, with_label=False):
+        J = jacobian(self.opti.g, self.opti.x).sparsity()
         if with_label:
             return J, "Constraint Jacobian: " + J.dim(True)
         else:
             return J
 
-    def hessian(self, opti, with_label=False):
-        lag = opti.f + dot(opti.lam_g, opti.g)
-        H = hessian(lag, opti.x)[0].sparsity()
+    def hessian(self, with_label=False):
+        lag = self.opti.f + dot(self.opti.lam_g, self.opti.g)
+        H = hessian(lag, self.opti.x)[0].sparsity()
         if with_label:
             return H, "Lagrange Hessian: " + H.dim(True)
         else:
             return H
 
-    def spy_jacobian(self, opti):
+    def spy_jacobian(self):
         import matplotlib.pylab as plt
-        J, title = self.jacobian(opti, with_label=True)
+        J, title = self.jacobian(with_label=True)
         plt.spy(np.array(J),vmin=0,vmax=1)
         plt.title(title)
 
-    def spy_hessian(self, opti):
+    def spy_hessian(self):
         import matplotlib.pylab as plt
-        lag = opti.f + dot(opti.lam_g, opti.g)
-        H, title = self.hessian(opti, with_label=True)
+        lag = self.opti.f + dot(self.opti.lam_g, self.opti.g)
+        H, title = self.hessian(with_label=True)
         plt.spy(np.array(H),vmin=0,vmax=1)
         plt.title(title)
     
-    def register(self, stage):
-        pass
+    def inherit(self, template):
+        if template and template._solver is not None:
+            self._solver = template._solver
+        if template and template._solver_options is not None:
+            self._solver_options = template._solver_options
+        if template and template._callback is not None:
+            self._callback = template._callback
 
     def eval(self, stage, expr):
         return self.eval_top(stage, expr)
@@ -75,15 +83,29 @@ class DirectMethod:
             V.append(opti.variable(v.shape[0], v.shape[1]))
         self.V = veccat(*V)
 
-    def transcribe(self, stage, opti):
-        self.add_variables(stage, opti)
+    def main_transcribe(self, stage, pass_nr=1, **kwargs):
+        if pass_nr==1:
+            self.opti = OptiWrapper(stage)
+            if self._callback:
+                self.opti.callback(self._callback)
+            if self.solver is not None:
+                self.opti.solver(self._solver, self._solver_options)
+        if pass_nr==2:
+            self.opti.transcribe_placeholders(kwargs["placeholders"])
+
+    def transcribe(self, stage, pass_nr=1, **kwargs):
+        if pass_nr==2:
+            self.opti.transcribe_placeholders(kwargs["placeholders"])
+        if pass_nr>1: return
+        self.add_variables(stage, self.opti)
 
         for c, m, _ in stage._constraints["point"]:
-            opti.subject_to(self.eval_top(stage, c), meta = m)
-        opti.add_objective(stage._objective)
-        self.set_initial(stage, opti, stage._initial)
+            self.opti.subject_to(self.eval_top(stage, c), meta = m)
+        self.opti.add_objective(stage._objective)
+        self.set_initial(stage, self.opti, stage._initial)
 
-    def set_initial(self, stage, opti, initial):
+    def set_initial(self, stage, master, initial):
+        opti = master.opti if hasattr(master, 'opti') else master
         opti.cache_advanced()
         for var, expr in initial.items():
             opti_initial = opti.initial()
@@ -94,6 +116,45 @@ class DirectMethod:
     def transcribe_placeholders(self, stage, placeholders):
         pass
 
+    def non_converged_solution(self, stage):
+        return OcpSolution(self.opti.non_converged_solution, stage)
+
+    def solve(self, stage):
+        return OcpSolution(self.opti.solve(), stage)
+
+    def solve_limited(self, stage):
+        return OcpSolution(self.opti.solve_limited(), stage)
+
+    def callback(self, stage, fun):
+        self._callback = lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, stage))
+
+    @property
+    def debug(self):
+        self.opti.debug
+
+    def solver(self, solver, solver_options={}):
+        self._solver = solver
+        self._solver_options = solver_options
+
+    def show_infeasibilities(self, *args, **kwargs):
+        self.opti.debug.show_infeasibilities(*args, **kwargs)
+
+    @property
+    def gist(self):
+        """Obtain an expression packing all information needed to obtain value/sample
+
+        The composition of this array may vary between rockit versions
+
+        Returns
+        -------
+        :obj:`~casadi.MX` column vector
+
+        """
+        return vertcat(self.opti.x, self.opti.p)
+
+    def to_function(self, stage, name, args, results, *margs):
+        return self.opti.to_function(name, [stage.value(a) for a in args], results, *margs)
+
 from casadi import substitute
 
 class OptiWrapper(Opti):
@@ -102,6 +163,8 @@ class OptiWrapper(Opti):
         Opti.__init__(self)
         self.initial_keys = []
         self.initial_values = []
+        self.constraints = []
+        self.objective = 0
 
     def subject_to(self, expr=None, meta=None):
         meta = merge_meta(meta, get_meta())

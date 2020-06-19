@@ -190,7 +190,8 @@ class DirectCollocation(SamplingMethod):
             # Add it to the optimizer, but first make x,u concrete.
             opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
 
-    def set_initial(self, stage, opti, initial):
+    def set_initial(self, stage, master, initial):
+        opti = master.opti if hasattr(master, 'opti') else master
         opti.cache_advanced()
         initial = HashOrderedDict(initial)
         algs = get_ranges_dict(stage.algebraics)

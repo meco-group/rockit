@@ -283,14 +283,15 @@ class Stage:
 
     def set_value(self, parameter, value):
         if self.master is not None and self.master.is_transcribed:
-            self._method.set_value(self, self.master.opti, parameter, value)            
+            self._method.set_value(self, self.master._method, parameter, value)            
         else:
             self._param_vals[parameter] = value
 
     def set_initial(self, var, value):
+        assert "opti" not in str(var)
         self._initial[var] = value
         if self.master is not None and self.master.is_transcribed:
-            self._method.set_initial(self, self.master.opti, self._initial)
+            self._method.set_initial(self, self.master._method, self._initial)
 
     def set_der(self, state, der):
         """Assign a right-hand side to a state derivative
@@ -577,8 +578,9 @@ class Stage:
         """
         from copy import deepcopy
         self._set_transcribed(False)
+        template = self._method
         self._method = deepcopy(method)
-        self._method.register(self)
+        self._method.inherit(template)
 
     @property
     def objective(self):
@@ -751,15 +753,16 @@ class Stage:
         else:
             return False
 
-    def _transcribe_recurse(self):
-        opti = self.master.opti
+    def _transcribe_recurse(self, pass_nr=1, **kwargs):
         if self._method is not None:
-            self._method.transcribe(self, opti)
+            if self is self.master:
+                self._method.main_transcribe(self, pass_nr=pass_nr, **kwargs)
+            self._method.transcribe(self, pass_nr=pass_nr, **kwargs)
         else:
             print("master",self)
 
         for s in self._stages:
-            s._transcribe_recurse()
+            s._transcribe_recurse(pass_nr=pass_nr, **kwargs)
 
     def _placeholders_transcribe_recurse(self, placeholders):
         if self._method is not None:

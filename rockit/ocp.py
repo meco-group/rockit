@@ -22,8 +22,6 @@
 
 from casadi import vertcat
 from .stage import Stage
-from .solution import OcpSolution
-from .direct_method import OptiWrapper
 from .placeholders import TranscribedPlaceholders
 
 class Ocp(Stage):
@@ -50,19 +48,18 @@ class Ocp(Stage):
         # (e.g. with different parameter values)
         self._is_transcribed = False
         self._transcribed_placeholders = TranscribedPlaceholders()
-        self.opti = OptiWrapper(self)
 
     def jacobian(self, with_label=False):
-        return self._method.jacobian(self.opti, with_label=with_label)
+        return self._method.jacobian(with_label=with_label)
 
     def hessian(self, with_label=False):
-        return self._method.hessian(self.opti, with_label=with_label)
+        return self._method.hessian(with_label=with_label)
 
     def spy_jacobian(self):
-        self._method.spy_jacobian(self.opti)
+        self._method.spy_jacobian()
 
     def spy_hessian(self):
-        self._method.spy_hessian(self.opti)
+        self._method.spy_hessian()
 
     def spy(self):
         import matplotlib.pylab as plt
@@ -74,12 +71,10 @@ class Ocp(Stage):
 
     def _transcribe(self):
         if not self.is_transcribed:
-            self.opti.subject_to()
-            self.opti.clear_objective()
             self._transcribe_recurse()
             self._set_transcribed(True)
             self._transcribed_placeholders.clear()
-            self.opti.transcribe_placeholders(self.placeholders_transcribed)
+            self._transcribe_recurse(pass_nr=2,placeholders=self.placeholders_transcribed)
 
     @property
     def placeholders_transcribed(self):
@@ -91,28 +86,28 @@ class Ocp(Stage):
 
     @property
     def non_converged_solution(self):
-        return OcpSolution(self.opti.non_converged_solution, self)
+        return self._method.non_converged_solution(self)
 
     def solve(self):
         self._transcribe()
-        return OcpSolution(self.opti.solve(), self)
-
+        return self._method.solve(self)
+ 
     def solve_limited(self):
         self._transcribe()
-        return OcpSolution(self.opti.solve_limited(), self)
+        return self._method.solve_limited(self)
 
     def callback(self, fun):
-        self.opti.callback(lambda iter : fun(iter, OcpSolution(self.opti.non_converged_solution, self)))
+        return self._method.callback(self, fun)
 
     @property
     def debug(self):
-        self.opti.debug
+        self._method.debug
 
     def solver(self, solver, solver_options={}):
-        self.opti.solver(solver, solver_options)
+        self._method.solver(solver, solver_options)
 
     def show_infeasibilities(self, *args, **kwargs):
-        self.opti.debug.show_infeasibilities(*args, **kwargs)
+        self._method.show_infeasibilities(*args, **kwargs)
 
     def debugme(self,e):
         print(e,hash(e),e.__hash__())
@@ -129,7 +124,7 @@ class Ocp(Stage):
         :obj:`~casadi.MX` column vector
 
         """
-        return vertcat(self.opti.x, self.opti.p)
+        return self._method.gist
 
     def to_function(self, name, args, results, *margs):
-        return self.opti.to_function(name, [self.value(a) for a in args], results, *margs)
+        return self._method.to_function(self, name, args, results, *margs)

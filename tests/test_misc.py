@@ -588,7 +588,7 @@ class MiscTests(unittest.TestCase):
         ocp.set_value(pp, 1)
         sol = ocp.solve()
 
-        f = ocp.opti.to_function('f',[ocp.value(pp,grid='control'),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
+        f = ocp.to_function('f',[ocp.value(pp,grid='control'),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
 
         print(f(1,1,2,3))
 
@@ -629,7 +629,8 @@ class MiscTests(unittest.TestCase):
                   ocp.method(MultipleShooting(N=N,grid=UniformGrid(localize_T=localize_T,localize_t0=localize_t0)))
 
                   sol = ocp.solve()
-                  self.assertTrue(sum2(sum1(DM(jacobian(ocp.opti.g, ocp.opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
+                  opti = ocp._method.opti
+                  self.assertTrue(sum2(sum1(DM(jacobian(opti.g, opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
                     
 
     def test_control_grid(self):

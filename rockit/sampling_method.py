@@ -23,7 +23,7 @@
 from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat, is_equal
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
-from .casadi_helpers import reinterpret_expr
+from .casadi_helpers import reinterpret_expr, HashOrderedDict
 from numpy import nan, inf
 import numpy as np
 from collections import defaultdict
@@ -336,10 +336,12 @@ class SamplingMethod(DirectMethod):
         """
         return stage._transcribe_placeholders(self, placeholders)
 
-    def transcribe(self, stage, opti):
+    def transcribe(self, stage, pass_nr=1,**kwargs):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
+        if pass_nr>1: return
+        opti = stage.master._method.opti
         DM.set_precision(14)
         self.add_variables(stage, opti)
         self.add_parameter(stage, opti)
@@ -361,20 +363,19 @@ class SamplingMethod(DirectMethod):
         T_init = opti.debug.value(self.T, opti.initial())
         t0_init = opti.debug.value(self.t0, opti.initial())
 
+        initial = HashOrderedDict()
         # How to get initial value -> ask opti?
-
         control_grid_init = self.time_grid(t0_init, T_init, self.N)
         if self.time_grid.localize_t0:
             for k in range(1, self.N):
-                stage.set_initial(self.t0_local[k], control_grid_init[k])
-            stage.set_initial(self.t0_local[self.N], control_grid_init[self.N])
+                initial[self.t0_local[k]] = control_grid_init[k]
+            initial[self.t0_local[self.N]] = control_grid_init[self.N]
         if self.time_grid.localize_T:
             for k in range(not isinstance(self.time_grid, FreeGrid), self.N):
-                stage.set_initial(self.T_local[k], control_grid_init[k+1]-control_grid_init[k])
+                initial[self.T_local[k]] = control_grid_init[k+1]-control_grid_init[k]
 
-        self.set_initial(stage, opti, stage._initial)
+        self.set_initial(stage, opti, initial)
         self.set_parameter(stage, opti)
-
 
     def add_constraints_before(self, stage, opti):
         for c, meta, _ in stage._constraints["point"]:
@@ -587,7 +588,8 @@ class SamplingMethod(DirectMethod):
     def eval_at_integrator_root(self, stage, expr, k, i, j):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j]))
 
-    def set_initial(self, stage, opti, initial):
+    def set_initial(self, stage, master, initial):
+        opti = master.opti if hasattr(master, 'opti') else master
         opti.cache_advanced()
         for var, expr in initial.items():
             if is_equal(var, stage.T):
@@ -611,7 +613,8 @@ class SamplingMethod(DirectMethod):
                         value = value[:,k]
                 opti.set_initial(target, value, cache_advanced=True)
 
-    def set_value(self, stage, opti, parameter, value):
+    def set_value(self, stage, master, parameter, value):
+        opti = master.opti if hasattr(master, 'opti') else master
         found = False
         for i, p in enumerate(stage.parameters['']):
             if is_equal(parameter, p):
