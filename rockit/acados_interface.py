@@ -146,32 +146,47 @@ class AcadosInterface:
             x0_c = []
 
 
+            def legit_J(J):
+                try:
+                    J = evalf(J)
+                except:
+                    return False
+                # Check if slice of permutation of unit matrix
+                if not np.all(np.array(J.colind())==np.array(range(J.shape[1]+1))):
+                    return False
+                if not np.all(np.array(J.nonzeros())==1):
+                    return False
+                return True
+
             for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:
                 c = substitute([placeholders(c)],self.raw,self.optivar)[0]
                 mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
                 lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
 
-
                 if is_linear(canon, vertcat(self.ocp.model.x,self.ocp.model.u)):
                     if not depends_on(canon, self.ocp.model.x):
                         # lbu <= Jbu u <= ubu
                         J, c = linear_coeff(canon, self.ocp.model.u)
-                        Jbu.append(J)
-                        lbu.append(lb-c)
-                        ubu.append(ub-c)
-                    elif not depends_on(canon, self.ocp.model.u):
+                        if legit_J(J):
+                            Jbu.append(J)
+                            lbu.append(lb-c)
+                            ubu.append(ub-c)
+                            continue
+                    if not depends_on(canon, self.ocp.model.u):
                         # lbx <= Jbx x <= ubx
                         J,c = linear_coeff(canon, self.ocp.model.x)
-                        Jbx.append(J)
-                        lbx.append(lb-c)
-                        ubx.append(ub-c)
-                    else:
-                        # lg <= Cx + Du <= ug
-                        J,c = linear_coeff(canon, vertcat(self.ocp.model.x,self.ocp.model.u))
-                        C.append(J[:,:stage.nx])
-                        D.append(J[:,stage.nx:])
-                        lg.append(lb-c)
-                        ug.append(ub-c)
+                        if legit_J(J):
+                            Jbx.append(J)
+                            lbx.append(lb-c)
+                            ubx.append(ub-c)
+                            continue
+
+                    # lg <= Cx + Du <= ug
+                    J,c = linear_coeff(canon, vertcat(self.ocp.model.x,self.ocp.model.u))
+                    C.append(J[:,:stage.nx])
+                    D.append(J[:,stage.nx:])
+                    lg.append(lb-c)
+                    ug.append(ub-c)
                 else:
                     # lbh <= h(x,u) <= uh
                     h.append(canon)
@@ -204,10 +219,15 @@ class AcadosInterface:
                     assert not depends_on(canon,ocp.model.u), "Terminal constraints cannot depend on u"
                     if is_linear(canon, self.ocp.model.x):
                         # lbx <= Jbx x <= ubx
-                        J,c = linear_coeff(canon, self.ocp.model.u)
-                        Jbx_e.append(J)
-                        lbx_e.append(lb-c)
-                        ubx_e.append(ub-c)
+                        J,c = linear_coeff(canon, self.ocp.model.x)
+                        if legit_J(J):
+                            Jbx_e.append(J)
+                            lbx_e.append(lb-c)
+                            ubx_e.append(ub-c)
+                            continue
+                        C_e.append(J)
+                        lg_e.append(lb-c)
+                        ug_e.append(lb-c)
                     else:
                         # lbh <= h(x,u) <= uh
                         h_e.append(canon)
@@ -247,7 +267,6 @@ class AcadosInterface:
                 ocp.constraints.ubu = export_vec(ubu)
 
             if C:
-                print("C")
                 ocp.constraints.C = export(C)
                 ocp.constraints.D = export(D)
                 ocp.constraints.lg = export_vec(lg)
