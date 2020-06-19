@@ -135,12 +135,12 @@ class AcadosInterface:
 
             Jbx = []; lbx = []; ubx = []
             Jbu = []; lbu = []; ubu = []
-            C = []; D = []; lbg = []; ubg = []
-            h = []; lbh = []; ubh = []
+            C = []; D = []; lg = []; ug = []
+            h = []; lbh = []; uh = []
 
-            h_e = []; lbh_e = []; ubh_e = []
+            h_e = []; lbh_e = []; uh_e = []
             Jbx_e = []; lbx_e = []; ubx_e = []
-            C_e = []; lbg_e = []; ubg_e = []
+            C_e = []; lg_e = []; ug_e = []
 
             x0_J = []
             x0_c = []
@@ -161,22 +161,22 @@ class AcadosInterface:
                         ubu.append(ub-c)
                     elif not depends_on(canon, self.ocp.model.u):
                         # lbx <= Jbx x <= ubx
-                        J,c = linear_coeff(canon, self.ocp.model.u)
+                        J,c = linear_coeff(canon, self.ocp.model.x)
                         Jbx.append(J)
                         lbx.append(lb-c)
                         ubx.append(ub-c)
                     else:
-                        # lbg <= Cx + Du <= ubg
+                        # lg <= Cx + Du <= ug
                         J,c = linear_coeff(canon, vertcat(self.ocp.model.x,self.ocp.model.u))
                         C.append(J[:,:stage.nx])
                         D.append(J[:,stage.nx:])
-                        lbg.append(lb-c)
-                        ubg.append(ub-c)
+                        lg.append(lb-c)
+                        ug.append(ub-c)
                 else:
-                    # lbh <= h(x,u) <= ubh
+                    # lbh <= h(x,u) <= uh
                     h.append(canon)
                     lbh.append(lb)
-                    ubh.append(ub)
+                    uh.append(ub)
 
             for c, meta, _ in stage._constraints["point"]:
                 has_t0 = 'r_at_t0' in [a.name() for a in symvar(c)]
@@ -209,10 +209,10 @@ class AcadosInterface:
                         lbx_e.append(lb-c)
                         ubx_e.append(ub-c)
                     else:
-                        # lbh <= h(x,u) <= ubh
+                        # lbh <= h(x,u) <= uh
                         h_e.append(canon)
                         lbh_e.append(lb)
-                        ubh_e.append(ub)
+                        uh_e.append(ub)
 
             x0 = mtimes(pinv(vcat(x0_J)), vcat(x0_c))
 
@@ -228,6 +228,7 @@ class AcadosInterface:
                 return m
 
             def export(m):
+                print(np.array(evalf(export_expr(m))))
                 return np.array(evalf(export_expr(m)))
 
             def export_vec(m):
@@ -246,20 +247,21 @@ class AcadosInterface:
                 ocp.constraints.ubu = export_vec(ubu)
 
             if C:
+                print("C")
                 ocp.constraints.C = export(C)
                 ocp.constraints.D = export(D)
-                ocp.constraints.lbg = export_vec(lbg)
-                ocp.constraints.ubg = export_vec(ubg)
+                ocp.constraints.lg = export_vec(lg)
+                ocp.constraints.ug = export_vec(ug)
 
             if h:
                 ocp.model.con_h_expr = export_expr(h)
-                ocp.constraints.lbh = export_vec(lbh)
-                ocp.constraints.ubh = export_vec(ubh)
+                ocp.constraints.lh = export_vec(lbh)
+                ocp.constraints.uh = export_vec(uh)
 
             if h_e:
                 ocp.model.con_h_e_expr = export_expr(h_e)
                 ocp.constraints.lbh = export_vec(lbh_e)
-                ocp.constraints.ubh = export_vec(ubh_e)
+                ocp.constraints.uh = export_vec(uh_e)
 
             if Jbx_e:
                 ocp.constraints.Jbx_e = export(Jbx_e)
@@ -268,8 +270,8 @@ class AcadosInterface:
 
             if C_e:
                 ocp.constraints.C_e = export(C_e)
-                ocp.constraints.lbg_e = export_vec(lbg_e)
-                ocp.constraints.ubg_e = export_vec(ubg_e)
+                ocp.constraints.lg_e = export_vec(lg_e)
+                ocp.constraints.ug_e = export_vec(ug_e)
 
             ocp.constraints.x0 = export_vec(x0)
 

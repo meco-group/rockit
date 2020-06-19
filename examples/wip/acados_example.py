@@ -1,4 +1,4 @@
-from numpy import *
+from pylab import *
 from rockit import *
 from rockit.acados_interface import AcadosInterface
 
@@ -33,12 +33,15 @@ ocp.subject_to(ocp.at_t0(dtheta)==0.0)
 
 ocp.subject_to(-80 <= (F <= 80))
 
-acados_interface = AcadosInterface(N=20,qp_solver='PARTIAL_CONDENSING_HPIPM',hessian_approx='GAUSS_NEWTON',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=20)
+acados_interface = AcadosInterface(N=20,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=20)
 
 ocp.method(acados_interface)
 
 sol = ocp.solve()
 
-print(sol.sample(x1,grid='control'))
+ts, x1sol = sol.sample(x1,grid='control')
+
+plot(ts, x1sol)
+show()
 
 
