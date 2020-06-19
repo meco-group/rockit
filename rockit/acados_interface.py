@@ -217,18 +217,6 @@ class AcadosInterface:
             x0 = mtimes(pinv(vcat(x0_J)), vcat(x0_c))
 
             # Parametric not supported yet
-
-            Jbx = []; lbx = []; ubx = []
-            Jbu = []; lbu = []; ubu = []
-            C = []; D = []; lbg = []; ubg = []
-            h = []; lbh = []; ubh = []
-
-            h_e = []; lbh_e = []; ubh_e = []
-            Jbx_e = []; lbx_e = []; ubx_e = []
-            C_e = []; lbg_e = []; ubg_e = []
-
-            x0_J = []
-            x0_c = []
         
 
             def export_expr(m):
