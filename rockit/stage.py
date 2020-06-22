@@ -605,7 +605,8 @@ class Stage:
 
     @property
     def p(self):
-        return vvcat(self.parameters['']+self.parameters['control'])
+        arg = self.parameters['']+self.parameters['control']
+        return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
     def v(self):
