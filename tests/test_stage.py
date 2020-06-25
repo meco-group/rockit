@@ -52,17 +52,17 @@ class StageTests(unittest.TestCase):
       ocp.solver('ipopt')
 
       N = 10
-      M = 2
-      ocp.method(MultipleShooting(N=N,M=M))
-      
-      sol = ocp.solve()
+      for M in [1,2]:
+        ocp.method(MultipleShooting(N=N,M=M))
+        
+        sol = ocp.solve()
 
-      x1sol = sol.sample(x1, grid='integrator')[1]
-      x2sol = sol.sample(x2, grid='integrator')[1]
-      usol = kron(DM.ones(1,M),sol.sample(u, grid='integrator')[1])
-      for k in range(N*M):
-        self.assertAlmostEqual(x2sol[k+1], x1sol[k])
-        self.assertAlmostEqual(x1sol[k+1], (1 - x2sol[k]**2) * x1sol[k] - x2sol[k] + usol[k])
+        x1sol = sol.sample(x1, grid='integrator')[1]
+        x2sol = sol.sample(x2, grid='integrator')[1]
+        usol = kron(DM.ones(1,M),sol.sample(u, grid='integrator')[1])
+        for k in range(N*M):
+          self.assertAlmostEqual(x2sol[k+1], x1sol[k])
+          self.assertAlmostEqual(x1sol[k+1], (1 - x2sol[k]**2) * x1sol[k] - x2sol[k] + usol[k])
 
     def test_stage_cloning_t0_T(self):
         for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:
