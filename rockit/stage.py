@@ -900,7 +900,7 @@ class Stage:
 
         return placeholders(time), placeholders(res)
 
-    def _grid_control(self, stage, expr, grid, include_first=True, include_last=True):
+    def _grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False):
         """Evaluate expression at (N + 1) control points."""
         sub_expr = []
         ks = list(range(1, stage._method.N))
@@ -914,7 +914,8 @@ class Stage:
             except IndexError as e:
                 r = DM.nan(MX(expr).shape)
             sub_expr.append(r)
-        res = hcat(sub_expr)
+        cat = vcat if transpose else hcat
+        res = cat(sub_expr)
         time = stage._method.control_grid
         return time, res
 
