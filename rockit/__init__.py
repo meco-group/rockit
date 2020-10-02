@@ -20,6 +20,17 @@
 #
 #
 import os
+import sys
+
+in_matlab = "libmwbuffer" in sys.modules.keys()
+
+if in_matlab:
+  try:
+    dlopen_flags = sys.getdlopenflags()
+    # Fixes crash of numpy in Matlab
+    sys.setdlopenflags(10) # RTLD_DEEPBIND(8) | RTLD_NOW(2)
+  except:
+    pass
 
 from .multiple_shooting import MultipleShooting
 from .ocp import Ocp
@@ -41,3 +52,12 @@ try:
 except:
   matlab_path = "not_found"
 
+if in_matlab:
+  try:
+    sys.setdlopenflags(dlopen_flags)
+  except:
+    pass
+
+  del dlopen_flags
+
+del in_matlab
