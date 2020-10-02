@@ -127,14 +127,15 @@ plot(tsc, x1c, '.')
 
 Rockit comes with a (almost) feature-complete interface to Matlab (Windows and Linux only).
 Installation steps:
- 1. Open up a Python environment in a terminal (if you don't have one consider miniconda)
- 1. Perform `pip install rockit-meco==0.1.10b6 casadi==3.5.5`
- 2. Launch Matlab from that same terminal
- 3. Install CasADi for Matlab from https://github.com/casadi/casadi/releases/tag/3.5.5: pick the latest applicable matlab archive, unzip it, and add it to the Matlab path (without subdirectories)
- 4. Make sure you remove any other CasADi version from the Matlab path.
- 5. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv('ExecutionMode','InProcess')`
- 6. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
- 7. Run the `hello_world` example from the example directory (`cd(rockit.example_dir)`)
+ 1. [Check](https://www.mathworks.com/content/dam/mathworks/mathworks-dot-com/support/sysreq/files/python-support.pdf) which Python versions your Matlab installation supports, e.g. `Python 3.6`
+ 2. Open up a compatible Python environment in a terminal (if you don't have one, consider [miniconda](https://docs.conda.io/en/latest/miniconda.html) and create an environment by performing commands `conda create --name myspace python=3.6` and `conda activate myspace` inside the Anaconda Prompt).
+ 3. Perform `pip install "rockit-meco>=0.1.10" "casadi>=3.5.5"` in that teminal
+ 4. Launch Matlab from that same terminal
+ 5. Install CasADi for Matlab from https://github.com/casadi/casadi/releases/tag/3.5.5: pick the latest applicable matlab archive, unzip it, and add it to the Matlab path (without subdirectories)
+ 6. Make sure you remove any other CasADi version from the Matlab path.
+ 7. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv('ExecutionMode','InProcess')`
+ 8. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
+ 9. Run the `hello_world` example from the example directory (`cd(char(py.rockit.example_dir))`)
 
 Debugging:
  * Check if the correct CasADi Python is found: py.imp.find_module('casadi')
