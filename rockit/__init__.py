@@ -55,9 +55,8 @@ except:
 if in_matlab:
   try:
     sys.setdlopenflags(dlopen_flags)
+    del dlopen_flags
   except:
     pass
-
-  del dlopen_flags
 
 del in_matlab
