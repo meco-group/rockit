@@ -130,7 +130,7 @@ Installation steps:
  1. [Check](https://www.mathworks.com/content/dam/mathworks/mathworks-dot-com/support/sysreq/files/python-support.pdf) which Python versions your Matlab installation supports, e.g. `Python 3.6`
  2. Open up a compatible Python environment in a terminal (if you don't have one, consider [miniconda](https://docs.conda.io/en/latest/miniconda.html) and create an environment by performing commands `conda create --name myspace python=3.6` and `conda activate myspace` inside the Anaconda Prompt).
  3. Perform `pip install "rockit-meco>=0.1.10" "casadi>=3.5.5"` in that teminal
- 4. Launch Matlab from that same terminal
+ 4. Launch Matlab from that same terminal (Type the full path+name of the Matlab executable. In Windows you may find the Matlab executable by right-clicking the icon from the start menu)
  5. Install CasADi for Matlab from https://github.com/casadi/casadi/releases/tag/3.5.5: pick the latest applicable matlab archive, unzip it, and add it to the Matlab path (without subdirectories)
  6. Make sure you remove any other CasADi version from the Matlab path.
  7. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv('ExecutionMode','InProcess')`
