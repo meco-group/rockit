@@ -125,7 +125,7 @@ plot(tsc, x1c, '.')
 
 # Matlab interface
 
-Rockit comes with a (almost) feature-complete interface to Matlab (Windows and Linux only).
+Rockit comes with a (almost) feature-complete interface to Matlab.
 Installation steps:
  1. [Check](https://www.mathworks.com/content/dam/mathworks/mathworks-dot-com/support/sysreq/files/python-support.pdf) which Python versions your Matlab installation supports, e.g. `Python 3.6`
  2. Open up a compatible Python environment in a terminal (if you don't have one, consider [miniconda](https://docs.conda.io/en/latest/miniconda.html) and create an environment by performing commands `conda create --name myspace python=3.6` and `conda activate myspace` inside the Anaconda Prompt).
