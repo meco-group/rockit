@@ -127,7 +127,7 @@ classdef PythonCasadiInterface < handle
                 out = e;
               end
           elseif isnumeric(e)
-              if all(floor(e)==e,'all') && isscalar(e)
+              if isscalar(e) && floor(e)==e
                 out = py.int(e);
               elseif isscalar(e)
                 out = e;
