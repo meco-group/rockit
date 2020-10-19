@@ -955,7 +955,8 @@ class Stage:
             raise Exception(msg)
         N, M = stage._method.N, stage._method.M
 
-        expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
+        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u], [expr])
+        assert not expr_f.has_free()
 
         time = stage._method.control_grid
         total_time = []
@@ -967,7 +968,8 @@ class Stage:
             assert tlocal.is_column()
             ts = tlocal[:-1,:]
             for l in range(M):
-                total_time.append(t0+tlocal[:-1])
+                local_t = t0+tlocal[:-1]
+                total_time.append(local_t)
                 coeff = stage._method.poly_coeff[k * M + l]
                 tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
                 if stage._method.poly_coeff_z:
@@ -976,7 +978,7 @@ class Stage:
                     z = mtimes(coeff_z,tpower_z)
                 else:
                     z = nan
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(mtimes(coeff,tpower), z, stage._method.U[k]), k, l))
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k]), k, l))
                 t0+=dt
 
         ts = tlocal[-1,:]
@@ -988,7 +990,7 @@ class Stage:
         else:
             z = nan
 
-        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]), k, l))
+        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]), k, l))
 
         return vcat(total_time), hcat(sub_expr)
 
@@ -1059,7 +1061,8 @@ class Stage:
             raise Exception(msg)
         N, M = self._method.N, self._method.M
 
-        expr_f = Function('expr', [self.x, self.z, self.u], exprs)
+        expr_f = Function('expr', [self.t, self.x, self.z, self.u], exprs)
+        assert not expr_f.has_free()
 
         time = vcat(self._method.integrator_grid)
         k = low(self._method.control_grid, t)        
@@ -1087,7 +1090,8 @@ class Stage:
             z = nan
 
         Us = hcat(self._method.U)
-        f = Function(name,[self.gist, t],expr_f.call([mtimes(coeff,tpower), z, Us[:,k]]), options)
+        f = Function(name,[self.gist, t],expr_f.call([t, mtimes(coeff,tpower), z, Us[:,k]]), options)
+        assert not f.has_free()
 
         if numpy:
             def wrapper(gist, t):

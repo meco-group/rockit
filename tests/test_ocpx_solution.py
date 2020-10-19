@@ -14,6 +14,7 @@ class OcpSolutionTests(unittest.TestCase):
         ts, xs = sol.sample(x, grid='integrator')
         ts, us = sol.sample(u, grid='integrator')
         ts, uxs = sol.sample(u * x, grid='integrator')
+        ts, tss = sol.sample(ocp.t, grid='integrator')
 
         t_exact = np.linspace(0, T, N * 3 + 1)
         x_exact = np.linspace(1, x0 - 10 * u_max, N * 3 + 1)
@@ -23,10 +24,13 @@ class OcpSolutionTests(unittest.TestCase):
         assert_allclose(xs, x_exact, atol=tolerance)
         assert_allclose(us, u_exact, atol=tolerance)
         assert_allclose(uxs, u_exact * x_exact, atol=tolerance)
-
+        assert_allclose(ts, tss, atol=tolerance)
 
         tsa, tsb = sol.sample(ocp.t, grid='integrator')
         assert_allclose(tsa, tsb, atol=tolerance)
+
+        s = ocp.sampler(ocp.t)
+        assert_allclose(s(sol.gist,ts), tss, atol=tolerance)
 
     def test_intg_refine(self):
         for M in [1, 2]:
@@ -53,6 +57,9 @@ class OcpSolutionTests(unittest.TestCase):
             u_ref = np.array([1.0]*M*10+[-1.0]*(M*10+1))
             ts, us = sol.sample(u, grid='integrator', refine=10)
             assert_allclose(us, u_ref, atol=tolerance)
+
+            ts, tss = sol.sample(ocp.t, grid='integrator', refine=10)
+            assert_allclose(ts, tss, atol=tolerance)
 
     def test_shapes(self):
       N = 3
