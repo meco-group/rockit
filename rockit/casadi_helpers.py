@@ -108,7 +108,7 @@ def get_meta(base=None):
         frame = sys._getframe(2)
         meta = {"stacktrace": [{"file":os.path.abspath(frame.f_code.co_filename),"line":frame.f_lineno,"name":frame.f_code.co_name} ] }
     except:
-        meta = {"stacktrace": []}
+        meta = {"stacktrace": [{"error": "To get a stacktrace, run your code as a script file, not interactively. (No Matlab support yet)"}]}
     return meta
 
 def merge_meta(a, b):
@@ -238,3 +238,25 @@ class HashOrderedDict(OrderedDict):
         for k,v in self.items():
             r[k] = v
         return r
+
+
+def for_all_primitives(expr, rhs, callback, msg, rhs_type=MX):
+    if expr.is_symbolic():
+        callback(expr, rhs)
+        return
+    if expr.is_valid_input():
+        # Promote to correct size
+        rhs = rhs_type(rhs)
+        if rhs.is_scalar() and not expr.is_scalar():
+            rhs = rhs*rhs_type(expr.sparsity())
+        rhs = rhs[expr.sparsity()]
+        rhs = vec(rhs)
+        prim = expr.primitives()
+        rhs = rhs.nz
+        offset = 0
+        for p in prim:
+            callback(p, rhs_type(p.sparsity(), rhs[offset:offset+p.nnz()]))
+            offset += p.nnz()
+    else:
+        raise Exception(msg)
+        

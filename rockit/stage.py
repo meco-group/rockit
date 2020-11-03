@@ -26,7 +26,7 @@ from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from .single_shooting import SingleShooting
 from collections import defaultdict
-from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict
+from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict, for_all_primitives
 from contextlib import contextmanager
 from collections import OrderedDict
 
@@ -74,6 +74,7 @@ class Stage:
         self._master = parent.master if parent else None
         self.parent = parent
 
+        self._meta = HashDict()
         self._param_vals = HashDict()
         self._state_der = HashDict()
         self._state_next = HashDict()
@@ -193,6 +194,7 @@ class Stage:
         import numpy
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x"+str(int(numpy.random.rand()*10000)), n_rows, n_cols)
+        self._meta[x] = get_meta()
         if quad:
             self.qstates.append(x)
         else:
@@ -220,6 +222,7 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         z = MX.sym("z", n_rows, n_cols)
+        self._meta[z] = get_meta()
         self.algebraics.append(z)
         self._set_transcribed(False)
         return z
@@ -227,6 +230,7 @@ class Stage:
     def variable(self, n_rows=1, n_cols=1, grid = ''):
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
+        self._meta[v] = get_meta()
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
@@ -237,6 +241,7 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
+        self._meta[p] = get_meta()
         self.parameters[grid].append(p)
         self._set_transcribed(False)
         return p
@@ -277,19 +282,26 @@ class Stage:
             return u
 
         u = MX.sym("u", n_rows, n_cols)
+        self._meta[u] = get_meta()
         self.controls.append(u)
         self._set_transcribed(False)
         return u
 
     def set_value(self, parameter, value):
         if self.master is not None and self.master.is_transcribed:
-            self._method.set_value(self, self.master._method, parameter, value)            
+            def action(parameter, value):
+                self._method.set_value(self, self.master._method, parameter, value)      
         else:
-            self._param_vals[parameter] = value
+            def action(parameter, value):
+                self._param_vals[parameter] = value
+        for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
+
 
     def set_initial(self, var, value):
         assert "opti" not in str(var)
-        self._initial[var] = value
+        def action(var, value):
+             self._initial[var] = value
+        for_all_primitives(var, value, action, "First argument to set_initial must be a variable/signal or a simple concatenation of variables/signals")
         if self.master is not None and self.master.is_transcribed:
             self._method.set_initial(self, self.master._method, self._initial)
 
@@ -314,7 +326,9 @@ class Stage:
         """
         self._set_transcribed(False)
         assert not self._state_next
-        self._state_der[state] = der
+        def action(state, der):
+            self._state_der[state] = der
+        for_all_primitives(state, der, action, "First argument to set_der must be a state or a simple concatenation of states")
 
     def set_next(self, state, next):
         """Assign an update rule for a discrete state
@@ -337,6 +351,9 @@ class Stage:
         """
         self._set_transcribed(False)
         self._state_next[state] = next
+        def action(state, next):
+            self._state_next[state] = next
+        for_all_primitives(state, next, action, "First argument to set_next must be a state or a simple concatenation of states")
         assert not self._state_der
 
     def add_alg(self, constr):
@@ -668,16 +685,39 @@ class Stage:
 
     # Internal methods
     def _ode(self):
-        ode = veccat(*[self._state_der[k] for k in self.states])
-        quad = veccat(*[self._state_der[k] for k in self.qstates])
+        der = []
+        for k in self.states:
+            try:
+                der.append(self._state_der[k])
+            except:
+                raise Exception("ocp.set_der missing for state defined at " + str(self._meta[k]))
+        ode = veccat(*der)
+        der = []
+        for k in self.qstates:
+            try:
+                der.append(self._state_der[k])
+            except:
+                raise Exception("ocp.set_der missing for quadrature state defined at " + str(self._meta[k]))
+        quad = veccat(*der)
         alg = veccat(*self._alg)
         return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
     # Internal methods
     def _diffeq(self):
-        next = veccat(*[self._state_next[k] for k in self.states])
-        quad = veccat(*[self._state_next[k] for k in self.qstates])
-
+        val = []
+        for k in self.states:
+            try:
+                val.append(self._state_next[k])
+            except:
+                raise Exception("ocp.set_next missing for state defined at " + str(self._meta[k]))
+        next = veccat(*val)
+        val = []
+        for k in self.qstates:
+            try:
+                val.append(self._state_next[k])
+            except:
+                raise Exception("ocp.set_next missing for quadrature state defined at " + str(self._meta[k]))
+        quad = veccat(*val)
         dt = MX(1,1)
         return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
