@@ -108,7 +108,7 @@ def get_meta(base=None):
         frame = sys._getframe(2)
         meta = {"stacktrace": [{"file":os.path.abspath(frame.f_code.co_filename),"line":frame.f_lineno,"name":frame.f_code.co_name} ] }
     except:
-        meta = {"stacktrace": [{"error": "To get a stacktrace, run your code as a script file, not interactively. (No Matlab support yet)"}]}
+        meta = {"stacktrace": []}
     return meta
 
 def merge_meta(a, b):
