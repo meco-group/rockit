@@ -19,7 +19,6 @@ classdef PythonCasadiInterface < handle
             obj.python_deserializer.connect(obj.python_serializer);
             obj.matlab_serializer.connect(obj.matlab_deserializer);
             obj.matlab_deserializer.connect(obj.matlab_serializer);
-123
         end
         function out = python2matlab_ret(obj, e)
           if isa(e,'py.tuple')

@@ -42,7 +42,7 @@ classdef DirectCollocation < rockit.DirectMethod
     end
     function varargout = set_initial(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','opti','initial'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','master','initial'});
       if isempty(kwargs)
         res = obj.parent.set_initial(args{:});
       else

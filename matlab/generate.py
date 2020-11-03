@@ -143,7 +143,7 @@ class MatlabEmittorClass:
       self.out.write(self.multi_line("      ", doc, sig))
       self.out.write("      global pythoncasadiinterface\n");
       self.out.write("      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,{sig});\n".format(sig=self.parent.parse_signature(sig)))
-      if m is "subject_to":
+      if m in ["subject_to","state","control","variable","parameter","algebraic"]:
         self.out.write("      meta = py.None;\n")
         self.out.write("      try\n")
         self.out.write("        st = dbstack('-completenames',1);\n")

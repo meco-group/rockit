@@ -26,7 +26,7 @@ classdef DirectMethod < handle
     end
     function varargout = jacobian(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'opti','with_label'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'with_label'});
       if isempty(kwargs)
         res = obj.parent.jacobian(args{:});
       else
@@ -36,7 +36,7 @@ classdef DirectMethod < handle
     end
     function varargout = hessian(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'opti','with_label'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'with_label'});
       if isempty(kwargs)
         res = obj.parent.hessian(args{:});
       else
@@ -44,13 +44,13 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
-    function varargout = register(obj,varargin)
+    function varargout = inherit(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'template'});
       if isempty(kwargs)
-        res = obj.parent.register(args{:});
+        res = obj.parent.inherit(args{:});
       else
-        res = obj.parent.register(args{:},pyargs(kwargs{:}));
+        res = obj.parent.inherit(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -84,9 +84,19 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = main_transcribe(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','pass_nr','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.main_transcribe(args{:});
+      else
+        res = obj.parent.main_transcribe(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = transcribe(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','opti'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','pass_nr','kwargs'});
       if isempty(kwargs)
         res = obj.parent.transcribe(args{:});
       else
@@ -96,7 +106,7 @@ classdef DirectMethod < handle
     end
     function varargout = set_initial(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','opti','initial'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','master','initial'});
       if isempty(kwargs)
         res = obj.parent.set_initial(args{:});
       else
@@ -113,6 +123,93 @@ classdef DirectMethod < handle
         res = obj.parent.transcribe_placeholders(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = non_converged_solution(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage'});
+      if isempty(kwargs)
+        res = obj.parent.non_converged_solution(args{:});
+      else
+        res = obj.parent.non_converged_solution(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = solve(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage'});
+      if isempty(kwargs)
+        res = obj.parent.solve(args{:});
+      else
+        res = obj.parent.solve(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = solve_limited(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage'});
+      if isempty(kwargs)
+        res = obj.parent.solve_limited(args{:});
+      else
+        res = obj.parent.solve_limited(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = callback(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','fun'});
+      if isempty(kwargs)
+        res = obj.parent.callback(args{:});
+      else
+        res = obj.parent.callback(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = solver(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'solver','solver_options'});
+      if isempty(kwargs)
+        res = obj.parent.solver(args{:});
+      else
+        res = obj.parent.solver(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = show_infeasibilities(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'args','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.show_infeasibilities(args{:});
+      else
+        res = obj.parent.show_infeasibilities(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = to_function(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'stage','name','args','results','margs'});
+      if isempty(kwargs)
+        res = obj.parent.to_function(args{:});
+      else
+        res = obj.parent.to_function(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function out = debug(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.debug);
+    end
+    function out = gist(obj)
+      % Obtain an expression packing all information needed to obtain value/sample
+      % 
+      %         The composition of this array may vary between rockit versions
+      % 
+      %         Returns
+      %         -------
+      %         :obj:`~casadi.MX` column vector
+      % 
+      %         
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.gist);
     end
   end
 end

@@ -101,7 +101,7 @@ classdef Stage < handle
     end
     function varargout = state(obj,varargin)
       % Create a state.
-      % Arguments: n_rows=1, n_cols=1, quad=False
+      % Arguments: n_rows=1, n_cols=1, quad=False, meta=None
       %         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
       % 
       %         Parameters
@@ -129,7 +129,17 @@ classdef Stage < handle
       %         >>> ocp.set_initial(x, sin(ocp.t)) # Optional: give initial guess
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','quad'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','quad','meta'});
+      meta = py.None;
+      try
+        st = dbstack('-completenames',1);
+        if length(st)>0
+          meta = struct('stacktrace', {{st(1)}});
+          meta = pythoncasadiinterface.matlab2python(meta);
+        end
+      catch
+      end
+      kwargs = {kwargs{:} 'meta' meta};
       if isempty(kwargs)
         res = obj.parent.state(args{:});
       else
@@ -139,7 +149,7 @@ classdef Stage < handle
     end
     function varargout = algebraic(obj,varargin)
       % Create an algebraic variable
-      % Arguments: n_rows=1, n_cols=1
+      % Arguments: n_rows=1, n_cols=1, meta=None
       %         You must supply an algebraic relation with:obj:`~rockit.stage.Stage.set_alg`
       % 
       %         Parameters
@@ -157,7 +167,17 @@ classdef Stage < handle
       %             A CasADi symbol representing an algebraic variable
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','meta'});
+      meta = py.None;
+      try
+        st = dbstack('-completenames',1);
+        if length(st)>0
+          meta = struct('stacktrace', {{st(1)}});
+          meta = pythoncasadiinterface.matlab2python(meta);
+        end
+      catch
+      end
+      kwargs = {kwargs{:} 'meta' meta};
       if isempty(kwargs)
         res = obj.parent.algebraic(args{:});
       else
@@ -167,7 +187,17 @@ classdef Stage < handle
     end
     function varargout = variable(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','meta'});
+      meta = py.None;
+      try
+        st = dbstack('-completenames',1);
+        if length(st)>0
+          meta = struct('stacktrace', {{st(1)}});
+          meta = pythoncasadiinterface.matlab2python(meta);
+        end
+      catch
+      end
+      kwargs = {kwargs{:} 'meta' meta};
       if isempty(kwargs)
         res = obj.parent.variable(args{:});
       else
@@ -177,11 +207,21 @@ classdef Stage < handle
     end
     function varargout = parameter(obj,varargin)
       % 
-      % Arguments: n_rows=1, n_cols=1, grid=
+      % Arguments: n_rows=1, n_cols=1, grid=, meta=None
       %         Create a parameter
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','meta'});
+      meta = py.None;
+      try
+        st = dbstack('-completenames',1);
+        if length(st)>0
+          meta = struct('stacktrace', {{st(1)}});
+          meta = pythoncasadiinterface.matlab2python(meta);
+        end
+      catch
+      end
+      kwargs = {kwargs{:} 'meta' meta};
       if isempty(kwargs)
         res = obj.parent.parameter(args{:});
       else
@@ -191,7 +231,7 @@ classdef Stage < handle
     end
     function varargout = control(obj,varargin)
       % Create a control signal to optimize for
-      % Arguments: n_rows=1, n_cols=1, order=0
+      % Arguments: n_rows=1, n_cols=1, order=0, meta=None
       % 
       %         A control signal is parametrized as a piecewise polynomial.
       %         By default (order=0), it is piecewise constant.
@@ -219,7 +259,17 @@ classdef Stage < handle
       %         >>> ocp.set_initial(u, sin(ocp.t)) # Optional: give initial guess
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order','meta'});
+      meta = py.None;
+      try
+        st = dbstack('-completenames',1);
+        if length(st)>0
+          meta = struct('stacktrace', {{st(1)}});
+          meta = pythoncasadiinterface.matlab2python(meta);
+        end
+      catch
+      end
+      kwargs = {kwargs{:} 'meta' meta};
       if isempty(kwargs)
         res = obj.parent.control(args{:});
       else

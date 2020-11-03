@@ -163,7 +163,7 @@ class Stage:
         self._set_transcribed(False)
         return s
 
-    def state(self, n_rows=1, n_cols=1, quad=False):
+    def state(self, n_rows=1, n_cols=1, quad=False,meta=None):
         """Create a state.
         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
 
@@ -194,7 +194,7 @@ class Stage:
         import numpy
         # Create a placeholder symbol with a dummy name (see #25)
         x = MX.sym("x"+str(int(numpy.random.rand()*10000)), n_rows, n_cols)
-        self._meta[x] = get_meta()
+        self._meta[x] = merge_meta(meta, get_meta())
         if quad:
             self.qstates.append(x)
         else:
@@ -202,7 +202,7 @@ class Stage:
         self._set_transcribed(False)
         return x
 
-    def algebraic(self, n_rows=1, n_cols=1):
+    def algebraic(self, n_rows=1, n_cols=1,meta=None):
         """Create an algebraic variable
         You must supply an algebraic relation with:obj:`~rockit.stage.Stage.set_alg`
 
@@ -222,31 +222,31 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         z = MX.sym("z", n_rows, n_cols)
-        self._meta[z] = get_meta()
+        self._meta[z] = merge_meta(meta, get_meta())
         self.algebraics.append(z)
         self._set_transcribed(False)
         return z
 
-    def variable(self, n_rows=1, n_cols=1, grid = ''):
+    def variable(self, n_rows=1, n_cols=1, grid = '',meta=None):
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
-        self._meta[v] = get_meta()
+        self._meta[v] = merge_meta(meta, get_meta())
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
 
-    def parameter(self, n_rows=1, n_cols=1, grid = ''):
+    def parameter(self, n_rows=1, n_cols=1, grid = '',meta=None):
         """
         Create a parameter
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
-        self._meta[p] = get_meta()
+        self._meta[p] = merge_meta(meta, get_meta())
         self.parameters[grid].append(p)
         self._set_transcribed(False)
         return p
 
-    def control(self, n_rows=1, n_cols=1, order=0):
+    def control(self, n_rows=1, n_cols=1, order=0,meta=None):
         """Create a control signal to optimize for
 
         A control signal is parametrized as a piecewise polynomial.
@@ -282,7 +282,7 @@ class Stage:
             return u
 
         u = MX.sym("u", n_rows, n_cols)
-        self._meta[u] = get_meta()
+        self._meta[u] = merge_meta(meta, get_meta())
         self.controls.append(u)
         self._set_transcribed(False)
         return u
