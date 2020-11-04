@@ -19,6 +19,7 @@ setup(
     keywords="OCP optimal control casadi",
     url='https://gitlab.kuleuven.be/meco-software/rockit',
     packages=find_packages(exclude=['tests', 'examples']),
+    include_package_data=True,
     long_description=open('README.md').read(),
     long_description_content_type='text/markdown',
     install_requires=[
@@ -34,6 +35,5 @@ setup(
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering'
     ],
-    download_url='https://gitlab.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version),
-    package_data = {"rockit": ["matlab/+rockit/*.m","examples/*.m","examples/*.py","examples/helpers/*.m","examples/helpers/*.py"]}
+    download_url='https://gitlab.kuleuven.be/meco-software/rockit/-/archive/v%s/rockit-v%s.tar.gz' % (version, version)
 )

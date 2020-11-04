@@ -47,8 +47,7 @@ try:
 except:
   example_dir = "not_found"
 
-try:
-  matlab_path = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)),"matlab"))
+  matlab_path = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))
 except:
   matlab_path = "not_found"
 

@@ -7,7 +7,7 @@ class MatlabEmittor:
   def __init__(self,package_name):
     self.python_ref_name = "parent"
     self.package_name = package_name
-    self.dir = "+"+self.package_name
+    self.dir = os.path.join("..","rockit","+"+self.package_name)
     os.makedirs(self.dir,exist_ok=True)
 
   def make_class(self,name,module,doc,inherit_from=None):

@@ -90,6 +90,10 @@ ocp.method(method)
 # Solve
 sol = ocp.solve()
 
+# Look at solution even if not converged
+# (you may need to try/except the previous solve command)
+sol = ocp.non_converged_solution;
+
 #%%
 # Post-processing
 # ---------------

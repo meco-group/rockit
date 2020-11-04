@@ -135,7 +135,7 @@ Installation steps:
  6. Make sure you remove any other CasADi version from the Matlab path.
  7. Only for Matlab >=2019b: make sure you do have in-process ExecutionMode for speed `pyenv('ExecutionMode','InProcess')`
  8. Add rockit to the matlab path: `addpath(char(py.rockit.matlab_path))`
- 9. Run the `hello_world` example from the example directory (`cd(char(py.rockit.example_dir))`)
+ 9. Run the `hello_world` example from the [example directory](https://gitlab.kuleuven.be/meco-software/rockit/-/tree/master/examples)
 
 Debugging:
  * Check if the correct CasADi Python is found: py.imp.find_module('casadi')
