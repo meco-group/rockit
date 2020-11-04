@@ -43,10 +43,6 @@ from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
 from .solution import OcpSolution
 
 try:
-  example_dir = os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)),"examples"))
-except:
-  example_dir = "not_found"
-
   matlab_path = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))
 except:
   matlab_path = "not_found"
