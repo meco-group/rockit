@@ -104,6 +104,12 @@ Solve:
 sol = ocp.solve()
 ```
 
+In case the solver fails, you can still look at the solution:
+_(you may need to wrap the solve line in try/except to avoid the script aborting)_
+```python
+sol = ocp.non_converged_solution
+```
+
 Show structure:
 ```python
 ocp.spy()
