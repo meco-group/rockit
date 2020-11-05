@@ -64,6 +64,61 @@ class StageTests(unittest.TestCase):
           self.assertAlmostEqual(x2sol[k+1], x1sol[k])
           self.assertAlmostEqual(x1sol[k+1], (1 - x2sol[k]**2) * x1sol[k] - x2sol[k] + usol[k])
 
+
+    def test_initial(self):
+        for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:
+            for T_stage, T_sol_stage in [(None, 2), (2, 2), (FreeTime(1), 2)]:
+                kwargs = {}
+                if t0_stage is not None:
+                    kwargs["t0"] = t0_stage
+                if T_stage is not None:
+                    kwargs["T"] = T_stage
+                stage = Stage(**kwargs)
+
+                p = stage.state()
+                v = stage.state()
+                u = stage.control()
+
+                stage.set_der(p, v)
+                stage.set_der(v, u)
+
+                stage.subject_to(u <= 1)
+                stage.subject_to(-1 <= u)
+
+                #stage.set_initial(p, stage.t)
+
+                stage.add_objective(stage.tf)
+                stage.method(MultipleShooting(N=2))
+
+                for t0, t0_sol in ([] if t0_stage is None else [(None, t0_sol_stage)]) + [(-1, -1), (FreeTime(-1), -1)]:
+                    for T, T_sol in ([] if T_stage is None else [(None, T_sol_stage)]) + [(2, 2), (FreeTime(1), 2)]:
+                        ocp = Ocp()
+
+                        kwargs = {}
+                        if t0 is not None:
+                            kwargs["t0"] = t0
+                        if T is not None:
+                            kwargs["T"] = T
+                        mystage = ocp.stage(stage, **kwargs)
+
+                        if isinstance(t0,FreeTime) or (t0 is None and isinstance(t0_stage,FreeTime)):
+                          print("stage", mystage.t0)
+                          ocp.subject_to(mystage.t0 >= t0_sol)
+
+                        ocp.solver('ipopt',{"ipopt.max_iter": 0})
+                        mystage.set_initial(p, mystage.t)
+                        sol = ocp.solve_limited()
+
+
+                        t0_num = sol(mystage).value(mystage.t0)
+                        T_num = sol(mystage).value(mystage.T)
+
+                        tolerance = 1e-6
+
+                        ps_ref = np.linspace(t0_num, t0_num+T_num, 2+1)
+                        ts, ps = sol(mystage).sample(p, grid='control')
+                        np.testing.assert_allclose(ps, ps_ref, atol=tolerance)
+
     def test_stage_cloning_t0_T(self):
         for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:
             for T_stage, T_sol_stage in [(None, 2), (2, 2), (FreeTime(1), 2)]:
