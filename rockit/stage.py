@@ -84,7 +84,6 @@ class Stage:
         self._initial = HashOrderedDict()
 
         self._placeholders = HashDict()
-        self._placeholder_callbacks = HashDict()
         self._offsets = HashDict()
         self._inf_inert = HashOrderedDict()
         self._inf_der = HashOrderedDict()
@@ -671,16 +670,15 @@ class Stage:
 
     def _create_placeholder_expr(self, expr, callback_name):
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
-        self._placeholders[r] = expr
-        self._placeholder_callbacks[r] = callback_name
+        self._placeholders[r] = (callback_name, expr)
         if self.master is not None:
             self.master._transcribed_placeholders.mark_dirty()
         return r
 
     def _transcribe_placeholders(self, method, placeholders):
-        for k, v in self._placeholders.items():
+        for k, (n,v) in list(self._placeholders.items()):
             if k not in placeholders:
-                callback = getattr(method, 'fill_placeholders_' + self._placeholder_callbacks[k])
+                callback = getattr(method, 'fill_placeholders_' + n)
                 placeholders[k] = callback(self, v)
 
     # Internal methods
@@ -827,7 +825,6 @@ class Stage:
             else:
                 subst_to.append(MX.sym(k.name(), k.sparsity()))
         for k_old, k_new in zip(subst_from, subst_to):
-            ret._placeholder_callbacks[k_new] = self._placeholder_callbacks[k_old]
             ret._placeholders[k_new] = self._placeholders[k_old]
 
         ret.states = copy(self.states)
