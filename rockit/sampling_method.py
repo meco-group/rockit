@@ -336,11 +336,11 @@ class SamplingMethod(DirectMethod):
         """
         return stage._transcribe_placeholders(self, placeholders)
 
-    def transcribe(self, stage, pass_nr=1,**kwargs):
+    def transcribe(self, stage, phase=1,**kwargs):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
-        if pass_nr>1: return
+        if phase>1: return
         opti = stage.master._method.opti
         DM.set_precision(14)
         self.add_variables(stage, opti)

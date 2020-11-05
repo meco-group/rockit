@@ -62,12 +62,12 @@ class AcadosInterface:
     def fill_placeholders_at_tf(self, stage, expr, *args):
         return expr
 
-    def main_transcribe(self, stage, pass_nr=1, **kwargs):
+    def main_transcribe(self, stage, phase=1, **kwargs):
         pass
 
-    def transcribe(self, stage, pass_nr=1, **kwargs):
+    def transcribe(self, stage, phase=1, **kwargs):
 
-        if pass_nr==1:
+        if phase==1:
             self.stage = stage
             self.ocp = ocp = AcadosOcp()
             self.opti = Opti()

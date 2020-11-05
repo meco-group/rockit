@@ -74,7 +74,7 @@ class Ocp(Stage):
             self._transcribe_recurse()
             self._set_transcribed(True)
             self._transcribed_placeholders.clear()
-            self._transcribe_recurse(pass_nr=2,placeholders=self.placeholders_transcribed)
+            self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed)
 
     @property
     def placeholders_transcribed(self):

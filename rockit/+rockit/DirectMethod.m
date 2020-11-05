@@ -86,7 +86,7 @@ classdef DirectMethod < handle
     end
     function varargout = main_transcribe(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','pass_nr','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','phase','kwargs'});
       if isempty(kwargs)
         res = obj.parent.main_transcribe(args{:});
       else
@@ -96,7 +96,7 @@ classdef DirectMethod < handle
     end
     function varargout = transcribe(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','pass_nr','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','phase','kwargs'});
       if isempty(kwargs)
         res = obj.parent.transcribe(args{:});
       else

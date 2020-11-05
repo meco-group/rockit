@@ -792,16 +792,16 @@ class Stage:
         else:
             return False
 
-    def _transcribe_recurse(self, pass_nr=1, **kwargs):
+    def _transcribe_recurse(self, phase=1, **kwargs):
         if self._method is not None:
             if self is self.master:
-                self._method.main_transcribe(self, pass_nr=pass_nr, **kwargs)
-            self._method.transcribe(self, pass_nr=pass_nr, **kwargs)
+                self._method.main_transcribe(self, phase=phase, **kwargs)
+            self._method.transcribe(self, phase=phase, **kwargs)
         else:
             print("master",self)
 
         for s in self._stages:
-            s._transcribe_recurse(pass_nr=pass_nr, **kwargs)
+            s._transcribe_recurse(phase=phase, **kwargs)
 
     def _placeholders_transcribe_recurse(self, placeholders):
         if self._method is not None:

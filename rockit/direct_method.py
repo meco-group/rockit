@@ -83,20 +83,20 @@ class DirectMethod:
             V.append(opti.variable(v.shape[0], v.shape[1]))
         self.V = veccat(*V)
 
-    def main_transcribe(self, stage, pass_nr=1, **kwargs):
-        if pass_nr==1:
+    def main_transcribe(self, stage, phase=1, **kwargs):
+        if phase==1:
             self.opti = OptiWrapper(stage)
             if self._callback:
                 self.opti.callback(self._callback)
             if self.solver is not None:
                 self.opti.solver(self._solver, self._solver_options)
-        if pass_nr==2:
+        if phase==2:
             self.opti.transcribe_placeholders(kwargs["placeholders"])
 
-    def transcribe(self, stage, pass_nr=1, **kwargs):
-        if pass_nr==2:
+    def transcribe(self, stage, phase=1, **kwargs):
+        if phase==2:
             self.opti.transcribe_placeholders(kwargs["placeholders"])
-        if pass_nr>1: return
+        if phase>1: return
         self.add_variables(stage, self.opti)
 
         for c, m, _ in stage._constraints["point"]:
