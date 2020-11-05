@@ -506,9 +506,6 @@ class SamplingMethod(DirectMethod):
         return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.V, self.get_v_control_at(stage, k))
 
     def eval(self, stage, expr):
-        # This could be avoided if we let transcribe_placeholders return method.t0 instead of stage.t0 for phase 2
-        placeholders = stage.master._transcribed_placeholders
-        expr = placeholders(expr)
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
 
     def eval_at_control(self, stage, expr, k):
