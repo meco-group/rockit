@@ -20,7 +20,9 @@
 #
 #
 
-from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat, linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM, is_equal
+from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat,\
+                   linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM, is_equal, \
+                   Sparsity
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
@@ -97,16 +99,14 @@ class Stage:
         self._offsets = HashDict()
         self._inf_inert = HashOrderedDict()
         self._inf_der = HashOrderedDict()
-        self._t = MX.sym('t')
+        self._t = self._create_placeholder_expr(0, 't')
         self._stages = []
         self._method = DirectMethod()
         self._t0 = t0
         self._T = T
-        self._public_T = self._create_placeholder_expr(0, 'T')
+        self._public_T  = self._create_placeholder_expr(0, 'T')
         self._public_t0 = self._create_placeholder_expr(0, 't0')
         self._tf = self.T + self.t0
-        if not clone:
-            self._check_free_time()
     
     @property
     def master(self):
@@ -127,17 +127,6 @@ class Stage:
     @property
     def tf(self):
         return self._tf
-
-    def _check_free_time(self):
-        if isinstance(self._t0, FreeTime):
-            init = self._t0.T_init
-            self.set_t0(self.variable())
-            self.set_initial(self._t0, init)
-        if isinstance(self._T, FreeTime):
-            init = self._T.T_init
-            self.set_T(self.variable())
-            self.subject_to(self._T>=0)
-            self.set_initial(self._T, init)
 
     def set_t0(self, t0):
         self._t0 = t0
@@ -306,10 +295,12 @@ class Stage:
         for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
 
 
-    def set_initial(self, var, value):
+    def set_initial(self, var, value, priority=True):
         assert "opti" not in str(var)
         def action(var, value):
-             self._initial[var] = value
+            self._initial[var] = value
+            if priority:
+                self._initial.move_to_end(var, last=False)
         for_all_primitives(var, value, action, "First argument to set_initial must be a variable/signal or a simple concatenation of variables/signals")
         if self.master is not None and self.master.is_transcribed:
             self._method.set_initial(self, self.master._method, self._initial)
@@ -321,6 +312,7 @@ class Stage:
         ----------
         state : `~casadi.MX`
             A CasADi symbol created with :obj:`~rockit.stage.Stage.state`.
+            May not be an indexed or sliced state
         der : `~casadi.MX`
             A CasADi symbolic expression of the same size as `state`
 
@@ -390,9 +382,7 @@ class Stage:
                          Note that the final state is not included in this definition
         """
         if grid=='inf':
-            I = self.state(quad=True)
-            self.set_der(I, expr)
-            return self.at_tf(I)
+            return self._create_placeholder_expr(expr, 'integral')
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
 
@@ -679,6 +669,13 @@ class Stage:
         return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def _create_placeholder_expr(self, expr, callback_name):
+        """
+        Placeholders are transcribed in two phases
+           Phase 1: before any decision variables are created
+             e.g. augmenting the state-space (ocp.integral)
+           Phase 2: substituting to concrete decision variables
+
+        """
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
         self._placeholders[r] = (callback_name, expr)
         if self.master is not None:
@@ -686,10 +683,22 @@ class Stage:
         return r
 
     def _transcribe_placeholders(self, phase, method, placeholders):
-        for k, (n,v) in list(self._placeholders.items()):
-            if k not in placeholders:
-                callback = getattr(method, 'fill_placeholders_' + n)
-                placeholders[k] = callback(phase, self, v)
+        # Fixed-point iteration:
+        # Phase 1 may introduce extra placeholders
+        while True:
+            len_before = len(self._placeholders)
+            for k, (n,v) in list(self._placeholders.items()):
+                if k not in placeholders[phase]:
+                    callback = getattr(method, 'fill_placeholders_' + n)
+                    if phase==2 and k in placeholders[phase-1]:
+                        v = placeholders[phase-1][k]
+                    ret = callback(phase, self, v)
+                    if ret is not None:
+                        placeholders[phase][k] = ret
+                        if phase==2 and isinstance(v,MX) and v.is_symbolic() and k in placeholders[phase-1]:
+                            placeholders[phase][v] = ret
+            len_after = len(self._placeholders)
+            if len_before==len_after: break
 
     # Internal methods
     def _ode(self):
@@ -831,7 +840,7 @@ class Stage:
                 self._method.main_transcribe(self, phase=phase, **kwargs)
             self._method.transcribe(self, phase=phase, **kwargs)
         else:
-            print("master",self)
+            pass
 
         for s in self._stages:
             s._transcribe_recurse(phase=phase, **kwargs)
@@ -856,6 +865,8 @@ class Stage:
                 subst_to.append(ret.T)
             elif is_equal(k, self.t0):
                 subst_to.append(ret.t0)
+            elif is_equal(k, self.t):
+                subst_to.append(ret.t)
             else:
                 subst_to.append(MX.sym(k.name(), k.sparsity()))
         for k_old, k_new in zip(subst_from, subst_to):
@@ -889,14 +900,14 @@ class Stage:
             r = r[len(v):]
 
         ret._initial = HashOrderedDict(zip(res[n_constr+1:], self._initial.values()))
-        ret._check_free_time()
 
         if "T" not in kwargs:
             ret._T = copy(self._T)
         if "t0" not in kwargs:
             ret._t0 = copy(self._t0)
-        ret._t = self.t
         ret._method = deepcopy(self._method)
+        ret._method.T = None
+        ret._method.t0 = None
         ret._var_original = self._var_original
 
         ret._var_is_transcribed = False

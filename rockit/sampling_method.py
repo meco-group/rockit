@@ -235,8 +235,10 @@ class SamplingMethod(DirectMethod):
         self.X = []  # List that will hold N+1 decision variables for state vector
         self.U = []  # List that will hold N decision variables for control vector
         self.Z = []  # Algebraic vars
-        self.T = None
+
+        self.T = None # Will be set to numbers/opti.variables
         self.t0 = None
+
         self.P = []
         self.V = None
         self.V_control = []
@@ -354,10 +356,8 @@ class SamplingMethod(DirectMethod):
         self.add_constraints(stage, opti)
         self.add_constraints_after(stage, opti)
         self.add_objective(stage, opti)
-    
-        # Create time grid (might be symbolic)
-        self.T = self.eval(stage, stage._T)
-        self.t0 = self.eval(stage, stage._t0)
+
+
 
         self.set_initial(stage, opti, stage._initial)
         T_init = opti.debug.value(self.T, opti.initial())
@@ -376,6 +376,7 @@ class SamplingMethod(DirectMethod):
 
         self.set_initial(stage, opti, initial)
         self.set_parameter(stage, opti)
+
 
     def add_constraints_before(self, stage, opti):
         for c, meta, _ in stage._constraints["point"]:
@@ -422,6 +423,7 @@ class SamplingMethod(DirectMethod):
         except IndexError:
             pass
     def fill_placeholders_integral_control(self, phase, stage, expr, *args):
+        if phase==1: return
         r = 0
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
@@ -429,6 +431,7 @@ class SamplingMethod(DirectMethod):
         return r
 
     def fill_placeholders_sum_control(self, phase, stage, expr, *args):
+        if phase==1: return
         r = 0
         for k in range(self.N):
             r = r + self.eval_at_control(stage, expr, k)
@@ -438,16 +441,12 @@ class SamplingMethod(DirectMethod):
         self.eval_at_control(stage, expr, k+1)
 
     def fill_placeholders_at_t0(self, phase, stage, expr, *args):
+        if phase==1: return
         return self.eval_at_control(stage, expr, 0)
 
     def fill_placeholders_at_tf(self, phase, stage, expr, *args):
+        if phase==1: return
         return self.eval_at_control(stage, expr, -1)
-
-    def fill_placeholders_t0(self, phase, stage, expr, *args):
-        return self.t0
-
-    def fill_placeholders_T(self, phase, stage, expr, *args):
-        return self.T
 
     def add_objective(self, stage, opti):
         opti.add_objective(self.eval(stage, stage._objective))
@@ -507,7 +506,10 @@ class SamplingMethod(DirectMethod):
         return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.V, self.get_v_control_at(stage, k))
 
     def eval(self, stage, expr):
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=self.t0, T=self.T))
+        # This could be avoided if we let transcribe_placeholders return method.t0 instead of stage.t0 for phase 2
+        placeholders = stage.master._transcribed_placeholders
+        expr = placeholders(expr)
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
 
     def eval_at_control(self, stage, expr, k):
         try:

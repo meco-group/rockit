@@ -24,6 +24,7 @@ from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM, vert
 import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 from .solution import OcpSolution
+from .freetime import FreeTime
 
 class DirectMethod:
     """
@@ -75,6 +76,8 @@ class DirectMethod:
         return self.eval_top(stage, expr)
 
     def eval_top(self, stage, expr):
+        placeholders = stage.master._transcribed_placeholders
+        expr = placeholders(expr)
         return substitute(expr,veccat(*stage.variables[""]),self.V)
 
     def add_variables(self, stage, opti):
@@ -94,8 +97,6 @@ class DirectMethod:
             self.opti.transcribe_placeholders(phase, kwargs["placeholders"])
 
     def transcribe(self, stage, phase=1, **kwargs):
-        if phase==2:
-            self.opti.transcribe_placeholders(phase, kwargs["placeholders"])
         if phase>1: return
         self.add_variables(stage, self.opti)
 
@@ -154,6 +155,38 @@ class DirectMethod:
 
     def to_function(self, stage, name, args, results, *margs):
         return self.opti.to_function(name, [stage.value(a) for a in args], results, *margs)
+
+    def fill_placeholders_integral(self, phase, stage, expr, *args):
+        if phase==1:
+            I = stage.state(quad=True)
+            stage.set_der(I, expr)
+            return stage.at_tf(I)
+
+    def fill_placeholders_T(self, phase, stage, expr, *args):
+        if phase==1:
+            if isinstance(stage._T, FreeTime):
+                init = stage._T.T_init
+                stage.set_T(stage.variable())
+                stage.subject_to(stage._T>=0)
+                stage.set_initial(stage._T, init,priority=True)
+                return stage._T
+            else:
+                return stage._T
+        return self.eval(stage, expr)
+
+    def fill_placeholders_t0(self, phase, stage, expr, *args):
+        if phase==1:
+            if isinstance(stage._t0, FreeTime):
+                init = stage._t0.T_init
+                stage.set_t0(stage.variable())
+                stage.set_initial(stage._t0, init,priority=True)
+                return stage._t0
+            else:
+                return stage._t0
+        return self.eval(stage, expr)
+
+    def fill_placeholders_t(self, phase, stage, expr, *args):
+        return None
 
 from casadi import substitute
 

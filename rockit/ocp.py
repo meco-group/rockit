@@ -96,8 +96,9 @@ class Ocp(Stage):
 
     def _transcribe(self):
         if not self.is_transcribed:
-            self._transcribe_recurse()
             self._transcribed_placeholders.clear()
+            self._placeholders_transcribe_recurse(1,self._transcribed_placeholders)
+            self._transcribe_recurse()
             self._original._set_transcribed(True)
 
             self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed)
@@ -105,8 +106,11 @@ class Ocp(Stage):
     @property
     @transcribed
     def placeholders_transcribed(self):
+        """
+        May also be called after solving (issue #91)
+        """
         if self._transcribed_placeholders.is_dirty:
-            self._placeholders_transcribe_recurse(2, self._transcribed_placeholders.pool)
+            self._placeholders_transcribe_recurse(2, self._transcribed_placeholders)
             self._transcribed_placeholders.is_dirty = False
         return self._transcribed_placeholders
 
