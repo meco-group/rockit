@@ -1,4 +1,4 @@
-from casadi import substitute, depends_on, vvcat
+from casadi import substitute, depends_on, vvcat, DM
 from .casadi_helpers import HashDict
 
 class TranscribedPlaceholders:
@@ -26,6 +26,10 @@ class TranscribedPlaceholders:
         ks += k
         vs += [self[1][e] for e in k]
         kv = vvcat(ks)
+
+        # No use doing placeholder substitution on DM
+        if isinstance(vvcat(args), DM):
+            return args
 
         # Fixed-point iteration
         while depends_on(vvcat(args), kv):
