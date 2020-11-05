@@ -30,7 +30,7 @@ class OcpSolution:
     def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
-        self.stage = stage # SHould this be ocP?
+        self.stage = stage._augmented # SHould this be ocP?
         self._gist = np.array(nlpsol.value(self.stage.master.gist)).squeeze()
 
     def __call__(self, stage):

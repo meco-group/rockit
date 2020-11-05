@@ -33,6 +33,13 @@ from collections import OrderedDict
 import numpy as np
 from numpy import nan
 
+def transcribed(func):
+    def function_wrapper(self, *args, **kwargs):
+        return func(self._transcribed, *args, **kwargs)
+    function_wrapper._decorator_original = func
+    function_wrapper.__doc__ = func.__doc__
+    return function_wrapper
+
 class Stage:
     """
         A stage is defined on a time domain and has particular system dynamics
@@ -75,6 +82,9 @@ class Stage:
         self.parent = parent
 
         self._meta = HashDict()
+        self._var_original = None
+        self._var_augmented = None
+
         self._param_vals = HashDict()
         self._state_der = HashDict()
         self._state_next = HashDict()
@@ -781,9 +791,32 @@ class Stage:
 
     _constr_apply = _expr_apply
 
+    @property
+    def _is_original(self):
+        return not self._var_original
+
+    @property
+    def _original(self):
+        return self._var_original if self._var_original else self
+
+    @property
+    def _augmented(self):
+        return self._var_augmented if self._var_augmented else self
+
     def _set_transcribed(self, val):
         if self.master:
-            self.master._is_transcribed = val
+            if self._is_original:
+                self.master._var_is_transcribed = val
+
+    """
+        In fact, both the original and the augmented should separately kee a transcribed flag
+    """
+    @property
+    def _is_transcribed(self):
+        if self._is_original:
+            return self.master._var_is_transcribed 
+        else:
+            return self._original._is_transcribed
 
     @property
     def is_transcribed(self):
@@ -811,6 +844,7 @@ class Stage:
             s._placeholders_transcribe_recurse(phase, placeholders)
 
     def clone(self, parent, **kwargs):
+        assert self._is_original
         ret = Stage(parent, **kwargs)
         from copy import copy, deepcopy
 
@@ -863,9 +897,27 @@ class Stage:
             ret._t0 = copy(self._t0)
         ret._t = self.t
         ret._method = deepcopy(self._method)
+        ret._var_original = self._var_original
 
-        ret._is_transcribed = False
+        ret._var_is_transcribed = False
         return ret
+
+    def __deepcopy__(self, memo):
+        # Get default deepcopy behaviour
+        import copy
+        deepcopy_method = self.__deepcopy__
+        self.__deepcopy__ = None
+        cp = copy.deepcopy(self, memo)
+        self.__deepcopy__ = deepcopy_method
+        cp.__deepcopy__ = deepcopy_method
+
+        # Custom amendments
+        cp._var_original = self
+        self._var_augmented = cp
+
+        cp._method = self._method
+
+        return cp
 
     def iter_stages(self, include_self=False):
         if include_self:

@@ -21,7 +21,7 @@
 #
 
 from casadi import vertcat
-from .stage import Stage
+from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
 
 class Ocp(Stage):
@@ -46,21 +46,26 @@ class Ocp(Stage):
         self._master = self
         # Flag to make solve() faster when solving a second time
         # (e.g. with different parameter values)
-        self._is_transcribed = False
+        self._var_is_transcribed = False
         self._transcribed_placeholders = TranscribedPlaceholders()
 
+    @transcribed
     def jacobian(self, with_label=False):
         return self._method.jacobian(with_label=with_label)
 
+    @transcribed
     def hessian(self, with_label=False):
         return self._method.hessian(with_label=with_label)
 
+    @transcribed
     def spy_jacobian(self):
         self._method.spy_jacobian()
 
+    @transcribed
     def spy_hessian(self):
         self._method.spy_hessian()
 
+    @transcribed
     def spy(self):
         import matplotlib.pylab as plt
         plt.subplots(1, 2, figsize=(10, 4))
@@ -69,16 +74,37 @@ class Ocp(Stage):
         plt.subplot(1, 2, 2)
         self.spy_hessian()
 
+    @property
+    def _transcribed(self):
+        if self._is_original:
+            if self._is_transcribed:
+                return self._augmented
+            else:
+
+                import copy
+                augmented = copy.deepcopy(self)
+                augmented._master = augmented
+                augmented._transcribed_placeholders = self._transcribed_placeholders
+                augmented._var_original = self
+                self._var_augmented = augmented
+                augmented._placeholders = self._placeholders
+                
+                return self._augmented._transcribed
+        else:
+            self._transcribe()
+            return self
+
     def _transcribe(self):
         if not self.is_transcribed:
             self._transcribe_recurse()
-            self._set_transcribed(True)
             self._transcribed_placeholders.clear()
+            self._original._set_transcribed(True)
+
             self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed)
 
     @property
+    @transcribed
     def placeholders_transcribed(self):
-        self._transcribe()
         if self._transcribed_placeholders.is_dirty:
             self._placeholders_transcribe_recurse(2, self._transcribed_placeholders.pool)
             self._transcribed_placeholders.is_dirty = False
@@ -88,12 +114,12 @@ class Ocp(Stage):
     def non_converged_solution(self):
         return self._method.non_converged_solution(self)
 
+    @transcribed
     def solve(self):
-        self._transcribe()
         return self._method.solve(self)
  
+    @transcribed
     def solve_limited(self):
-        self._transcribe()
         return self._method.solve_limited(self)
 
     def callback(self, fun):

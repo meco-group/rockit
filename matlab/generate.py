@@ -198,6 +198,8 @@ for class_name, cl in rockit.__dict__.items():
         elif method.__name__.startswith("_") and method.__name__!="__call__":
           continue
         else:
+          if hasattr(method,'_decorator_original'):
+            method = method._decorator_original
           ce.add_method(method_name,inspect.signature(method),method.__doc__)
       else:
           if method_name.startswith("_"): continue
