@@ -592,6 +592,25 @@ class MiscTests(unittest.TestCase):
 
         print(f(1,1,2,3))
 
+    def test_no_solver(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      with self.assertRaisesRegex(Exception, "You forgot to declare a solver"):
+        ocp.solve()
+
+    def test_no_method(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      with self.assertRaisesRegex(Exception, "You forgot to declare a method"):
+        ocp.solve()
+
 
     def test_no_set_value(self):
       ocp = Ocp()

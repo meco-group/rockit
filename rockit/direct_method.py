@@ -90,11 +90,15 @@ class DirectMethod:
             if self._callback:
                 self.opti.callback(self._callback)
             if self.solver is not None:
+                if self._solver is None:
+                    raise Exception("You forgot to declare a solver. Use e.g. ocp.solver('ipopt').")
                 self.opti.solver(self._solver, self._solver_options)
         if phase==2:
             self.opti.transcribe_placeholders(phase, kwargs["placeholders"])
 
     def transcribe(self, stage, phase=1, **kwargs):
+        if stage.nx>0 or stage.nu>0:
+            raise Exception("You forgot to declare a method. Use e.g. ocp.method(MultipleShooting(N=3)).")
         if phase>1: return
         self.add_variables(stage, self.opti)
 
