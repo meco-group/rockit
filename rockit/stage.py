@@ -310,7 +310,7 @@ class Stage:
     def set_initial(self, var, value, priority=True):
         assert "opti" not in str(var)
         def action(var, value):
-            if var not in self._meta:
+            if var not in self._meta and var not in self._placeholders:
                 raise Exception("You attempted to set the initial value of an unknown symbol: " + str(var))
             if var in self._param:
                 raise Exception("You attempted to set the initial value of a parameter. Did you mean ocp.set_value()? Got " + str(var))
