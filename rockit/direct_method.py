@@ -91,11 +91,11 @@ class DirectMethod:
             if self.solver is not None:
                 self.opti.solver(self._solver, self._solver_options)
         if phase==2:
-            self.opti.transcribe_placeholders(kwargs["placeholders"])
+            self.opti.transcribe_placeholders(phase, kwargs["placeholders"])
 
     def transcribe(self, stage, phase=1, **kwargs):
         if phase==2:
-            self.opti.transcribe_placeholders(kwargs["placeholders"])
+            self.opti.transcribe_placeholders(phase, kwargs["placeholders"])
         if phase>1: return
         self.add_variables(stage, self.opti)
 
@@ -113,7 +113,7 @@ class DirectMethod:
             value = DM(opti.debug.value(self.eval_top(stage, expr), opti_initial)) # HOT line
             opti.set_initial(target, value, cache_advanced=True)
 
-    def transcribe_placeholders(self, stage, placeholders):
+    def transcribe_placeholders(self, phase, stage, placeholders):
         pass
 
     def non_converged_solution(self, stage):
@@ -212,7 +212,7 @@ class OptiWrapper(Opti):
             self.initial_keys.append(key)
             self.initial_values.append(value)
 
-    def transcribe_placeholders(self,placeholders):
+    def transcribe_placeholders(self,phase,placeholders):
         Opti.subject_to(self)
         n_constr = len(self.constraints)
         res = placeholders([c[0] for c in self.constraints] + [self.objective]+self.initial_keys)

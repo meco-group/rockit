@@ -330,11 +330,11 @@ class SamplingMethod(DirectMethod):
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
         return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
 
-    def transcribe_placeholders(self, stage, placeholders):
+    def transcribe_placeholders(self, phase, stage, placeholders):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
-        return stage._transcribe_placeholders(self, placeholders)
+        return stage._transcribe_placeholders(phase, self, placeholders)
 
     def transcribe(self, stage, phase=1,**kwargs):
         """
@@ -421,14 +421,14 @@ class SamplingMethod(DirectMethod):
             opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
         except IndexError:
             pass
-    def fill_placeholders_integral_control(self, stage, expr, *args):
+    def fill_placeholders_integral_control(self, phase, stage, expr, *args):
         r = 0
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
             r = r + self.eval_at_control(stage, expr, k)*dt
         return r
 
-    def fill_placeholders_sum_control(self, stage, expr, *args):
+    def fill_placeholders_sum_control(self, phase, stage, expr, *args):
         r = 0
         for k in range(self.N):
             r = r + self.eval_at_control(stage, expr, k)
@@ -437,16 +437,16 @@ class SamplingMethod(DirectMethod):
     def placeholders_next(self, stage, expr, *args):
         self.eval_at_control(stage, expr, k+1)
 
-    def fill_placeholders_at_t0(self, stage, expr, *args):
+    def fill_placeholders_at_t0(self, phase, stage, expr, *args):
         return self.eval_at_control(stage, expr, 0)
 
-    def fill_placeholders_at_tf(self, stage, expr, *args):
+    def fill_placeholders_at_tf(self, phase, stage, expr, *args):
         return self.eval_at_control(stage, expr, -1)
 
-    def fill_placeholders_t0(self, stage, expr, *args):
+    def fill_placeholders_t0(self, phase, stage, expr, *args):
         return self.t0
 
-    def fill_placeholders_T(self, stage, expr, *args):
+    def fill_placeholders_T(self, phase, stage, expr, *args):
         return self.T
 
     def add_objective(self, stage, opti):

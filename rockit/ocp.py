@@ -80,7 +80,7 @@ class Ocp(Stage):
     def placeholders_transcribed(self):
         self._transcribe()
         if self._transcribed_placeholders.is_dirty:
-            self._placeholders_transcribe_recurse(self._transcribed_placeholders.pool)
+            self._placeholders_transcribe_recurse(2, self._transcribed_placeholders.pool)
             self._transcribed_placeholders.is_dirty = False
         return self._transcribed_placeholders
 

@@ -675,11 +675,11 @@ class Stage:
             self.master._transcribed_placeholders.mark_dirty()
         return r
 
-    def _transcribe_placeholders(self, method, placeholders):
+    def _transcribe_placeholders(self, phase, method, placeholders):
         for k, (n,v) in list(self._placeholders.items()):
             if k not in placeholders:
                 callback = getattr(method, 'fill_placeholders_' + n)
-                placeholders[k] = callback(self, v)
+                placeholders[k] = callback(phase, self, v)
 
     # Internal methods
     def _ode(self):
@@ -803,12 +803,12 @@ class Stage:
         for s in self._stages:
             s._transcribe_recurse(phase=phase, **kwargs)
 
-    def _placeholders_transcribe_recurse(self, placeholders):
+    def _placeholders_transcribe_recurse(self, phase, placeholders):
         if self._method is not None:
-            self._method.transcribe_placeholders(self, placeholders)
+            self._method.transcribe_placeholders(phase, self, placeholders)
 
         for s in self._stages:
-            s._placeholders_transcribe_recurse(placeholders)
+            s._placeholders_transcribe_recurse(phase, placeholders)
 
     def clone(self, parent, **kwargs):
         ret = Stage(parent, **kwargs)

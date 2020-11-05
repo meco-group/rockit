@@ -116,7 +116,7 @@ classdef DirectMethod < handle
     end
     function varargout = transcribe_placeholders(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','placeholders'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'phase','stage','placeholders'});
       if isempty(kwargs)
         res = obj.parent.transcribe_placeholders(args{:});
       else
