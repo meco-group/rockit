@@ -120,6 +120,8 @@ class DirectMethod:
         pass
 
     def non_converged_solution(self, stage):
+        if not hasattr(self, 'opti'):
+            raise Exception("You forgot to solve first. To avoid your script halting, use a try-catch block.")
         return OcpSolution(self.opti.non_converged_solution, stage)
 
     def solve(self, stage):

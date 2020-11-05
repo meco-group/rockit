@@ -620,6 +620,16 @@ class MiscTests(unittest.TestCase):
       ocp.method(MultipleShooting(N=3))
       ocp.solve()
 
+    def test_no_solve(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      ocp.set_der(x, u)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      with self.assertRaisesRegex(Exception, "You forgot to solve first"):
+        ocp.non_converged_solution
+
     def test_no_set_value(self):
       ocp = Ocp()
       x = ocp.state()
