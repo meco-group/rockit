@@ -76,8 +76,6 @@ class DirectMethod:
         return self.eval_top(stage, expr)
 
     def eval_top(self, stage, expr):
-        placeholders = stage.master._transcribed_placeholders
-        expr = placeholders(expr)
         return substitute(expr,veccat(*stage.variables[""]),self.V)
 
     def add_variables(self, stage, opti):
