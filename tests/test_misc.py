@@ -592,6 +592,66 @@ class MiscTests(unittest.TestCase):
 
         print(f(1,1,2,3))
 
+
+    def test_no_set_value(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      with self.assertRaisesRegex(Exception, "You forgot to declare a value"):
+        ocp.solve()
+
+    def test_set_value_error(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+
+      y = MX.sym('y')
+
+      ocp.set_value(p, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(y, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(x, 3)
+
+
+      ocp.solve()
+      ocp.set_value(p, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(x, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(y, 3)
+
+    def test_set_initial(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      y = MX.sym('y')
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      ocp.set_value(p, 2)
+
+      ocp.set_initial(x, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of a parameter"):
+        ocp.set_initial(p, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
+        ocp.set_initial(y, 3)
+      ocp.solve()
+      ocp.set_initial(x, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of a parameter"):
+        ocp.set_initial(p, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
+        ocp.set_initial(y, 3)
+
     def test_localize_time(self):
       N = 10
       for t0_stage in [FreeTime(-1), -1]:

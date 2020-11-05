@@ -84,6 +84,7 @@ class Stage:
         self.parent = parent
 
         self._meta = HashDict()
+        self._param = HashDict() # Quick-and-dirty lookup if a symbol is a parameter
         self._var_original = None
         self._var_augmented = None
 
@@ -133,6 +134,12 @@ class Stage:
 
     def set_T(self, T):
         self._T = T
+
+    def _param_value(self, p):
+        if p not in self._param_vals:
+            raise Exception("You forgot to declare a value (using ocp.set_value) of the following parameter: " + str(self._meta[p]))
+        else:
+            return self._param_vals[p]
 
     def stage(self, template=None, **kwargs):
         """Create a new :obj:`~rockit.stage.Stage` and add it as to the :obj:`~rockit.ocp.Ocp`.
@@ -240,6 +247,7 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
         self._meta[p] = merge_meta(meta, get_meta())
+        self._param[p] = True
         self.parameters[grid].append(p)
         self._set_transcribed(False)
         return p
@@ -291,6 +299,10 @@ class Stage:
                 self._method.set_value(self, self.master._method, parameter, value)      
         else:
             def action(parameter, value):
+                if parameter not in self._meta:
+                    raise Exception("You attempted to set the value of a non-parameter: " + str(parameter))
+                if parameter not in self._param:
+                    raise Exception("You attempted to set the value of a non-parameter. Did you mean ocp.set_initial()? Got " + str(parameter))
                 self._param_vals[parameter] = value
         for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
 
@@ -298,6 +310,10 @@ class Stage:
     def set_initial(self, var, value, priority=True):
         assert "opti" not in str(var)
         def action(var, value):
+            if var not in self._meta:
+                raise Exception("You attempted to set the initial value of an unknown symbol: " + str(var))
+            if var in self._param:
+                raise Exception("You attempted to set the initial value of a parameter. Did you mean ocp.set_value()? Got " + str(var))
             self._initial[var] = value
             if priority:
                 self._initial.move_to_end(var, last=False)
@@ -909,6 +925,9 @@ class Stage:
         ret._method.T = None
         ret._method.t0 = None
         ret._var_original = self._var_original
+
+        ret._meta = self._meta
+        ret._param = self._param
 
         ret._var_is_transcribed = False
         return ret

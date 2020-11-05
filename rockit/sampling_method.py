@@ -623,7 +623,7 @@ class SamplingMethod(DirectMethod):
             if is_equal(parameter, p):
                 found = True
                 opti.set_value(hcat(self.P_control[i]), value)
-        assert found, "Parameter not found"
+        assert found, "You attempted to set the value of a non-parameter."
 
     def add_parameter(self, stage, opti):
         for p in stage.parameters['']:
@@ -633,6 +633,6 @@ class SamplingMethod(DirectMethod):
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
-            opti.set_value(self.P[i], stage._param_vals[p])
+            opti.set_value(self.P[i], stage._param_value(p))
         for i, p in enumerate(stage.parameters['control']):
-            opti.set_value(hcat(self.P_control[i]), stage._param_vals[p])
+            opti.set_value(hcat(self.P_control[i]), stage._param_value(p))
