@@ -689,6 +689,13 @@ class MiscTests(unittest.TestCase):
       with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
         ocp.set_initial(y, 3)
 
+    def test_control_set_der(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      with self.assertRaisesRegex(Exception, "You used set_der on a non"):
+        ocp.set_der(u, 2)
+
     def test_localize_time(self):
       N = 10
       for t0_stage in [FreeTime(-1), -1]:

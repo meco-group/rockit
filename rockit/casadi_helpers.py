@@ -185,6 +185,24 @@ class HashDict(dict):
             r[k] = v
         return r
 
+class HashList(list):
+    def __init__(self,*args,**kwargs):
+        r = list(*args,**kwargs)
+        list.__init__(self)
+        for v in r:
+            self.append(v)
+        self._stored = set()
+    def append(self, item):
+        list.append(self, item)
+        self._stored.add(HashWrap(item))
+    def __contains__(self, item):
+        return item in self._stored
+    def __copy__(self):
+        r = HashList()
+        for v in self:
+            r.append(v)
+        return r
+
 class HashDefaultDict(defaultdict):
     def __init__(self,default_factory=None, *args,**kwargs):
         r = defaultdict(default_factory,*args,**kwargs)

@@ -28,7 +28,7 @@ from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
 from .single_shooting import SingleShooting
 from collections import defaultdict
-from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict, for_all_primitives
+from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict, HashList, for_all_primitives
 from contextlib import contextmanager
 from collections import OrderedDict
 
@@ -73,12 +73,12 @@ class Stage:
 
         >>> stage = Stage()
         """
-        self.states = []
-        self.qstates = []
-        self.controls = []
-        self.algebraics = []
-        self.parameters = defaultdict(list)
-        self.variables = defaultdict(list)
+        self.states = HashList()
+        self.qstates = HashList()
+        self.controls = HashList()
+        self.algebraics = HashList()
+        self.parameters = defaultdict(HashList)
+        self.variables = defaultdict(HashList)
 
         self._master = parent.master if parent else None
         self.parent = parent
@@ -344,6 +344,8 @@ class Stage:
         self._set_transcribed(False)
         assert not self._state_next
         def action(state, der):
+            if state not in self.states and state not in self.qstates:
+                raise Exception("You used set_der on a non-state: " + str(state))
             self._state_der[state] = der
         for_all_primitives(state, der, action, "First argument to set_der must be a state or a simple concatenation of states")
 
