@@ -696,6 +696,18 @@ class MiscTests(unittest.TestCase):
       with self.assertRaisesRegex(Exception, "You used set_der on a non"):
         ocp.set_der(u, 2)
 
+
+    def test_add_objective_signal(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      y = MX.sym('y')
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      with self.assertRaisesRegex(Exception, "An objective cannot be a signal"):
+        ocp.add_objective(x)
+
     def test_localize_time(self):
       N = 10
       for t0_stage in [FreeTime(-1), -1]:

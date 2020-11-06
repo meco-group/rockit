@@ -588,6 +588,7 @@ class Stage:
         >>> ocp.add_objective( ocp.integral(x) ) # Lagrange term
 
         """
+        assert not self.is_signal(term), "An objective cannot be a signal. You must use ocp.integral or ocp.at_t0/tf to remove the time-dependence"
         self._set_transcribed(False)
         self._objective = self._objective + term
 
