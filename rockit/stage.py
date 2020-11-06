@@ -1108,8 +1108,8 @@ class Stage:
             raise Exception(msg)
         N, M = stage._method.N, stage._method.M
 
-        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u, vertcat(stage.p, stage.v)], [expr])
-        assert not expr_f.has_free()
+        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u, vertcat(stage.p, stage.v), stage.t0, stage.T], [expr])
+        assert not expr_f.has_free(), str(expr_f.free_mx())
 
         time = stage._method.control_grid
         total_time = []
@@ -1133,7 +1133,7 @@ class Stage:
                     z = nan
 
                 pv = stage._method.get_p_sys(stage,k)
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k], pv), k, l))
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k], pv, stage._method.t0, stage._method.T), k, l))
                 t0+=dt
 
         ts = tlocal[-1,:]
@@ -1146,7 +1146,7 @@ class Stage:
             z = nan
 
         pv = stage._method.get_p_sys(stage,-1)
-        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1], pv), k, l))
+        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1], pv, stage._method.t0, stage._method.T), k, l))
 
         return vcat(total_time), hcat(sub_expr)
 
