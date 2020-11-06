@@ -139,6 +139,9 @@ classdef Ocp < rockit.Stage
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
     function out = placeholders_transcribed(obj)
+      % 
+      %         May also be called after solving (issue #91)
+      %         
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.placeholders_transcribed);
     end

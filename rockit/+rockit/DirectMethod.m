@@ -194,6 +194,46 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = fill_placeholders_integral(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_integral(args{:});
+      else
+        res = obj.parent.fill_placeholders_integral(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = fill_placeholders_T(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_T(args{:});
+      else
+        res = obj.parent.fill_placeholders_T(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = fill_placeholders_t0(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_t0(args{:});
+      else
+        res = obj.parent.fill_placeholders_t0(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = fill_placeholders_t(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_t(args{:});
+      else
+        res = obj.parent.fill_placeholders_t(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function out = debug(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.debug);

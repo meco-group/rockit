@@ -289,7 +289,7 @@ classdef Stage < handle
     end
     function varargout = set_initial(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'var','value'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'var','value','priority'});
       if isempty(kwargs)
         res = obj.parent.set_initial(args{:});
       else
@@ -305,6 +305,7 @@ classdef Stage < handle
       %         ----------
       %         state : `~casadi.MX`
       %             A CasADi symbol created with :obj:`~rockit.stage.Stage.state`.
+      %             May not be an indexed or sliced state
       %         der : `~casadi.MX`
       %             A CasADi symbolic expression of the same size as `state`
       % 
