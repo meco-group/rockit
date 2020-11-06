@@ -854,6 +854,15 @@ class Stage:
     def _augmented(self):
         return self._var_augmented if self._var_augmented else self
 
+    @property
+    def _transcribed(self):
+        if not self.is_transcribed:
+            self.master._transcribe()
+        if self._is_original:
+            return self._augmented 
+        else:
+            return self
+
     def _set_transcribed(self, val):
         if self.master:
             if self._is_original:
@@ -992,6 +1001,7 @@ class Stage:
             include_last = False
         return grid, include_first, include_last
 
+    @transcribed
     def sample(self, expr, grid='control', **kwargs):
         """Sample expression symbolically on a given grid.
 
@@ -1021,7 +1031,6 @@ class Stage:
         >>> sol = ocp.solve()
         >>> tx, xs = sol.sample(x, grid='control')
         """
-        self.master._transcribe()
         placeholders = self.master.placeholders_transcribed
         grid, include_first, include_last = self._parse_grid(grid)
         kwargs["include_first"] = include_first
@@ -1099,7 +1108,7 @@ class Stage:
             raise Exception(msg)
         N, M = stage._method.N, stage._method.M
 
-        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u], [expr])
+        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u, vertcat(stage.p, stage.v)], [expr])
         assert not expr_f.has_free()
 
         time = stage._method.control_grid
@@ -1122,7 +1131,9 @@ class Stage:
                     z = mtimes(coeff_z,tpower_z)
                 else:
                     z = nan
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k]), k, l))
+
+                pv = stage._method.get_p_sys(stage,k)
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k], pv), k, l))
                 t0+=dt
 
         ts = tlocal[-1,:]
@@ -1134,10 +1145,12 @@ class Stage:
         else:
             z = nan
 
-        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1]), k, l))
+        pv = stage._method.get_p_sys(stage,-1)
+        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1], pv), k, l))
 
         return vcat(total_time), hcat(sub_expr)
 
+    @transcribed
     def value(self, expr):
         """Get the value of an (non-signal) expression.
 
@@ -1146,14 +1159,15 @@ class Stage:
         expr : :obj:`casadi.MX`
             Arbitrary expression containing no signals (states, controls) ...
         """
-        self.master._transcribe()
         placeholders = self.master.placeholders_transcribed
         return placeholders(self._method.eval(self, expr))
 
+    @transcribed
     def discrete_system(self):
         """Hack"""
         return self._method.discrete_system(self)
 
+    @transcribed
     def sampler(self, *args):
         """Returns a function that samples given expressions
 
@@ -1195,8 +1209,6 @@ class Stage:
         if not isinstance(exprs, list):
             ret_list = False
             exprs = [exprs]
-
-        self.master._transcribe()
         t = MX.sym('t')
 
         """Evaluate expression at extra fine integrator discretization points."""
