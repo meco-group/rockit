@@ -699,21 +699,46 @@ class Stage:
             self.master._transcribed_placeholders.mark_dirty()
         return r
 
+
+
+                
     def _transcribe_placeholders(self, phase, method, placeholders):
+
+        def normalize(out):
+            if out is None:
+                return None
+            if isinstance(out, dict):
+                return out
+            return {"normal": out} 
+
+        def prefix(d, prefix=None):
+            if prefix is None or d is None:
+                return d
+            ret = {}
+            for k,v in d.items():
+                ret[prefix+"."+k] = v
+            return ret
+
+        def do(tag=None):
+            ret = prefix(normalize(callback(phase, self, expr)),tag)
+            if ret is not None:
+                placeholders[phase][symbol] = ret
+                if phase==2 and isinstance(expr,MX) and expr.is_symbolic() and symbol in placeholders[phase-1]:
+                    placeholders[phase][expr] = ret
         # Fixed-point iteration:
         # Phase 1 may introduce extra placeholders
         while True:
             len_before = len(self._placeholders)
-            for k, (n,v) in list(self._placeholders.items()):
-                if k not in placeholders[phase]:
-                    callback = getattr(method, 'fill_placeholders_' + n)
-                    if phase==2 and k in placeholders[phase-1]:
-                        v = placeholders[phase-1][k]
-                    ret = callback(phase, self, v)
-                    if ret is not None:
-                        placeholders[phase][k] = ret
-                        if phase==2 and isinstance(v,MX) and v.is_symbolic() and k in placeholders[phase-1]:
-                            placeholders[phase][v] = ret
+            for symbol, (species,expr) in list(self._placeholders.items()):
+                if symbol not in placeholders[phase]:
+                    callback = getattr(method, 'fill_placeholders_' + species)
+                    if phase==2 and symbol in placeholders[phase-1]:
+                        for tag, expr in placeholders[phase-1][symbol].items():
+                            do(tag)
+                            continue
+                    do()
+
+            print(placeholders.pool)
             len_after = len(self._placeholders)
             if len_before==len_after: break
 
