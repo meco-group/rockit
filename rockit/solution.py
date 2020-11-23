@@ -147,3 +147,15 @@ class OcpSolution:
 
         """
         return self._gist
+
+    @property
+    def stats(self):
+        """Retrieve solver statistics
+
+        Returns
+        -------
+        Dictionary
+           The information contained is not structured and may change between rockit versions
+
+        """
+        return self.sol.stats()

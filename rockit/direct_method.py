@@ -278,3 +278,6 @@ class OptiSolWrapper:
     def value(self, expr, *args,**kwargs):
         placeholders = self.opti_wrapper.ocp.placeholders_transcribed
         return self.sol.value(placeholders(expr), *args, **kwargs)
+
+    def stats(self):
+        return self.sol.stats()
