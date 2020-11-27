@@ -1113,7 +1113,7 @@ class Stage:
 
         return vcat(total_time), hcat(sub_expr)
 
-    def value(self, expr, *args, **kwargs):
+    def value(self, expr):
         """Get the value of an (non-signal) expression.
 
         Parameters

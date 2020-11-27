@@ -141,8 +141,8 @@ class DirectMethod:
         self._solver = solver
         self._solver_options = solver_options
 
-    def show_infeasibilities(self, *args, **kwargs):
-        self.opti.debug.show_infeasibilities(*args, **kwargs)
+    def show_infeasibilities(self, *args):
+        self.opti.debug.show_infeasibilities(*args)
 
     @property
     def gist(self):

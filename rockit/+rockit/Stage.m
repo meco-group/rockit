@@ -768,7 +768,7 @@ classdef Stage < handle
     end
     function varargout = value(obj,varargin)
       % Get the value of an (non-signal) expression.
-      % Arguments: expr, args, kwargs
+      % Arguments: expr
       % 
       %         Parameters
       %         ----------
@@ -776,7 +776,7 @@ classdef Stage < handle
       %             Arbitrary expression containing no signals (states, controls) ...
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'expr','args','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr'});
       if isempty(kwargs)
         res = obj.parent.value(args{:});
       else

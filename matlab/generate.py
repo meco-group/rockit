@@ -35,6 +35,8 @@ class MatlabEmittor:
         if sig.parameters[name].kind==inspect.Parameter.VAR_POSITIONAL:
           n_in_min = 'inf'
           break
+      if arg_names[-2:] == ["args","kwargs"]:
+        raise Exception("Not supported")
       return str(n_in_min)+","+self.to_matlab(arg_names)
     
 class MatlabEmittorClass:

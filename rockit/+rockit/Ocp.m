@@ -110,7 +110,7 @@ classdef Ocp < rockit.Stage
     end
     function varargout = show_infeasibilities(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'args','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'args'});
       if isempty(kwargs)
         res = obj.parent.show_infeasibilities(args{:});
       else

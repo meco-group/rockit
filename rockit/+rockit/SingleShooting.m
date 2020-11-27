@@ -13,7 +13,7 @@ classdef SingleShooting < rockit.DirectMethod
       if isempty(pythoncasadiinterface)
         pythoncasadiinterface = rockit.PythonCasadiInterface;
       end
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'args','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'kwargs'});
       if isempty(kwargs)
         obj.parent = py.rockit.SingleShooting(args{:});
       else

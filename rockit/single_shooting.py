@@ -25,8 +25,8 @@ from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzs
 import numpy as np
 
 class SingleShooting(SamplingMethod):
-    def __init__(self,*args,**kwargs):
-        SamplingMethod.__init__(self,*args,**kwargs)
+    def __init__(self, **kwargs):
+        SamplingMethod.__init__(self, **kwargs)
 
     def add_variables(self,stage,opti):
 

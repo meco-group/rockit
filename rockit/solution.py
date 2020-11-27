@@ -43,7 +43,7 @@ class OcpSolution:
         """
         return OcpSolution(self.sol, stage=stage)
 
-    def value(self, expr, *args, **kwargs):
+    def value(self, expr, *args):
         """Get the value of an (non-signal) expression.
 
         Parameters
@@ -51,7 +51,7 @@ class OcpSolution:
         expr : :obj:`casadi.MX`
             Arbitrary expression containing no signals (states, controls) ...
         """
-        return self.sol.value(self.stage.value(expr, *args, **kwargs))
+        return self.sol.value(self.stage.value(expr, *args))
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression at solution on a given grid.

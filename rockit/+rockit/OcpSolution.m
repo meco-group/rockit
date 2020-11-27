@@ -52,7 +52,7 @@ classdef OcpSolution < handle
     end
     function varargout = value(obj,varargin)
       % Get the value of an (non-signal) expression.
-      % Arguments: expr, args, kwargs
+      % Arguments: expr, args
       % 
       %         Parameters
       %         ----------
@@ -60,7 +60,7 @@ classdef OcpSolution < handle
       %             Arbitrary expression containing no signals (states, controls) ...
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'expr','args','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'expr','args'});
       if isempty(kwargs)
         res = obj.parent.value(args{:});
       else
@@ -163,6 +163,18 @@ classdef OcpSolution < handle
       %         
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.gist);
+    end
+    function out = stats(obj)
+      % Retrieve solver statistics
+      % 
+      %         Returns
+      %         -------
+      %         Dictionary
+      %            The information contained is not structured and may change between rockit versions
+      % 
+      %         
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.stats);
     end
   end
 end

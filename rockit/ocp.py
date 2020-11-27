@@ -136,8 +136,8 @@ class Ocp(Stage):
     def solver(self, solver, solver_options={}):
         self._method.solver(solver, solver_options)
 
-    def show_infeasibilities(self, *args, **kwargs):
-        self._method.show_infeasibilities(*args, **kwargs)
+    def show_infeasibilities(self, *args):
+        self._method.show_infeasibilities(*args)
 
     def debugme(self,e):
         print(e,hash(e),e.__hash__())
