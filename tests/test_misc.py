@@ -588,7 +588,7 @@ class MiscTests(unittest.TestCase):
         ocp.set_value(pp, 1)
         sol = ocp.solve()
 
-        f = ocp.to_function('f',[ocp.value(pp,grid='control'),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
+        f = ocp.to_function('f',[ocp.value(pp),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
 
         print(f(1,1,2,3))
 
