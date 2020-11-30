@@ -342,6 +342,7 @@ class SamplingMethod(DirectMethod):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
+        if phase==0: return
         if phase>1: return
         opti = stage.master._method.opti
         DM.set_precision(14)

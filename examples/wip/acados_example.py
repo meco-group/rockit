@@ -40,7 +40,7 @@ ocp.set_der(v1, (-m*l*sin(theta)*dtheta*dtheta + m*g*cos(theta)*sin(theta)+F)/de
 ocp.set_der(dtheta, (-m*l*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(M+m)*g*sin(theta))/(l*denominator))
 
 slack = 2*subu+subu**2+slbx+4*subx**2+7*subx+8*slbx**2+3*suh+13*suh**2
-ocp.add_objective(ocp.integral(1e3*x1**2+1e3*theta**2+1e-2*v1**2+1e-2*dtheta**2+1e-2**F**2+slack,grid='control'))
+ocp.add_objective(ocp.integral(1e3*x1**2+1e3*theta**2+1e-2*v1**2+1e-2*dtheta**2+1e-2**F**2+slack))
 
 ocp.subject_to(ocp.at_t0(x1)==0.0)
 ocp.subject_to(ocp.at_t0(theta)==pi)
@@ -49,11 +49,11 @@ ocp.subject_to(ocp.at_t0(dtheta)==0.0)
 
 ocp.subject_to(F <= 80+subu)
 ocp.subject_to(-10<=theta)
-ocp.subject_to(dtheta-subx<=10)
-ocp.subject_to(-10<=v1+slbx)
+ocp.subject_to(dtheta-subx<=10,include_first=False,include_last=False)
+ocp.subject_to(-10<=v1+slbx,include_first=False,include_last=False)
 
-ocp.subject_to(x1+F<=30)
-ocp.subject_to(sin(x1)-suh<=30)
+ocp.subject_to(x1+F<=30,include_last=False)
+ocp.subject_to(sin(x1)-suh<=30,include_last=False)
 
 
 #ocp.subject_to(-80 <= (F <= 80+p))

@@ -5,22 +5,12 @@ stages:
 
 # shorthand for testing
 .test_template: &template
-  image: asteinh/ocpx-base
+  image: jgillis/meco_builder:rockit
   tags:
     - docker
   before_script:
-    - source activate ocpx
-    - mkdir -p .pip
-    - pip --cache-dir=.pip install casadi sphinx-gallery sphinx_rtd_theme coverage pillow
     - python setup.py install
-    - git clone git@github.com:acados/acados.git
 
-    - pushd acados
-    - mkdir build
-    - pushd build && cmake .. && make install && popd
-    - pushd interfaces/acados_template && pip install . && popd
-    - popd
- 
   cache:
     paths:
       - .pip

@@ -85,6 +85,7 @@ class DirectMethod:
         self.V = veccat(*V)
 
     def main_transcribe(self, stage, phase=1, **kwargs):
+        if phase==0: return
         if phase==1:
             self.opti = OptiWrapper(stage)
             if self._callback:
@@ -99,6 +100,7 @@ class DirectMethod:
     def transcribe(self, stage, phase=1, **kwargs):
         if stage.nx>0 or stage.nu>0:
             raise Exception("You forgot to declare a method. Use e.g. ocp.method(MultipleShooting(N=3)).")
+        if phase==0: return
         if phase>1: return
         self.add_variables(stage, self.opti)
 

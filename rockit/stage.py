@@ -197,7 +197,9 @@ class Stage:
         """
         import numpy
         # Create a placeholder symbol with a dummy name (see #25)
-        x = MX.sym("x"+str(int(numpy.random.rand()*10000)), n_rows, n_cols)
+
+        name = "q"+str(len(self.qstates)+1) if quad else "x"+str(len(self.states)+1)
+        x = MX.sym(name, n_rows, n_cols)
         self._meta[x] = merge_meta(meta, get_meta())
         if quad:
             self.qstates.append(x)
@@ -758,7 +760,10 @@ class Stage:
                 raise Exception("ocp.set_der missing for quadrature state defined at " + str(self._meta[k]))
         quad = veccat(*der)
         alg = veccat(*self._alg)
-        return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), self.t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
+        t = self.t
+        if not depends_on(vertcat(ode,alg,quad),t):
+            t = MX.sym('t', Sparsity(1, 1))
+        return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
 
     # Internal methods
     def _diffeq(self):
