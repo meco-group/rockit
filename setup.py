@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 import glob
 import os
 
-version = "0.1.23"
+version = "0.1.24"
 
 setup(
     name='rockit-meco',
