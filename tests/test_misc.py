@@ -598,6 +598,7 @@ class MiscTests(unittest.TestCase):
       u = ocp.control()
       p = ocp.parameter()
       ocp.set_der(x, u*p)
+      ocp.method(MultipleShooting(N=3))
       with self.assertRaisesRegex(Exception, "You forgot to declare a solver"):
         ocp.solve()
 
