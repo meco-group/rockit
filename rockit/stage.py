@@ -738,7 +738,6 @@ class Stage:
                             continue
                     do()
 
-            print(placeholders.pool)
             len_after = len(self._placeholders)
             if len_before==len_after: break
 
