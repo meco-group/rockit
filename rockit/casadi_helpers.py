@@ -127,6 +127,11 @@ def single_stacktrace(m):
     m["stacktrace"] = m["stacktrace"][0]
     return m
 
+def reshape_number(target, value):
+    value = DM(value)
+    if value.is_scalar():
+        value = DM.ones(target.shape)*value
+    return value
 
 
 def DM2numpy(dm, expr_shape, tdim=None):

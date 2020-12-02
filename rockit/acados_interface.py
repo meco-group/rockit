@@ -26,7 +26,7 @@ from .solution import OcpSolution
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver, AcadosModel
 from acados_template.utils import J_to_idx
 from .freetime import FreeTime
-from .casadi_helpers import DM2numpy
+from .casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 from casadi import Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
@@ -824,9 +824,11 @@ class AcadosInterface:
                 check_Js(Ju)
                 assert Jx.nnz()==0 or Ju.nnz()==0
 
+
+                expr = np.array(reshape_number(var, expr)).flatten()
                 for k in list(range(self.N))+[-1]:
-                    X0[Jx.sparsity().get_col(),k] = expr
-                    U0[Ju.sparsity().get_col(),k] = expr
+                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row()]
+                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row()]
 
             for k in range(self.N+1):
                 self.ocp_solver.set(k, "x", X0[:,k])
@@ -836,8 +838,7 @@ class AcadosInterface:
 
     def set_value(self, stage, master, parameter, value):
             J = jacobian(parameter, self.ocp.model.p)
-            v = DM.zeros(J.shape[0])
-            v[:] = value
+            v = reshape_number(parameter, value)
             self.P0[J.sparsity().get_col()] = v[J.row()]
     
     def set_matrices(self):
