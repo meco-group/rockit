@@ -497,6 +497,12 @@ class Stage:
                 inf: use mathematical guarantee for the whole control interval (only possible for polynomials of states and controls)
                 integrator: constrain at integrator edges
                 integrator_roots: constrain at integrator roots (e.g. collocation points excluding 0)
+        include_first : bool
+            Enforce constraint also at t0
+        include_last : bool or "auto"
+            Enforce constraint also at tf
+            "auto" mode will only enforce the constraint if it is not dependent on a control signal,
+            since typically control signals are not defined at tf.
 
         Examples
         --------

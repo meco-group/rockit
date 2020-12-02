@@ -504,7 +504,8 @@ class AcadosInterface:
                         if args["include_last"]:
                             assert not depends_on(canon, self.slack), "lh <= h(x,u) <= uh does not support slacks for qualifier include_last=True."
                             if depends_on(canon, self.ocp.model.u):
-                                raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_last=False.")
+                                if args["include_last"]!="auto":
+                                    raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_last=False.")
                             else:
                                 h_e.append(c)
                                 lh_e.append(lb)
