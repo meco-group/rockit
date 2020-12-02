@@ -28,7 +28,7 @@ from acados_template.utils import J_to_idx
 from .freetime import FreeTime
 from .casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
-from casadi import Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
+from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
 import numpy as np
 import scipy
@@ -87,12 +87,13 @@ def check_Js(J):
 
 
 class AcadosInterface:
-    def __init__(self,N=20,grid=UniformGrid(),linesearch=True,**args):
+    def __init__(self,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):
         self.N = N
         self.args = args
         self.grid = grid
         self.T = None
         self.linesearch = linesearch
+        self.expand = expand
 
     def inherit(self, parent):
         pass
@@ -236,26 +237,35 @@ class AcadosInterface:
             model = AcadosModel()
 
             f = stage._ode()
-            x = stage.x
-            #assert x.shape[0]>2
-            xdot = MX.sym("xdot", stage.nx)
-            u = stage.u
-            p = stage.p
 
+            if self.expand:
+                model_x = SX.sym("x", stage.x.sparsity())
+                model_u = SX.sym("u", stage.u.sparsity())
+                model_p = SX.sym("p", stage.p.sparsity())
+                model_xdot = SX.sym("xdot", stage.x.sparsity())
 
+                tT = Function('temp',[stage.x,stage.u,stage.p],[self.t, self.T])
+                model_t, model_T = tT(model_x, model_u, model_p)
+            else:
+                model_x = stage.x
+                model_u = stage.u
+                model_p = stage.p
+                model_xdot = MX.sym("xdot", stage.nx)
+                model_t = self.t
+                model_T = self.T
 
-            res = f(x=x, u=u, p=p, t=self.t)
+            res = f(x=model_x, u=model_u, p=vertcat(model_p, DM.nan(stage.v.shape)), t=model_t)
             if isinstance(stage._T,FreeTime):
-                f_expl = self.T*res["ode"]
+                f_expl = model_T*res["ode"]
             else:
                 f_expl = res["ode"]
 
-            model.f_impl_expr = xdot-f_expl
+            model.f_impl_expr = model_xdot-f_expl
             model.f_expl_expr = f_expl
-            model.x = x
-            model.xdot = xdot
-            model.u = u
-            model.p = p
+            model.x = model_x
+            model.xdot = model_xdot
+            model.u = model_u
+            model.p = model_p
             self.P0 = DM.zeros(stage.np)
 
             slack = MX(0, 1) if len(stage.variables['control'])==0 else vvcat(stage.variables['control'])
@@ -265,14 +275,14 @@ class AcadosInterface:
             self.slack_e = slack_e
             self.slacks = vertcat(slack, slack_e)
 
-            self.X = self.opti.variable(*x.shape)
-            self.U = self.opti.variable(*u.shape)
-            self.P = self.opti.parameter(*p.shape)
+            self.X = self.opti.variable(*stage.x.shape)
+            self.U = self.opti.variable(*stage.u.shape)
+            self.P = self.opti.parameter(*stage.p.shape)
             self.S = self.opti.variable(*slack.shape)
             self.Se = self.opti.variable(*slack_e.shape)
             self.t = self.opti.parameter()
 
-            self.raw = [x,u,p,slack,slack_e,stage.t]
+            self.raw = [stage.x,stage.u,stage.p,slack,slack_e,stage.t]
             self.optivar = [self.X, self.U, self.P, self.S, self.Se, self.t]
 
             #self.time_grid = self.grid(stage._t0, stage._T, self.N)
@@ -316,7 +326,7 @@ class AcadosInterface:
             # Total Mayer term
             mayer = placeholders(self.mayer,preference=['expose'])
 
-            assert not depends_on(mayer, self.ocp.model.u), "Mayer term of objective may not depend on controls"
+            assert not depends_on(mayer, stage.u), "Mayer term of objective may not depend on controls"
 
             ocp = self.ocp
 
@@ -334,7 +344,7 @@ class AcadosInterface:
             Qs_e += DM.zeros(Sparsity.diag(Qs_e.shape[0]))
             assert Qs_e.sparsity().is_diag(), "Slacks cannot be mixed in Mayer objective"
 
-            assert not depends_on(veccat(Qs, bs, Qs_e, bs_e), vertcat(self.ocp.model.x, self.ocp.model.u, self.slack, self.slack_e)), \
+            assert not depends_on(veccat(Qs, bs, Qs_e, bs_e), vertcat(stage.x, stage.u, self.slack, self.slack_e)), \
               "Slack part of objective must be quadratic in slacks and depend only on parameters"
 
             ocp.model.cost_expr_ext_cost = lagrange
@@ -417,7 +427,7 @@ class AcadosInterface:
                     assert not depends_on(canon, self.slack_e), "Path constraints may only have signal slacks"
                     
                     # Slack positivity constraint
-                    if depends_on(canon, self.slack) and not depends_on(canon, vertcat(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)):
+                    if depends_on(canon, self.slack) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
                         J,c = linear_coeff(canon, self.slack)
                         is_perm = legit_Js(J)
                         lb_zero = np.all(np.array(evalf(lb-c)==0))
@@ -427,11 +437,11 @@ class AcadosInterface:
                     
                     assert is_linear(canon, self.slack), "slacks can only enter linearly in constraints"
 
-                    if is_linear(canon, vertcat(self.ocp.model.x,self.ocp.model.u)):
+                    if is_linear(canon, vertcat(stage.x,stage.u)):
                         # Linear is states and controls
-                        if not depends_on(canon, self.ocp.model.x):
+                        if not depends_on(canon, stage.x):
                             # lbu <= Jbu u <= ubu
-                            J, Js, c = linear_coeffs(canon, self.ocp.model.u, self.slack)
+                            J, Js, c = linear_coeffs(canon, stage.u, self.slack)
                             if legit_J(J):
                                 Jbu.append(J)
                                 lbu.append(lb-c)
@@ -445,9 +455,9 @@ class AcadosInterface:
                                 mark(slack_lower if ub_inf else slack_upper, Js)
                                 continue
                             # Fallthrough
-                        if not depends_on(canon, self.ocp.model.u):
+                        if not depends_on(canon, stage.u):
                             # lbx <= Jbx x <= ubx
-                            J, Js, c = linear_coeffs(canon, self.ocp.model.x, self.slack)
+                            J, Js, c = linear_coeffs(canon, stage.x, self.slack)
                             if legit_J(J):
                                 Jbx.append(J)
                                 lbx.append(lb-c)
@@ -472,21 +482,21 @@ class AcadosInterface:
                                 continue
                             # Fallthrough
                         # lg <= Cx + Du <= ug
-                        J1, J2, Js, c = linear_coeffs(canon, self.ocp.model.x,self.ocp.model.u, self.slack)
+                        J1, J2, Js, c = linear_coeffs(canon, stage.x,stage.u, self.slack)
                         C.append(J1)
                         D.append(J2)
                         lg.append(lb-c)
                         ug.append(ub-c)
                         if args["include_last"]:
-                            assert not depends_on(canon, self.slack), "lg <= Cx + Du <= ug does not support slacks for qualifier include_last=True."
+                            assert not depends_on(canon, self.slack), "lg <= Cx + Du <= ug does not support slacks for qualifier include_last=True.\n" + str(meta)
                             if J2.nnz()>0:
-                                raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_last=False.")
+                                raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_last=False.\n"  + str(meta))
                             else:
                                 C_e.append(J1)
                                 lg_e.append(lb-c)
                                 ug_e.append(ub-c)
                         if not args["include_first"]:
-                            raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_first=True.")
+                            raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_first=True.\n" + str(meta))
                         if Js.nnz()>0:
                             assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
                         if not ub_inf: Js *= -1
@@ -502,16 +512,16 @@ class AcadosInterface:
                         lh.append(lb)
                         uh.append(ub)
                         if args["include_last"]:
-                            assert not depends_on(canon, self.slack), "lh <= h(x,u) <= uh does not support slacks for qualifier include_last=True."
-                            if depends_on(canon, self.ocp.model.u):
+                            if depends_on(canon, stage.u):
                                 if args["include_last"]!="auto":
-                                    raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_last=False.")
+                                    raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_last=False.\n" + str(meta))
                             else:
+                                assert not depends_on(canon, self.slack), "lh <= h(x,u) <= uh does not support slacks for qualifier include_last=True."
                                 h_e.append(c)
                                 lh_e.append(lb)
                                 uh_e.append(ub)
                         if not args["include_first"]:
-                            raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=True.")                            
+                            raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=True.\n" + str(meta))                            
                         if Js.nnz()>0:
                             assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
                         if not ub_inf: Js *= -1
@@ -611,7 +621,7 @@ class AcadosInterface:
                         assert not depends_on(canon, self.slack_e), "Initial constraints may not have slacks."
                     
                     # Slack positivity constraint
-                    if depends_on(canon, self.slack_e) and not depends_on(canon, vertcat(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)):
+                    if depends_on(canon, self.slack_e) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
                         J,c = linear_coeff(canon, self.slack_e)
                         is_perm = legit_Js(J)
                         lb_zero = np.all(np.array(evalf(lb-c)==0))
@@ -623,11 +633,11 @@ class AcadosInterface:
 
                     if has_t0:
                         # t0
-                        check = is_linear(canon, self.ocp.model.x)
-                        check = check and not depends_on(canon, self.ocp.model.u)
+                        check = is_linear(canon, stage.x)
+                        check = check and not depends_on(canon, stage.u)
                         assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
 
-                        J,c = linear_coeff(canon, self.ocp.model.x)
+                        J,c = linear_coeff(canon, stage.x)
                         Jbx_0.append(J)
                         lbx_0.append(lb-c)
                         ubx_0.append(ub-c)
@@ -635,10 +645,10 @@ class AcadosInterface:
                         Jbxe_0.append( (mc.type == casadi.OPTI_EQUALITY) * J)
                     else:
                         # tf
-                        assert not depends_on(canon,ocp.model.u), "Terminal constraints cannot depend on u"
-                        if is_linear(canon, self.ocp.model.x):
+                        assert not depends_on(canon,stage.u), "Terminal constraints cannot depend on u"
+                        if is_linear(canon, stage.x):
                             # lbx <= Jbx x <= ubx
-                            J,Js,c = linear_coeffs(canon, self.ocp.model.x, self.slack_e)
+                            J,Js,c = linear_coeffs(canon, stage.x, self.slack_e)
                             if legit_J(J):
                                 Jbx_e.append(J)
                                 lbx_e.append(lb-c)
@@ -651,7 +661,7 @@ class AcadosInterface:
 
                                 continue
                             # lg <= Cx <= ug
-                            J, Js, c = linear_coeffs(canon, self.ocp.model.x, self.slack_e)
+                            J, Js, c = linear_coeffs(canon, stage.x, self.slack_e)
                             C_e.append(J)
                             lg_e.append(lb-c)
                             ug_e.append(ub-c)
@@ -755,6 +765,16 @@ class AcadosInterface:
 
             self.ocp.constraints.Jbx_0 = export_num(Jbx_0)
 
+            def None2Empty(a):
+                if a is None:
+                    return MX(0, 1)
+                else:
+                    return a
+
+            if self.expand:
+                temp = Function('temp', [stage.x, stage.u, stage.p], [None2Empty(ocp.model.cost_expr_ext_cost), None2Empty(ocp.model.cost_expr_ext_cost_e),  None2Empty(ocp.model.con_h_expr_e), None2Empty(ocp.model.con_h_expr)])
+                [ocp.model.cost_expr_ext_cost, ocp.model.cost_expr_ext_cost_e, ocp.model.con_h_expr_e, ocp.model.con_h_expr] = temp(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)
+
             # Issue: if you indicate some states for equality, they are eliminated,
             # and the presence of other bounds on that state are problematic
             #
@@ -772,7 +792,7 @@ class AcadosInterface:
             m["ubx_0"] = export_vec(ubx_0)
 
             args = [v[0] for v in m.values()]
-            self.mmap = Function('mmap',[self.ocp.model.p,stage.t],args,['p','t'],list(m.keys()))
+            self.mmap = Function('mmap',[stage.p,stage.t],args,['p','t'],list(m.keys()))
 
             for k,v in stage._param_vals.items():
                 self.set_value(stage, self, k, v)
@@ -838,7 +858,7 @@ class AcadosInterface:
                 self.ocp_solver.set(k, "u", U0[:,k])
 
     def set_value(self, stage, master, parameter, value):
-            J = jacobian(parameter, self.ocp.model.p)
+            J = jacobian(parameter, stage.p)
             v = reshape_number(parameter, value)
             self.P0[J.sparsity().get_col()] = v[J.row()]
     
@@ -907,7 +927,7 @@ class AcadosInterface:
     def eval_at_control(self, stage, expr, k):
         placeholders = stage.placeholders_transcribed
         expr = placeholders(expr,max_phase=1)
-        ks = [self.ocp.model.x,self.ocp.model.u]
+        ks = [stage.x,stage.u]
         vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)]]
         if not self.t_state:
             ks += [stage.t]
