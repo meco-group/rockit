@@ -115,6 +115,7 @@ class AcadosTests(unittest.TestCase):
         ocp.solver('ipopt',{"ipopt.tol":1e-10})
 
         ocp.set_initial(u,1)
+        ocp.set_initial(p, ocp.t)
 
         # Obtain reference solution
         N = 5

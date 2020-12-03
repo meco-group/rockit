@@ -112,7 +112,7 @@ class AcadosInterface:
                 T = stage.state()
                 stage.set_der(T, 0)
                 self.T = T
-                stage.set_initial(T, 1)
+                stage.set_initial(T, stage._T.T_init)
                 return stage.at_tf(T)
             else:
                 self.T = stage._T
@@ -291,6 +291,13 @@ class AcadosInterface:
             if not isinstance(stage._T, FreeTime): self.time_grid*= stage._T
             if not isinstance(stage._t0, FreeTime): self.time_grid+= stage._t0
             self.control_grid = MX(stage.t0 + self.normalized_time_grid*stage.T).T
+
+            inits = []
+            inits.append((stage.T, stage._T.T_init if isinstance(stage._T, FreeTime) else stage._T))
+            inits.append((stage.t0, stage._t0.T_init if isinstance(stage._t0, FreeTime) else stage._t0))
+
+            self.control_grid_init = evalf(substitute([self.control_grid], [a for a,b in inits],[b for a,b in inits])[0])
+
             #self.control_grid = self.normalized_time_grid
 
             model.name = "rockit_model"
@@ -830,11 +837,14 @@ class AcadosInterface:
             if self.linesearch:
                 self.ocp_solver.options_set("globalization", "merit_backtracking")
 
-            X0 = np.zeros((ocp.dims.nx, self.N+1),dtype=float)
-            U0 = np.zeros((ocp.dims.nu, self.N),dtype=float)
+            X0 = DM.zeros(ocp.dims.nx, self.N+1)
+            U0 = DM.zeros(ocp.dims.nu, self.N)
 
 
             for var, expr in stage._initial.items():
+                if depends_on(expr, stage.t):
+                    expr = evalf(substitute(expr,stage.t, self.control_grid_init))
+
                 var = substitute([var],self.raw,self.optivar)[0]
                 Jx, Ju, r = linear_coeffs(var,self.X, self.U)
                 Jx = evalf(Jx)
@@ -844,12 +854,21 @@ class AcadosInterface:
                 check_Js(Jx)
                 check_Js(Ju)
                 assert Jx.nnz()==0 or Ju.nnz()==0
+                expr = reshape_number(var, expr)
+                is_matrix = False
+                if expr.shape[1]!= var.shape[1]:
+                    if expr.shape[1]==self.N*var.shape[1] or expr.shape[1]==(self.N+1)*var.shape[1]:
+                        is_matrix = True
+                    else:
+                        raise Exception("Initial guess of wrong shape")
+                assert expr.shape[0]==var.shape[0]
+                for k in range(self.N+1):
+                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
+                for k in range(self.N):
+                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
 
-
-                expr = np.array(reshape_number(var, expr)).flatten()
-                for k in list(range(self.N))+[-1]:
-                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row()]
-                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row()]
+            X0 = np.array(X0)
+            U0 = np.array(U0)
 
             for k in range(self.N+1):
                 self.ocp_solver.set(k, "x", X0[:,k])
