@@ -20,13 +20,13 @@
 #
 #
 
-from .multiple_shooting import MultipleShooting
-from .sampling_method import SamplingMethod, UniformGrid
-from .solution import OcpSolution
+from ...multiple_shooting import MultipleShooting
+from ...sampling_method import SamplingMethod, UniformGrid
+from ...solution import OcpSolution
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver, AcadosModel
 from acados_template.utils import J_to_idx
-from .freetime import FreeTime
-from .casadi_helpers import DM2numpy, reshape_number
+from ...freetime import FreeTime
+from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
@@ -86,7 +86,7 @@ def check_Js(J):
     assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
 
 
-class AcadosInterface:
+class AcadosMethod:
     def __init__(self,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):
         self.N = N
         self.args = args

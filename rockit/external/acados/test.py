@@ -5,7 +5,7 @@ from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
 import numpy as np
 from casadi import kron, DM
 
-from rockit.acados_interface import AcadosInterface
+from .method import AcadosMethod
 
 class Node:
   def __init__(self,val):
@@ -133,7 +133,7 @@ class AcadosTests(unittest.TestCase):
 
         [ref_t,_] = sol.sample(signals[0][1],grid='control')
 
-        for method in [AcadosInterface(N=N,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=N,tol=1e-8)]:
+        for method in [AcadosMethod(N=N,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=N,tol=1e-8)]:
 
 
 
@@ -220,7 +220,7 @@ class AcadosTests(unittest.TestCase):
         print(ref)
 
 
-        for method in [AcadosInterface(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4,tol=1e-8)]:
+        for method in [AcadosMethod(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4,tol=1e-8)]:
 
           ocp.method(method)
           sol = ocp.solve()
@@ -342,7 +342,7 @@ class AcadosTests(unittest.TestCase):
 
         #raise Exception("")
 
-        for method in [AcadosInterface(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4)]:
+        for method in [AcadosMethod(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4)]:
 
           ocp.method(method)
           sol = ocp.solve()
