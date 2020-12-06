@@ -46,8 +46,13 @@ ocp.solver('ipopt');
 %  M -- number of integration steps per control interval
 method = MultipleShooting('N',10,'M',2, 'intg','rk');
 %method = DirectCollocation('N',10,'M',2);
-
 ocp.method(method);
+
+% Set initial guesses for states, controls and variables.
+%  Default: zero
+ocp.set_initial(x2, 0);                 % Constant
+ocp.set_initial(x1, ocp.t/10);          % Function of time
+ocp.set_initial(u, linspace(0, 1, 10)); % Array
 
 % Solve
 sol = ocp.solve();

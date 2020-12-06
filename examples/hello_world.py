@@ -27,6 +27,9 @@ A Hello World Example
 Some basic example on solving an Optimal Control Problem with rockit.
 """
 
+
+# Make available sin, cos, etc
+from numpy import *
 # Import the project
 from rockit import *
 #%%
@@ -86,6 +89,12 @@ ocp.solver('ipopt')
 #  grid -- could specify e.g. UniformGrid() or GeometricGrid(4)
 method = MultipleShooting(N=10, intg='rk')
 ocp.method(method)
+
+# Set initial guesses for states, controls and variables.
+#  Default: zero
+ocp.set_initial(x2, 0)                 # Constant
+ocp.set_initial(x1, ocp.t/10)          # Function of time
+ocp.set_initial(u, linspace(0, 1, 10)) # Matrix
 
 # Solve
 sol = ocp.solve()
