@@ -234,6 +234,38 @@ class Stage:
         return z
 
     def variable(self, n_rows=1, n_cols=1, grid = '',meta=None):
+        """Create a variable
+
+        Variables are unknowns in the Optimal Control problem
+        for which we seek optimal values.
+
+        Parameters
+        ----------
+        n_rows : int, optional
+            Number of rows
+        n_cols : int, optional
+            Number of columns
+        grid : string, optional
+            Default is '', resulting in a single variable available
+            over the whole optimal control horizon.
+            For MultipleShooting, 'control' can be used to
+            declare a variable that is unique to every control interval.
+
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing a variable
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> v = ocp.variable()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, v)
+        >>> ocp.set_initial(v, 3)
+        """
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         self._meta[v] = merge_meta(meta, get_meta())
@@ -242,8 +274,42 @@ class Stage:
         return v
 
     def parameter(self, n_rows=1, n_cols=1, grid = '',meta=None):
-        """
-        Create a parameter
+        """Create a parameter
+
+        Parameters are symbols of an Optimal COntrol problem
+        that are externally imposed, but not hardcoded.
+
+        The advantage of parameters over simple numbers/numerical matrices comes
+        when you need to solve multiple different Optimal Control problems.
+        Parameters avoid the need to initialize new problems form scratch all the time;
+        the problem becomes parametric.
+
+
+        Parameters
+        ----------
+        n_rows : int, optional
+            Number of rows
+        n_cols : int, optional
+            Number of columns
+        grid : string, optional
+            Default is '', resulting in a single parameter available
+            over the whole optimal control horizon. 
+            For MultipleShooting, 'control' can be used to
+            declare a parameter that is unique to every control interval.
+
+        Returns
+        -------
+        s : :obj:`~casadi.MX`
+            A CasADi symbol representing a parameter
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> p = ocp.parameter()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, p)
+        >>> ocp.set_value(p, 3)
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
@@ -294,6 +360,27 @@ class Stage:
         return u
 
     def set_value(self, parameter, value):
+        """Set a value for a parameter
+
+        All variables must be given a value before an optimal control problem can be solved.
+
+        Parameters
+        ----------
+        parameter : :obj:`~casadi.MX`
+            The parameter symbol to initialize
+        value : number
+            The value
+
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> p = ocp.parameter()
+        >>> x = ocp.state()
+        >>> ocp.set_der(x, p)
+        >>> ocp.set_value(p, 3)
+        """
         if self.master is not None and self.master.is_transcribed:
             def action(parameter, value):
                 self._method.set_value(self, self.master._method, parameter, value)      
@@ -308,6 +395,37 @@ class Stage:
 
 
     def set_initial(self, var, value, priority=True):
+        """Provide an initial guess
+
+        Many Optimal Control solution methods are based on
+        iterative numerical recipes.
+        The initial guess, or starting point, may influence the
+        convergence behavior and the quality of the solution.
+
+        By default, all states, controls, and variables are initialized with zero.
+        Use set_initial to provide a non-zero initial guess.
+
+        Parameters
+        ----------
+        var : :obj:`~casadi.MX`
+            The variable, state or control symbol (shape n-by-1) to initialize
+        value : :obj:`~casadi.MX`
+            The value to initialize with. Possibilities:
+              * scalar number (repeated to fit the shape of `var` if needed)
+              * numeric matrix of shape n-by-N or n-by-(N+1) in the case of MultipleShooting
+              * CasADi symbolic expression dependent on ocp.t 
+
+        Examples
+        --------
+
+        >>> ocp = Ocp()
+        >>> x = ocp.state()
+        >>> u = ocp.control()
+        >>> ocp.set_der(x, u)
+        >>> ocp.set_initial(u, 1)
+        >>> ocp.set_initial(u, linspace(0,1,10))
+        >>> ocp.set_initial(u, sin(ocp.t))
+        """
         assert "opti" not in str(var)
         def action(var, value):
             if var not in self._meta and var not in self._placeholders:
