@@ -23,11 +23,6 @@ Install using pip: `pip install rockit-meco`
 
 You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.kuleuven.be%2Fmeco-software%2Frockit.git/v0.1.9?filepath=examples%2Fhello_world.ipynb).
 
-Make available sin, cos, etc
-```
-from numpy import *
-```
-
 Import the project:
 ```python
 from rockit import *
@@ -36,12 +31,12 @@ from rockit import *
 Start an optimal control environment with a time horizon of 10 seconds
 starting from t0=0s.
 _(free-time problems can be configured with `FreeTime(initial_guess))_
-```
+```python
 ocp = Ocp(t0=0, T=10)
 ```
 
 Define two scalar states (vectors and matrices also supported)
-```
+```python
 x1 = ocp.state()
 x2 = ocp.state()
 ```
@@ -54,42 +49,42 @@ u = ocp.control()
 
 Compose time-dependent expressions a.k.a. signals
 _(explicit time-dependence is supported with `ocp.t`)_
-```
+```python
 e = 1 - x2**2
 ```
 Specify differential equations for states
 _(DAEs also supported with `ocp.algebraic` and `add_alg`)_
-```
+```python
 ocp.set_der(x1, e * x1 - x2 + u)
 ocp.set_der(x2, x1)
 ```
 
 Lagrange objective term: signals in an integrand
-```
+```python
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 ```
 Mayer objective term: signals evaluated at t_f = t0_+T
-```
+```python
 ocp.add_objective(ocp.at_tf(x1**2))
 ```
 
 Path constraints
 _(must be valid on the whole time domain running from `t0` to `tf`,
    grid options available such as `grid='integrator'` or `grid='inf'`)_
-```
+```python
 ocp.subject_to(x1 >= -0.25)
 ocp.subject_to(-1 <= (u <= 1 ))
 ```
 
 Boundary constraints
-```
+```python
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
 ```
 
 Pick an NLP solver backend
 _(CasADi `nlpsol` plugin)_
-```
+```python
 ocp.solver('ipopt')
 ```
 
@@ -131,7 +126,7 @@ ocp.spy()
 ![Structure of optimization problem](docs/hello_world_structure.png)
 
 Post-processing:
-```
+```python
 tsa, x1a = sol.sample(x1, grid='control')
 tsb, x1b = sol.sample(x1, grid='integrator')
 tsc, x1c = sol.sample(x1, grid='integrator', refine=100)
