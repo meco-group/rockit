@@ -165,7 +165,7 @@ Debugging:
 # External interfaces
 In the long run, we aim to add a bunch of interfaces to [third-party dynamic optimization solvers](https://github.com/meco-group/dynamic_optimization_inventory/blob/main/list.csv).
 At the moment, the following solvers are interfaced:
- * [acados](https://gitlab.kuleuven.be/meco-software/rockit/-/tree/master/rockit/external/acados/examples)
+ * [acados](https://github.com/acados/acados) -- [examples](https://gitlab.kuleuven.be/meco-software/rockit/-/tree/master/rockit/external/acados/examples)
  
 # Presentations
 
