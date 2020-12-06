@@ -862,10 +862,12 @@ class AcadosMethod:
                     else:
                         raise Exception("Initial guess of wrong shape")
                 assert expr.shape[0]==var.shape[0]
-                for k in range(self.N+1):
-                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
-                for k in range(self.N):
-                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
+                if Jx.sparsity().get_col():
+                    for k in range(self.N+1):
+                        X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
+                if Ju.sparsity().get_col():
+                    for k in range(self.N):
+                        U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
 
             X0 = np.array(X0)
             U0 = np.array(U0)

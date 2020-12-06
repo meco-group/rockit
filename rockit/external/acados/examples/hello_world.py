@@ -27,11 +27,11 @@ A Hello World Example
 Some basic example on solving an Optimal Control Problem with rockit.
 """
 
+
+# Make available sin, cos, etc
+from numpy import *
 # Import the project
 from rockit import *
-from rockit.external.acados import AcadosMethod
-from casadi import *
-
 #%%
 # Problem specification
 # ---------------------
@@ -73,13 +73,6 @@ ocp.subject_to(-1 <= (u <= 1 ))
 ocp.subject_to(ocp.at_t0(x1) == 0)
 ocp.subject_to(ocp.at_t0(x2) == 1)
 
-# Initial guess
-#ocp.set_initial(x2, 1)
-#ocp.set_initial(x1, ocp.t)
-ocp.set_initial(x2, 0)
-print(linspace(0.0,10,10))
-ocp.set_initial(x1, DM(linspace(0.0,1,11)).T)#ocp.t)
-
 #%%
 # Solving the problem
 # -------------------
@@ -89,12 +82,14 @@ ocp.set_initial(x1, DM(linspace(0.0,1,11)).T)#ocp.t)
 ocp.solver('ipopt')
 
 # Pick a solution method
-#  e.g. SingleShooting, MultipleShooting, DirectCollocation
-#
-#  N -- number of control intervals
-method = AcadosMethod(N=10,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=10)
-
+method = external_method('acados', N=10,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=10)
 ocp.method(method)
+
+# Set initial guesses for states, controls and variables.
+#  Default: zero
+ocp.set_initial(x2, 0)                 # Constant
+ocp.set_initial(x1, ocp.t/10)          # Function of time
+ocp.set_initial(u, linspace(0, 0.1, 10)) # Matrix
 
 # Solve
 sol = ocp.solve()
@@ -105,27 +100,20 @@ sol = ocp.solve()
 
 from pylab import *
 
-
 # Sample a state/control or expression thereof on a grid
 tsa, x1a = sol.sample(x1, grid='control')
 tsa, x2a = sol.sample(x2, grid='control')
 
-tsb, x1b = sol.sample(x1, grid='control')
-tsb, x2b = sol.sample(x2, grid='control')
-
-
 figure(figsize=(10, 4))
 subplot(1, 2, 1)
-plot(tsb, x1b, '.-')
-plot(tsa, x1a, 'o')
+plot(tsa, x1a, 'o--')
 xlabel("Times [s]", fontsize=14)
 grid(True)
 title('State x1')
 
 subplot(1, 2, 2)
-plot(tsb, x2b, '.-')
-plot(tsa, x2a, 'o')
-legend(['grid_integrator', 'grid_control'])
+plot(tsa, x2a, 'o--')
+legend(['grid_control'])
 xlabel("Times [s]", fontsize=14)
 title('State x2')
 grid(True)
@@ -136,17 +124,8 @@ grid(True)
 tsol, usol = sol.sample(u, grid='control')
 
 figure()
-plot(tsol,usol)
+step(tsol,usol,where='post')
 title("Control signal")
-xlabel("Times [s]")
-grid(True)
-
-tsc, x1c = sol.sample(x1, grid='control')
-
-figure(figsize=(15, 4))
-plot(tsc, x1c, '-')
-plot(tsa, x1a, 'o')
-plot(tsb, x1b, '.')
 xlabel("Times [s]")
 grid(True)
 

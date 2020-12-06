@@ -41,6 +41,7 @@ from .single_shooting import SingleShooting
 from .freetime import FreeTime
 from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
 from .solution import OcpSolution
+from .external.manager import external_method
 
 try:
   matlab_path = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))
