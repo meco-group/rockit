@@ -161,6 +161,11 @@ Debugging:
  * Check if the correct CasADi Matlab is found: `edit casadi.SerializerBase`, should have a method called 'connect'
  * Matlab error "Conversion to double from py.numpy.ndarray is not possible." -> Consult your Matlab release notes to verify that your Python version is supported
  * Matlab error "Python Error: RuntimeError: .../casadi/core/serializing_stream.hpp:171: Assertion "false" failed:" -> May occur on Linux for some configurations. Consult rockit authors
+
+# External interfaces
+In the long run, we aim to add a bunch of interfaces to [third-party dynamic optimization solvers](https://github.com/meco-group/dynamic_optimization_inventory/blob/main/list.csv).
+At the moment, the following solvers are interfaced:
+ * [acados](https://gitlab.kuleuven.be/meco-software/rockit/-/tree/master/rockit/external/acados/examples)
  
 # Presentations
 
