@@ -23,6 +23,11 @@ Install using pip: `pip install rockit-meco`
 
 You may try it live in your browser: [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.kuleuven.be%2Fmeco-software%2Frockit.git/v0.1.9?filepath=examples%2Fhello_world.ipynb).
 
+Make available sin, cos, etc
+```
+from numpy import *
+```
+
 Import the project:
 ```python
 from rockit import *
@@ -94,9 +99,17 @@ with arguments:
  * N -- number of control intervals
  * M -- number of integration steps per control interval
  * grid -- could specify e.g. UniformGrid() or GeometricGrid(4)
-```
+```python
 method = MultipleShooting(N=10, intg='rk')
 ocp.method(method)
+```
+
+Set initial guesses for states, controls and variables.
+Default: zero
+```python
+ocp.set_initial(x2, 0)                 # Constant
+ocp.set_initial(x1, ocp.t/10)          # Function of time
+ocp.set_initial(u, linspace(0, 1, 10)) # Array
 ```
 
 Solve:
