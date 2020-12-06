@@ -432,6 +432,12 @@ class Stage:
                 raise Exception("You attempted to set the initial value of an unknown symbol: " + str(var))
             if np.any([var in p for p in self.parameters.values()]):
                 raise Exception("You attempted to set the initial value of a parameter. Did you mean ocp.set_value()? Got " + str(var))
+            if var.is_scalar():
+                # Auto-transpose
+                if isinstance(value, np.ndarray) and len(value.shape)==1:
+                    value = value.reshape((1, value.shape[0]))
+                if isinstance(value, DM) and value.shape[0]==1 and value.shape[1]>1:
+                    value = value.T
             self._initial[var] = value
             if priority:
                 self._initial.move_to_end(var, last=False)
