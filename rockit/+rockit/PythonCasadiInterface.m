@@ -104,7 +104,11 @@ classdef PythonCasadiInterface < handle
               out = obj.matlab_deserializer.unpack();
             elseif startsWith(mod,'rockit')
               a = split(class(e),'.');
-              out = rockit.(a{end})(e);
+              try
+                out = rockit.(a{end})(e);
+              catch
+                out = e;
+              end
             elseif py.hasattr(e,'__call__')
               out = @(varargin) obj.apply(e,varargin{:});
             else

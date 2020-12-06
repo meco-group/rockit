@@ -12,7 +12,10 @@ class MatlabEmittor:
 
   def make_class(self,name,module,doc,inherit_from=None):
     return MatlabEmittorClass(self,name,module,doc,inherit_from=inherit_from)
-    
+
+  def make_function(self,name,signature,doc):
+    return MatlabEmittorFunction(self,name,signature,doc)
+
   def to_matlab(self,e):
     if isinstance(e,list):
       return "{" + ",".join(self.to_matlab(ee) for ee in e) + "}"
@@ -23,9 +26,11 @@ class MatlabEmittor:
     else:
       return str(e)
 
-  def parse_signature(self,sig):
-      arg_names = [k for k,v in sig.parameters.items()][1:]
-      arg_defaults = [v.default for k,v in sig.parameters.items()][1:]
+  def parse_signature(self,sig,method=True):
+      arg_names = [k for k,v in sig.parameters.items()]
+      if method: arg_names = arg_names[1:]
+      arg_defaults = [v.default for k,v in sig.parameters.items()]
+      if method: arg_defaults = arg_defaults[1:]
       n_in_min = 0
       for name,default in zip(arg_names,arg_defaults):
         if default is inspect._empty and sig.parameters[name].kind!= inspect.Parameter.VAR_KEYWORD:
@@ -38,8 +43,48 @@ class MatlabEmittor:
       if arg_names[-2:] == ["args","kwargs"]:
         raise Exception("Not supported")
       return str(n_in_min)+","+self.to_matlab(arg_names)
-    
-class MatlabEmittorClass:
+
+class MatlabEmittorCommon:
+  def multi_line(self, prefix, arg, sig=None):
+    if sig is not None:
+      sig = "Arguments: " + ", ".join([k if v.default is inspect._empty else k+"="+str(v.default) for k,v in sig.parameters.items()][1:])
+    if arg is None:
+      return ""
+    s = ""
+    lines = arg.split("\n")
+    if sig is not None:
+      if len(lines)==0:
+        lines = [sig]
+      else:
+        lines = [lines[0],sig]+lines[1:]
+
+    for l in lines:
+      s += prefix + "% " + l + "\n"
+    return s
+
+class MatlabEmittorFunction(MatlabEmittorCommon):
+  def __init__(self,parent,name,signature,doc):
+    self.name = name
+    self.parent = parent
+    self.signature = signature
+    self.doc = doc
+    self.out = open(os.path.join(self.parent.dir,name+".m"),"w")
+
+  def write(self):
+    self.out.write("function varargout = {name}(varargin)\n".format(name=self.name))
+    self.out.write(self.multi_line("  ", self.doc, self.signature))
+    self.out.write("  global pythoncasadiinterface\n");
+    self.out.write("  [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,{sig});\n".format(sig=self.parent.parse_signature(self.signature,method=False)))
+    self.out.write("  if isempty(kwargs)\n")
+    self.out.write("    res = py.rockit.{name}(args{{:}});\n".format(name=self.name))
+    self.out.write("  else\n")
+    self.out.write("    res = py.rockit.{name}(args{{:}},pyargs(kwargs{{:}}));\n".format(name=self.name))
+    self.out.write("  end\n")
+    self.out.write("  varargout = pythoncasadiinterface.python2matlab_ret(res);\n")
+    self.out.write("end\n")
+
+
+class MatlabEmittorClass(MatlabEmittorCommon):
   def __init__(self,parent,name,module,doc,inherit_from=None):
     self.name = name
     self.parent = parent
@@ -64,22 +109,6 @@ class MatlabEmittorClass:
     self.constructor = signature
     self.constructor_doc = doc
 
-  def multi_line(self, prefix, arg, sig=None):
-    if sig is not None:
-      sig = "Arguments: " + ", ".join([k if v.default is inspect._empty else k+"="+str(v.default) for k,v in sig.parameters.items()][1:])
-    if arg is None:
-      return ""
-    s = ""
-    lines = arg.split("\n")
-    if sig is not None:
-      if len(lines)==0:
-        lines = [sig]
-      else:
-        lines = [lines[0],sig]+lines[1:]
-
-    for l in lines:
-      s += prefix + "% " + l + "\n"
-    return s
 
   def write(self):
     if len(self.inherit_from)==0:
@@ -185,7 +214,11 @@ class MatlabEmittorClass:
   
 me = MatlabEmittor("rockit")
 for class_name, cl in rockit.__dict__.items():
-  
+  if class_name.startswith("_"): continue
+  if inspect.isfunction(cl):
+    ce = me.make_function(class_name,inspect.signature(cl),cl.__doc__)
+    ce.write()
+ 
   if isinstance(cl, type):
     subclasses = cl.mro()[1:-1]
     exposed_subclasses = [e for e in subclasses if e in rockit.__dict__.values()]
@@ -193,7 +226,6 @@ for class_name, cl in rockit.__dict__.items():
     ce = me.make_class(class_name,inspect.getmodule(cl).__name__,cl.__doc__,inherit_from=exposed_subclasses)
 
     for method_name, method in  cl.__dict__.items():
-      #print(method_name, method, inspect.ismethod(method),inspect.isfunction(method))
       if inspect.isfunction(method):
         if method.__name__=="__init__":
           ce.add_constructor(inspect.signature(method),method.__doc__)
