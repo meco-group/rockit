@@ -165,3 +165,4 @@ At the moment, the following solvers are interfaced:
 # Presentations
 
  * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
+ * Demo @ FM symposium: [Rockit: optimal motion planning made easy](https://github.com/meco-group/rockit_demo)
