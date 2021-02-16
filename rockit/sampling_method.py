@@ -392,7 +392,12 @@ class SamplingMethod(DirectMethod):
                 opti.subject_to(e, meta=meta)
 
     def add_inf_constraints(self, stage, opti, c, k, l, meta):
+        # Query the discretization method used for polynomial coefficients
+        #   interpretation: state ~= coeff * [t^0;t^1;t^2;...]
+        #                    t is physical time, but starting at 0 at the beginning of the interval
         coeff = stage._method.poly_coeff[k * self.M + l]
+
+        # Represent polynomial as a BSpline object (see splines subfolder)
         degree = coeff.shape[1]-1
         basis = BSplineBasis([0]*(degree+1)+[1]*(degree+1),degree)
         tscale = self.T / self.N / self.M
@@ -400,25 +405,33 @@ class SamplingMethod(DirectMethod):
         coeff = coeff * repmat(tpower.T,stage.nx,1)
         # TODO: bernstein transformation as function of degree
         Poly_to_Bernstein_matrix_4 = DM([[1,0,0,0,0],[1,1.0/4, 0, 0, 0],[1, 1.0/2, 1.0/6, 0, 0],[1, 3.0/4, 1.0/2, 1.0/4, 0],[1, 1, 1, 1, 1]])
+        # Use a direct way to obtain Bernstein coefficients from polynomial coefficients
         state_coeff = mtimes(Poly_to_Bernstein_matrix_4,coeff.T)
         
+        # Replace symbols for states by BSpline object derivatives
+        subst_from = list(stage.states)
+
         statesize = [0] + [elem.nnz() for elem in stage.states]
         statessizecum = np.cumsum(statesize)
-
-        subst_from = list(stage.states)
         state_coeff_split = horzsplit(state_coeff,statessizecum)
         subst_to = [BSpline(basis,coeff) for coeff in state_coeff_split]
 
 
         lookup = dict(zip(subst_from, subst_to))
 
+        # Replace symbols for state derivatives by BSpline object derivatives
         subst_from += stage._inf_der.keys()
         dt = (self.control_grid[k + 1] - self.control_grid[k])/self.M
         subst_to += [lookup[e].derivative()*(1/dt) for e in stage._inf_der.values()]
 
         subst_from += stage._inf_inert.keys()
         subst_to += stage._inf_inert.values()
+
+        # Here, the actual replacement takes place
         c_spline = reinterpret_expr(c, subst_from, subst_to)
+
+        # The use of '>=' or '<=' on BSpline objects automatically results in
+        # those same operations being relayed onto BSpline coefficients
         try:
             opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
         except IndexError:
