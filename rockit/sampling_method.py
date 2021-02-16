@@ -397,7 +397,7 @@ class SamplingMethod(DirectMethod):
         #                    t is physical time, but starting at 0 at the beginning of the interval
         coeff = stage._method.poly_coeff[k * self.M + l]
 
-        # Represent polynomial as a BSpline object (see splines subfolder)
+        # Represent polynomial as a BSpline object (https://gitlab.kuleuven.be/meco-software/rockit/-/blob/v0.1.28/rockit/splines/spline.py#L392)
         degree = coeff.shape[1]-1
         basis = BSplineBasis([0]*(degree+1)+[1]*(degree+1),degree)
         tscale = self.T / self.N / self.M
@@ -432,6 +432,7 @@ class SamplingMethod(DirectMethod):
 
         # The use of '>=' or '<=' on BSpline objects automatically results in
         # those same operations being relayed onto BSpline coefficients
+        # see https://gitlab.kuleuven.be/meco-software/rockit/-/blob/v0.1.28/rockit/splines/spline.py#L520-521
         try:
             opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
         except IndexError:
