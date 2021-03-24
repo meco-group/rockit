@@ -200,8 +200,7 @@ class Stage:
 
         name = "q"+str(len(self.qstates)+1) if quad else "x"+str(len(self.states)+1)
         x = MX.sym(name, n_rows, n_cols)
-        self.register_state(x, meta=meta, quad=quad)
-        return x
+        return self.register_state(x, meta=meta, quad=quad)
         
     def register_state(self, x, quad=False, meta=None):
         if isinstance(x, list):
@@ -214,6 +213,7 @@ class Stage:
         else:
             self.states.append(x)
         self._set_transcribed(False)
+        return x
 
     def algebraic(self, n_rows=1, n_cols=1,meta=None):
         """Create an algebraic variable
@@ -320,6 +320,13 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
+        return self.register_parameter(p, grid=grid, meta=meta)
+
+    def register_parameter(self, p, grid='', meta=None):
+        if isinstance(p,list):
+            for e in p:
+                self.register_parameter(e)
+            return
         self._meta[p] = merge_meta(meta, get_meta())
         self.parameters[grid].append(p)
         self._set_transcribed(False)
@@ -372,6 +379,7 @@ class Stage:
         self._meta[u] = merge_meta(meta, get_meta())
         self.controls.append(u)
         self._set_transcribed(False)
+        return u
 
     def set_value(self, parameter, value):
         """Set a value for a parameter
