@@ -413,7 +413,10 @@ class Stage:
                 if not np.any([parameter in p for p in self.parameters.values()]):
                     raise Exception("You attempted to set the value of a non-parameter. Did you mean ocp.set_initial()? Got " + str(parameter))
                 self._param_vals[parameter] = value
-        for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
+        if parameter in self._meta:
+            action(parameter, value)
+        else:
+            for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
 
 
     def set_initial(self, var, value, priority=True):
