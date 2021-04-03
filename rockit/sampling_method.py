@@ -283,7 +283,8 @@ class SamplingMethod(DirectMethod):
             intg = getattr(self, "intg_" + self.intg)(stage._ode(), X0, U, P, Z)
         else:
             intg = self.intg_builtin(stage._ode(), X0, U, P, Z)
-        assert not intg.has_free()
+        if intg.has_free():
+            raise Exception("Free variables found: %s" % str(intg.get_free()))
     
         for j in range(self.M):
             intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, p=P)

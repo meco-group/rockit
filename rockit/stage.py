@@ -200,6 +200,7 @@ class Stage:
 
         name = "q"+str(len(self.qstates)+1) if quad else "x"+str(len(self.states)+1)
         x = MX.sym(name, n_rows, n_cols)
+        meta = merge_meta(meta, get_meta())
         return self.register_state(x, meta=meta, quad=quad)
         
     def register_state(self, x, quad=False, meta=None):
@@ -275,7 +276,15 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
-        self._meta[v] = merge_meta(meta, get_meta())
+        meta = merge_meta(meta, get_meta())
+        return self.register_variable(v, grid=grid, meta=meta)
+
+    def register_variable(self, v, grid = '',meta=None):
+        if isinstance(v, list):
+            for e in v:
+                self.register_state(e)
+            return
+        self._meta[v] = meta
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
@@ -368,7 +377,8 @@ class Stage:
             return u
 
         u = MX.sym("u", n_rows, n_cols)
-        self.register_control(u)
+        meta = merge_meta(meta, get_meta())
+        self.register_control(u, meta=meta)
         return u
 
     def register_control(self, u, meta=None):
