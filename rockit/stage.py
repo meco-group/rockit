@@ -208,7 +208,7 @@ class Stage:
             for e in x:
                 self.register_state(e)
             return
-        self._meta[x] = meta
+        self._meta[x] = merge_meta(meta, get_meta())
         if quad:
             self.qstates.append(x)
         else:
@@ -284,7 +284,7 @@ class Stage:
             for e in v:
                 self.register_state(e)
             return
-        self._meta[v] = meta
+        self._meta[v] = merge_meta(meta, get_meta())
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
@@ -329,6 +329,7 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
+        meta = merge_meta(meta, get_meta())
         return self.register_parameter(p, grid=grid, meta=meta)
 
     def register_parameter(self, p, grid='', meta=None):
