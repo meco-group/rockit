@@ -24,7 +24,7 @@ from casadi import *
 from collections import defaultdict, OrderedDict
 
 def get_ranges_dict(list_expr):
-    ret = {}
+    ret = HashDict()
     offset = 0
     for e in list_expr:
         next_offset = offset+e.nnz()
