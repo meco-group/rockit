@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat, is_equal
+from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat, is_equal, substitute
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr, HashOrderedDict
@@ -524,6 +524,11 @@ class SamplingMethod(DirectMethod):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
 
     def eval_at_control(self, stage, expr, k):
+        if isinstance(expr,MX) and expr.is_symbolic():
+            if expr in stage.states:
+                return substitute(expr,stage.x,self.X[k])
+            elif expr in stage.controls:
+                return substitute(expr,stage.u,self.U[k])
         try:
             syms = symvar(expr)
         except:
@@ -610,10 +615,17 @@ class SamplingMethod(DirectMethod):
                 var = self.T
             if is_equal(var, stage.t0):
                 var = self.t0
-            opti_initial = opti.initial()
+            try:
+                value = DM(expr)
+            except:
+                # Potentially rely on previous initial values
+                opti_initial = opti.initial()
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
-                value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti_initial)) # HOT line
+                try:
+                    value = DM(expr)
+                except:
+                    value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti_initial)) # HOT line
                 if target.numel()*(self.N)==value.numel():
                     if repmat(target, self.N, 1).shape==value.shape:
                         value = value[k,:]

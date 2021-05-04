@@ -419,7 +419,7 @@ class Stage:
             for_all_primitives(parameter, value, action, "First argument to set_value must be a parameter or a simple concatenation of parameters", rhs_type=DM)
 
 
-    def set_initial(self, var, value, priority=True):
+    def set_initial(self, var, value, priority=True,defer=False):
         """Provide an initial guess
 
         Many Optimal Control solution methods are based on
@@ -467,7 +467,7 @@ class Stage:
             if priority:
                 self._initial.move_to_end(var, last=False)
         for_all_primitives(var, value, action, "First argument to set_initial must be a variable/signal or a simple concatenation of variables/signals")
-        if self.master is not None and self.master.is_transcribed:
+        if not defer and self.master is not None and self.master.is_transcribed:
             self._method.set_initial(self, self.master._method, self._initial)
 
     def set_der(self, state, der):
