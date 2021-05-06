@@ -246,7 +246,7 @@ class OptiWrapper(Opti):
         #a = set([hash(e) for e in (self._advanced_cache if cache_advanced else self.advanced).symvar()])
         #b = set([hash(e) for e in symvar(key)])
         #if len(a | b)==len(a):
-        #    Opti.set_initial(self, key, value) # set_initial logic in direct_collocation needs this
+        Opti.set_initial(self, key, value) # set_initial logic in direct_collocation needs this
         #else:
         self.initial_keys.append(key)
         self.initial_values.append(value)
