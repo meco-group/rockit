@@ -53,7 +53,7 @@ class OcpSolution:
         """
         return self.sol.value(self.stage.value(expr, *args))
 
-    def sample(self, expr, grid, **kwargs):
+    def sample(self, expr, grid, initial=False, **kwargs):
         """Sample expression at solution on a given grid.
 
         Parameters
@@ -83,8 +83,12 @@ class OcpSolution:
         >>> tx, xs = sol.sample(x, grid='control')
         """
         time, res = self.stage.sample(expr, grid, **kwargs)
-        res = self.sol.value(res)
-        return self.sol.value(time), DM2numpy(res, MX(expr).shape, time.numel())
+        extra_args = []
+        if initial:
+            #print(res)
+            extra_args.append(self.sol.opti.initial())
+        res = self.sol.value(res,*extra_args)
+        return self.sol.value(time,*extra_args), DM2numpy(res, MX(expr).shape, time.numel())
 
     def sampler(self, *args):
         """Returns a function that samples given expressions
