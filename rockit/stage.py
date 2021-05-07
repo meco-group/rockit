@@ -926,7 +926,9 @@ class Stage:
         t = self.t
         if not depends_on(vertcat(ode,alg,quad),t):
             t = MX.sym('t', Sparsity(1, 1))
-        return Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
+        ret = Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
+        assert not ret.has_free()
+        return ret
 
     # Internal methods
     def _diffeq(self):
