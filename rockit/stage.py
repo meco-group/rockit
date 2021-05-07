@@ -848,7 +848,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.parameters['control']), vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def _create_placeholder_expr(self, expr, callback_name):
         """
