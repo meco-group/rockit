@@ -347,8 +347,9 @@ class SamplingMethod(DirectMethod):
         if phase>1: return
         opti = stage.master._method.opti
         DM.set_precision(14)
-        self.add_variables(stage, opti)
+        # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
         self.add_parameter(stage, opti)
+        self.add_variables(stage, opti)
 
         self.integrator_grid = []
         for k in range(self.N):
