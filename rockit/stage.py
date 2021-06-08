@@ -206,7 +206,7 @@ class Stage:
     def register_state(self, x, quad=False, meta=None):
         if isinstance(x, list):
             for e in x:
-                self.register_state(e)
+                self.register_state(e, quad=quad, meta=meta)
             return
         self._meta[x] = merge_meta(meta, get_meta())
         if quad:
@@ -236,6 +236,14 @@ class Stage:
         """
         # Create a placeholder symbol with a dummy name (see #25)
         z = MX.sym("z", n_rows, n_cols)
+        meta = merge_meta(meta, get_meta())
+        return self.register_algebraic(z, meta=meta)
+
+    def register_algebraic(self, z, meta=None):
+        if isinstance(z, list):
+            for e in z:
+                self.register_algebraic(e, meta=meta)
+            return
         self._meta[z] = merge_meta(meta, get_meta())
         self.algebraics.append(z)
         self._set_transcribed(False)
@@ -282,7 +290,7 @@ class Stage:
     def register_variable(self, v, grid = '',meta=None):
         if isinstance(v, list):
             for e in v:
-                self.register_state(e)
+                self.register_variable(e)
             return
         self._meta[v] = merge_meta(meta, get_meta())
         self.variables[grid].append(v)
