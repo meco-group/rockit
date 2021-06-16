@@ -349,6 +349,7 @@ class SamplingMethod(DirectMethod):
         DM.set_precision(14)
         # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
         self.add_parameter(stage, opti)
+        self.set_parameter(stage, opti)
         self.add_variables(stage, opti)
 
         self.integrator_grid = []

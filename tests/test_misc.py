@@ -109,7 +109,41 @@ class MiscTests(unittest.TestCase):
         self.assertAlmostEqual(ts[0],t0)
         self.assertAlmostEqual(ts[-1],t0+T)
 
+    def test_parametric_time(self):
+        ocp = Ocp()
 
+        T = ocp.parameter()
+        ocp.set_T(T)
+        ocp.set_value(T, 3)
+        x = ocp.state()
+        u = ocp.control()
+
+        ocp.set_der(x, u)
+
+        ocp.subject_to(u <= 1)
+        ocp.subject_to(-1 <= u)
+
+        ocp.add_objective(ocp.at_tf(x))
+        ocp.subject_to(ocp.at_t0(x) == 0)
+
+        ocp.solver('ipopt')
+
+        ocp.method(MultipleShooting())
+
+        sol = ocp.solve()
+
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[0], 0)
+        self.assertAlmostEqual(xs[-1], -3,places=6)
+        self.assertAlmostEqual(ts[-1], 3,places=6)
+
+        ocp.set_value(T, 1)
+        sol = ocp.solve()
+
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[-1], -1,places=6)
+        self.assertAlmostEqual(ts[-1], 1,places=6)
+  
     def test_basic_time_free(self):
         xf = 2
         for t0 in [0, 1]:

@@ -227,7 +227,7 @@ class OptiWrapper(Opti):
         Opti.callback(self, fun)
 
     def initial(self):
-        return [e for e in Opti.initial(self) if e.dep(0).is_symbolic() or e.dep(1).is_symbolic()]
+        return [e for e in Opti.initial(self) if e.dep(0).is_symbolic() or e.dep(1).is_symbolic()]+Opti.value_parameters(self)
 
     @property
     def non_converged_solution(self):
