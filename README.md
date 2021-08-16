@@ -166,3 +166,7 @@ At the moment, the following solvers are interfaced:
 
  * Benelux 2020: [Effortless modeling of optimal control problems with rockit](https://youtu.be/dS4U_k6B904)
  * Demo @ FM symposium: [Rockit: optimal motion planning made easy](https://github.com/meco-group/rockit_demo)
+
+# Citing
+Gillis, Joris ; Vandewal, Bastiaan ; Pipeleers, Goele ; Swevers, Jan
+"Effortless modeling of optimal control problems with rockit", 39th Benelux Meeting on Systems and Control 2020, Elspeet, The Netherlands
