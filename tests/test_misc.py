@@ -626,6 +626,45 @@ class MiscTests(unittest.TestCase):
 
         print(f(1,1,2,3))
 
+    def test_to_function_init(self):
+        N = 10
+        method = DirectCollocation(N=N,M=2,scheme="legendre")
+        ocp, x1, x2, u = vdp_dae(method)
+        alg = ocp.z
+
+
+        ocp.solver("ipopt",{"ipopt.tol":1e-12,"dump_in":True})
+      
+ 
+        
+        alg0 = np.round(DM.rand(N+1,1),decimals=3)
+        x0 = np.round(DM.rand(2,N+1),decimals=3)
+
+
+        ocp.set_initial(alg, MX(alg0)[ocp.t])
+        ocp.set_initial(ocp.x, MX(x0)[:,ocp.t])
+        sol = ocp.solve()
+        x0_ref = DM.from_file("solver.000000.in.x0.mtx")
+
+        ocp, x1, x2, u = vdp_dae(method)
+        alg = ocp.z
+
+
+        ocp.solver("ipopt",{"ipopt.tol":1e-12,"dump_in":True})
+    
+        _,states = ocp.sample(ocp.x,grid='control')
+
+        f = ocp.to_function('F',[states,"z"],[states])
+        f(x0,alg0)
+      
+        x0 = DM.from_file("solver.000000.in.x0.mtx")
+
+
+        assert_array_almost_equal(x0,x0_ref)
+
+
+
+
     def test_no_solver(self):
       ocp = Ocp()
       x = ocp.state()

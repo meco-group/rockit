@@ -23,7 +23,7 @@
 from .sampling_method import SamplingMethod
 from casadi import sumsqr, horzcat, vertcat, linspace, substitute, MX, evalf,\
                    vcat, collocation_points, collocation_interpolators, hcat,\
-                   repmat, DM, sum2, mtimes, vvcat
+                   repmat, DM, sum2, mtimes, vvcat, depends_on, Function
 from .casadi_helpers import get_ranges_dict, HashOrderedDict, HashDict
 from itertools import repeat
 try:
@@ -56,15 +56,24 @@ class DirectCollocation(SamplingMethod):
         self.degree = degree
         self.tau = collocation_points(degree, scheme)
         [self.C, self.D, self.B] = collocation_coeff(self.tau)
-        self.Zc = []  # List that will hold algebraic decision variables 
+        self.Zc = []  # List that will hold algebraic decision variables list(N,list(M,nz x degree))
         self.Xc = []  # List that will hold helper collocation states
+        self.Zc0 = []
+        self.Xc_vars = []
+        self.Xc_vars0 = []
+        self.Zc_vars_base = []
+        self.Zc_vars_rest = []
+
 
     def add_variables(self, stage, opti):
+
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
         x = opti.variable(stage.nx)
         self.X.append(x)
         self.add_variables_V(stage, opti)
+        z = opti.variable(stage.nz)
+        self.Zc_vars_base.append(z)
 
         for k in range(self.N):
             self.U.append(opti.variable(stage.nu) if stage.nu>0 else MX(0,1))
@@ -75,12 +84,16 @@ class DirectCollocation(SamplingMethod):
             for i in range(self.M):
                 xc = opti.variable(stage.nx, self.degree)
                 xr.append(xc)
-                zc = opti.variable(stage.nz, self.degree)
-                zr.append(zc)
-
+                zc = opti.variable(stage.nz, self.degree-1)
                 x0 = x if i==0 else opti.variable(stage.nx)
                 Xc.append(horzcat(x0, xc))
-                Zc.append(zc)
+                self.Xc_vars.append(xc if i==0 else horzcat(x0, xc))
+                self.Xc_vars0.append(repmat(x, 1, self.degree if i==0 else self.degree+1))
+                z0 = z if i==0 else opti.variable(stage.nz)
+                zr.append(horzcat(z0, zc))
+                Zc.append(horzcat(z0,zc))
+                self.Zc_vars_rest.append(zc if i==0 else horzcat(z0, zc))
+                self.Zc0.append(repmat(z, 1, self.degree-1 if i==0 else self.degree))
 
             self.xr.append(xr)
             self.zr.append(zr)
@@ -88,7 +101,15 @@ class DirectCollocation(SamplingMethod):
             self.Zc.append(Zc)
             x = opti.variable(stage.nx)
             self.X.append(x)
+            z = opti.variable(stage.nz)
+            self.Zc_vars_base.append(z)
             self.add_variables_V_control(stage, opti, k)
+
+        self.Xc_vars = hcat(self.Xc_vars)
+        self.Xc_vars0 = hcat(self.Xc_vars0)
+        self.Zc0 = hcat(self.Zc0)
+        self.Zc_vars_base = hcat(self.Zc_vars_base)
+        self.Zc_vars_rest = hcat(self.Zc_vars_rest)
 
         self.add_variables_V_control_finalize(stage, opti)
 
@@ -213,3 +234,37 @@ class DirectCollocation(SamplingMethod):
             x0 = DM(opti.debug.value(self.X[k], opti.initial()))
             for e in self.Xc[k]:
                 opti.set_initial(e, repmat(x0, 1, e.shape[1]//x0.shape[1]), cache_advanced=True)
+
+    def to_function(self, stage, name, args, results, *margs):
+        args = list(args)
+        add_zc = 0
+        for i,e in enumerate(args):
+            if isinstance(e,str) and e=="z":
+                args[i] = self.Zc_vars_base
+                add_zc = True
+        all_args = vvcat(args)
+        _,states = stage.sample(stage.x,grid='control')
+
+        add_xc = depends_on(all_args, states) and not depends_on(all_args, self.Xc_vars)
+        add_zc = add_zc and not depends_on(all_args, self.Zc_vars_rest)
+        inner_args = list(args)
+        if add_xc:
+            inner_args += [self.Xc_vars]
+        if add_zc:
+            inner_args += [self.Zc_vars_rest]  
+
+        f = SamplingMethod.to_function(self, stage, name, inner_args, results, *margs)
+        f_args = f.mx_in()[:len(args)]
+        call_args = list(f_args)
+        if add_xc:
+            call_args+=[self.Xc_vars0]
+        if add_zc:
+            call_args+=[self.Zc0]
+
+        return Function(name, f_args, f.call(call_args,True,False), *margs)
+
+
+
+#first, find a rockit way  to initialize xc and zc using to_function
+#parameter?
+#parametric set_initial?
