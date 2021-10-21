@@ -824,7 +824,7 @@ class AcadosMethod:
             ocp.solver_options.qp_solver_iter_max = 1000
             #ocp.solver_options.tol = 1e-8
             #ocp.solver_options.print_level = 15
-            ocp.solver_options.shooting_nodes = self.time_grid
+            ocp.solver_options.shooting_nodes = np.array(self.time_grid).reshape(self.N+1)
             # AcadosOcpOptions
 
             # By-pass acados's heuristic to check lbx==ubx numerically
