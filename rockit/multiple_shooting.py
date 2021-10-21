@@ -21,69 +21,91 @@
 #
 
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat
 import numpy as np
 
 class MultipleShooting(SamplingMethod):
-    def __init__(self, *args, **kwargs):
-        SamplingMethod.__init__(self, *args, **kwargs)
+    def __init__(self, **kwargs):
+        SamplingMethod.__init__(self, **kwargs)
 
     def add_variables(self, stage, opti):
-        self.add_time_variables(stage, opti)
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(opti.variable(stage.nx))
+        self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(opti.variable(stage.nu))
-            self.X.append(opti.variable(stage.nx))
+            self.U.append(vcat([opti.variable(s.numel()) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.add_variables_V_control(stage, opti, k)
+            self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
+            
+
+        self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self, stage, opti):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
-        if stage.is_free_time():
-            opti.subject_to(self.T >= 0)
-
-        self.xk = []
-        self.q = 0
-        # we only save polynomal coeffs for runge-kutta4
-        if stage._method.intg == 'rk':
-            self.poly_coeff = []
-        else:
+        if F.numel_out("poly_coeff")==0:
             self.poly_coeff = None
+        if F.numel_out("poly_coeff_z")==0:
+            self.poly_coeff_z = None
 
+        self.q = 0
+
+        FFs = []
+        # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=vertcat(veccat(*self.P), self.get_p_control_at(stage, k)))
-            # Dynamic constraints a.k.a. gap-closing constraints
-            opti.subject_to(self.X[k + 1] == FF["xf"])
-
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k))
+            FFs.append(FF)
             # Save intermediate info
             poly_coeff_temp = FF["poly_coeff"]
+            poly_coeff_z_temp = FF["poly_coeff_z"]
             xk_temp = FF["Xi"]
-            self.q = self.q + FF["qf"]
+            zk_temp = FF["Zi"]
+
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
+            self.zk.extend([zk_temp[:, i] for i in range(self.M)])
+            if k==0:
+                self.Z.append(zk_temp[:, 0])
+            self.Z.append(FF["zf"])
             if self.poly_coeff is not None:
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
+            if self.poly_coeff_z is not None:
+                self.poly_coeff_z.extend(horzsplit(poly_coeff_z_temp, poly_coeff_z_temp.shape[1]//self.M))
+
+        self.xk.append(self.X[-1])
+        self.zk.append(self.zk[-1])
+
+        for k in range(self.N):
+            FF = FFs[k]
+            # Dynamic constraints a.k.a. gap-closing constraints
+            opti.subject_to(self.X[k + 1] == FF["xf"])
+            self.q = self.q + FF["qf"]
 
             for l in range(self.M):
-                for c, meta, _ in stage._constraints["integrator"]:
+                for c, meta, args in stage._constraints["integrator"]:
+                    if k==0 and l==0 and not args["include_first"]: continue
                     opti.subject_to(self.eval_at_integrator(stage, c, k, l), meta=meta)
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, l, meta)
 
-            for c, meta, _ in stage._constraints["control"]:  # for each constraint expression
-                opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+            for c, meta, args in stage._constraints["control"]:  # for each constraint expression
+                if k==0 and not args["include_first"]: continue
+                try:
+                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                except IndexError:
+                    pass # Can be caused by ocp.offset -> drop constraint
 
-        for c, meta, _ in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
+            self.add_coupling_constraints(stage, opti, k)
+
+        for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
+            if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
-            opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
-
-        self.xk.append(self.X[-1])
-
-        for c, meta, _ in stage._constraints["point"]:  # Append boundary conditions to the end
-            opti.subject_to(self.eval(stage, c), meta=meta)
+            try:
+                opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+            except IndexError:
+                pass 
+            

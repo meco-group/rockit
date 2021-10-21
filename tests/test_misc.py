@@ -1,16 +1,47 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, UniformGrid, GeometricGrid, FreeGrid
 from problems import integrator_control_problem, vdp, vdp_dae
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
-from contextlib import redirect_stdout
+try:
+  from contextlib import redirect_stdout
+except:
+  redirect_stdout = None
 from io import StringIO
 import numpy as np
 
 
 
 class MiscTests(unittest.TestCase):
+
+    def test_grid_convergence(self):
+        f_exact = 4.414113817112848
+
+        DM.set_precision(16)
+        fss = []
+        for method,order in [
+          (lambda M: MultipleShooting(N=6,intg='collocation',intg_options={"number_of_finite_elements": M, "interpolation_order": 4}),6),
+          (lambda M: MultipleShooting(N=6,intg='rk',M=M), 4),
+          (lambda M: MultipleShooting(N=6,intg='cvodes',intg_options={"reltol":10**(-M),"abstol":10**(-M)}),2),
+          (lambda M: DirectCollocation(N=6,M=M),7)]:
+          fs = []
+          for M in [1,2,4,8]:
+
+            ocp, x1, x2, u = vdp(method(M))
+            ocp.solver("ipopt",{"ipopt.tol":1e-14})
+            sol = ocp.solve()
+
+
+            f = sol.value(ocp.objective)
+            fs.append(f_exact-f)
+
+          print(fs)
+          # An increase of factor 2 in M results in a factor 2**order in objective accuracy
+          order_meas = -np.log(np.abs(np.array(fs[1:])/np.array(fs[:-1])))/np.log(2)
+          print(order_meas)
+          self.assertTrue(np.max(order_meas)>order-0.01)
 
     def test_spy(self):
       ocp, _, _ = integrator_control_problem()
@@ -19,6 +50,10 @@ class MiscTests(unittest.TestCase):
       import matplotlib.pylab as plt
       self.assertEqual(plt.gca().title._text, "Lagrange Hessian: 101x101,0nz")
 
+    def test_ocp_objective(self):
+      ocp, x, u = integrator_control_problem()
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(ocp.objective),sol.value(ocp.at_tf(x)))
 
     def test_basic(self):
         for T in [1, 3.2]:
@@ -26,7 +61,7 @@ class MiscTests(unittest.TestCase):
                 for u_max in [1, 2]:
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
-                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4,M=M)]:
+                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4,M=M), SingleShooting(N=4,M=M,intg='rk')]:
                                 ocp, x, u = integrator_control_problem(
                                     T, u_max, x0, method, t0
                                 )
@@ -79,34 +114,51 @@ class MiscTests(unittest.TestCase):
         xf = 2
         for t0 in [0, 1]:
             for x0 in [0, 1]:
-                for b in [1, 2]:
+                for b in [1.0, 2.0]:
                     for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
-                        ocp = Ocp(t0=t0, T=FreeTime(1))
+                        for pos in ["pre","post"]:
+                          if pos=="pre":
+                            ocp = Ocp(t0=t0, T=FreeTime(1))
+                          else:
+                            ocp = Ocp(t0=t0)
 
-                        x = ocp.state()
-                        u = ocp.control()
+                          x = ocp.state()
+                          u = ocp.control()
 
-                        ocp.set_der(x, u)
+                          ocp.set_der(x, u)
 
-                        ocp.subject_to(u <= b)
-                        ocp.subject_to(-b <= u)
+                          ocp.subject_to(u <= b)
+                          ocp.subject_to(-b <= u)
 
-                        ocp.add_objective(ocp.T)
-                        ocp.subject_to(ocp.at_t0(x) == x0)
-                        ocp.subject_to(ocp.at_tf(x) == xf)
+                          ocp.add_objective(ocp.T)
+                          ocp.subject_to(ocp.at_t0(x) == x0)
+                          ocp.subject_to(ocp.at_tf(x) == xf)
 
-                        ocp.solver('ipopt')
+                          ocp.solver('ipopt')
 
-                        ocp.method(method)
+                          ocp.method(method)
 
-                        sol = ocp.solve()
+                          if pos=="post":
+                            ocp.set_T(ocp.variable())
+                            ocp.set_initial(ocp.T, 1)
+                            ocp.subject_to(ocp.T>=0)
 
-                        ts, xs = sol.sample(x, grid='control')
+                          sol = ocp.solve()
 
-                        self.assertAlmostEqual(xs[0], x0, places=6)
-                        self.assertAlmostEqual(xs[-1], xf, places=6)
-                        self.assertAlmostEqual(ts[0], t0)
-                        self.assertAlmostEqual(ts[-1], t0 + (xf - x0) / b)
+                          self.assertAlmostEqual(sol.value(ocp.t0), t0)
+                          self.assertAlmostEqual(sol.value(ocp.T),(xf-x0)/b)
+                          self.assertAlmostEqual(sol.value(ocp.tf), t0 + (xf - x0) / b)
+
+                          # issue #91
+                          self.assertAlmostEqual(sol.value(ocp.at_t0(x)), x0)
+                          self.assertAlmostEqual(sol.value(ocp.at_tf(x)), xf)
+
+                          ts, xs = sol.sample(x, grid='control')
+
+                          self.assertAlmostEqual(xs[0], x0, places=6)
+                          self.assertAlmostEqual(xs[-1], xf, places=6)
+                          self.assertAlmostEqual(ts[0], t0)
+                          self.assertAlmostEqual(ts[-1], t0 + (xf - x0) / b)
 
     def test_basic_t0_free(self):
         xf = 2
@@ -195,10 +247,11 @@ class MiscTests(unittest.TestCase):
         ocp.subject_to(ocp.at_t0(x)==2)   
         with self.assertRaises(Exception):
           sol = ocp.solve()
-        with StringIO() as buf, redirect_stdout(buf):
-          ocp.show_infeasibilities(1e-4)
-          out = buf.getvalue()
-        self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
+        if redirect_stdout is not None:
+          with StringIO() as buf, redirect_stdout(buf):
+            ocp.show_infeasibilities(1e-4)
+            out = buf.getvalue()
+          self.assertIn("ocp.subject_to(ocp.at_t0(x)==2)",out)
       
 
     def test_time_dep_ode(self):
@@ -319,6 +372,83 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(x2_a,x2_b,decimal=12)
         assert_array_almost_equal(u_a,u_b,decimal=12)
 
+
+    def test_dae_methods(self):
+     
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+
+        uref = sol.sample(u, grid='control')[1]
+
+        zsol = sol.sample(ocp.z, grid='control')[1]
+        zref = sol.sample(1 - x2**2, grid='control')[1]
+        assert_array_almost_equal(zsol,zref,decimal=2)
+
+        for method in [SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method)
+           ocp.solver("ipopt")
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
+           assert_array_almost_equal(uref,usol,decimal=3)
+
+        # Constraints with algebraic variables
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1))
+
+        ocp.subject_to(ocp.at_tf(ocp.z) <= 0.8)
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+
+        zref = sol.sample(ocp.z, grid='control')[1]
+        assert_array_almost_equal(zref[-1],0.8,decimal=6)
+        uref = sol.sample(u, grid='control')[1]
+
+        for method in [#SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method)
+
+           ocp.subject_to(ocp.at_tf(ocp.z) <= 0.8)
+           ocp.solver("ipopt")
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
+           assert_array_almost_equal(uref,usol,decimal=3)
+
+        
+        # Path constraints with algebraic variables
+        ocp, x1, x2, u = vdp_dae(DirectCollocation(N=6,M=1),x1limit=False)
+
+        ocp.subject_to(0 <= (ocp.z <= 0.8))
+        ocp.solver("ipopt")
+        sol = ocp.solve()
+        ts,zref = sol.sample(ocp.z, grid='control')
+        print(zref,ts/10+0.1)
+        uref = sol.sample(u, grid='control')[1]
+
+        for method in [SingleShooting(N=6,intg='idas'),
+                       MultipleShooting(N=6,intg='idas')]:
+                       #MultipleShooting(N=6,intg='collocation')]:
+           ocp, x1, x2, u = vdp_dae(method,x1limit=False)
+
+           ocp.subject_to(0 <= (ocp.z <= 0.8))
+           ocp.solver("ipopt",{"ipopt.tol": 1e-5})
+           sol = ocp.solve()
+
+           usol = sol.sample(u, grid='control')[1]
+           zsol = sol.sample(ocp.z, grid='control')[1]
+           #assert_array_almost_equal(zsol[1:],zref[1:],decimal=2)
+           #assert_array_almost_equal(uref,usol,decimal=3)
+
+           assert_array_almost_equal(np.max(zsol),0.8,decimal=3)
+     
     def test_grid_inf_subject_to(self):
         ocp, x1, x2, u = vdp(MultipleShooting(N=10))
         sol = ocp.solve()
@@ -404,7 +534,7 @@ class MiscTests(unittest.TestCase):
         ocp.subject_to(ocp.at_t0(dx)==0)
         ocp.subject_to(ocp.at_t0(dy)==0)
         ocp.subject_to(ocp.at_t0(dw)==0)
-        #ocp.subject_to(xa>=0,grid='integrator_roots')
+        ocp.subject_to(xa>=0,grid='integrator_roots')
 
         ocp.set_initial(y, l)
         ocp.set_initial(xa, 9.81)
@@ -427,6 +557,268 @@ class MiscTests(unittest.TestCase):
         assert_array_almost_equal(sol.sample(xa, grid='control')[1][0], 9.81011622448889)
         assert_array_almost_equal(sol.sample(xa, grid='control')[1][1], 9.865726317147214)
 
-        
+    def test_to_function(self):
+        ocp = Ocp(T=FreeTime(1))
+
+        p = ocp.state()
+        v = ocp.state()
+        u = ocp.control()
+        u2 = ocp.control()
+
+        ocp.set_der(p, v)
+        ocp.set_der(v, u+u2)
+
+        pp = ocp.parameter()
+        ocp.subject_to(u <= p)
+        ocp.subject_to(-1 <= u)
+        ocp.subject_to(u2 <= p)
+        ocp.subject_to(-1 <= u2)
+
+        ocp.add_objective(ocp.T)
+        ocp.subject_to(ocp.at_t0(p) == 0)
+        ocp.subject_to(ocp.at_t0(v) == 0)
+        ocp.subject_to(ocp.at_tf(p) == 1)
+        ocp.subject_to(ocp.at_tf(v) == 0)
+
+        ocp.solver('ipopt')
+
+        N = 6
+        ocp.method(MultipleShooting(N=N))
+
+        ocp.set_value(pp, 1)
+        sol = ocp.solve()
+
+        f = ocp.to_function('f',[ocp.value(pp),ocp.sample(p,grid='control')[1], ocp.sample(v,grid='control')[1], ocp.sample(u,grid='control-')[1]],[ocp.sample(p,grid='control')[1]])
+
+        print(f(1,1,2,3))
+
+    def test_no_solver(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.method(MultipleShooting(N=3))
+      with self.assertRaisesRegex(Exception, "You forgot to declare a solver"):
+        ocp.solve()
+
+    def test_no_method(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      with self.assertRaisesRegex(Exception, "You forgot to declare a method"):
+        ocp.solve()
+
+    def test_no_objective(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      ocp.set_der(x, u)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      ocp.solve()
+
+    def test_no_solve(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      ocp.set_der(x, u)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      with self.assertRaisesRegex(Exception, "You forgot to solve first"):
+        ocp.non_converged_solution
+
+    def test_no_set_value(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      with self.assertRaisesRegex(Exception, "You forgot to declare a value"):
+        ocp.solve()
+
+    def test_set_value_error(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+
+      y = MX.sym('y')
+
+      ocp.set_value(p, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(y, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(x, 3)
+
+
+      ocp.solve()
+      ocp.set_value(p, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(x, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the value of a non-parameter"):
+        ocp.set_value(y, 3)
+
+    def test_set_initial(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      y = MX.sym('y')
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      ocp.method(MultipleShooting(N=3))
+      ocp.set_value(p, 2)
+
+      ocp.set_initial(x, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of a parameter"):
+        ocp.set_initial(p, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
+        ocp.set_initial(y, 3)
+      ocp.solve()
+      ocp.set_initial(x, 2)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of a parameter"):
+        ocp.set_initial(p, 3)
+      with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
+        ocp.set_initial(y, 3)
+
+    def test_control_set_der(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      with self.assertRaisesRegex(Exception, "You used set_der on a non"):
+        ocp.set_der(u, 2)
+
+
+    def test_add_objective_signal(self):
+      ocp = Ocp()
+      x = ocp.state()
+      u = ocp.control()
+      p = ocp.parameter()
+      y = MX.sym('y')
+      ocp.set_der(x, u*p)
+      ocp.solver('ipopt')
+      with self.assertRaisesRegex(Exception, "An objective cannot be a signal"):
+        ocp.add_objective(x)
+
+    def test_localize_time(self):
+      N = 10
+      for t0_stage in [FreeTime(-1), -1]:
+          for T_stage in [FreeTime(2), 2]:
+              t0_free = isinstance(t0_stage, FreeTime)
+              T_free = isinstance(T_stage, FreeTime)
+              ocp = Ocp(t0=t0_stage,T=T_stage)
+
+              p = ocp.state()
+              v = ocp.state()
+              u = ocp.control()
+
+              ocp.set_der(p, v)
+              ocp.set_der(v, u)
+
+              ocp.add_objective(ocp.tf)
+              ocp.subject_to(ocp.at_t0(p) == 0)
+              ocp.subject_to(ocp.at_t0(v) == 0)
+              ocp.subject_to(ocp.at_tf(p) == 1)
+              ocp.subject_to(ocp.at_tf(v) == 0)
+
+              ocp.subject_to(u <= 1)
+              ocp.subject_to(-1 <= u)
+ 
+              ocp.solver('ipopt',{"ipopt.tol":1e-12})
+
+              if t0_free:
+                  ocp.subject_to(ocp.t0 >= -1)
+
+              for localize_t0 in [False,True]:
+                if (not t0_free) and localize_t0: continue
+                for localize_T in [False,True]:
+                  if (not T_free) and localize_T: continue
+  
+                  ocp.method(MultipleShooting(N=N,grid=UniformGrid(localize_T=localize_T,localize_t0=localize_t0)))
+
+                  sol = ocp.solve()
+                  opti = ocp._method.opti
+                  self.assertTrue(sum2(sum1(DM(jacobian(opti.g, opti.x).sparsity(),1))>N)<= t0_free+T_free-localize_t0-localize_T)
+                    
+
+    def test_control_grid(self):
+      N = 4
+      # Be careful for loss of symmetry for non-uniform grids; bang-bang is only optimal if normalized(t=0.5) is included
+      # e.g. for local growth factor r: (1-r^7)/(1-r^10) = 0.5 -> r = 
+      r = MX.sym("r")
+      rf = rootfinder("rf","newton",{"x": r, "g": (1-r**3)/(1-r**N)-0.5})
+      r = float(rf(x0=1.2)["x"])
+      for t0_stage in [FreeTime(-1), -1]:
+          for T_stage in [FreeTime(2), 2]:
+              t0_free = isinstance(t0_stage, FreeTime)
+              T_free = isinstance(T_stage, FreeTime)
+              ocp = Ocp(t0=t0_stage,T=T_stage)
+
+              p = ocp.state()
+              v = ocp.state()
+              u = ocp.control()
+
+              ocp.set_der(p, v)
+              ocp.set_der(v, u)
+
+              ocp.add_objective(ocp.tf)
+              ocp.subject_to(ocp.at_t0(p) == 0)
+              ocp.subject_to(ocp.at_t0(v) == 0)
+              ocp.subject_to(ocp.at_tf(p) == 1)
+              ocp.subject_to(ocp.at_tf(v) == 0)
+
+
+              ocp.subject_to(-1 <= (u <= 1))
+              ocp.solver('ipopt',{"ipopt.tol":1e-12})
+
+              if t0_free:
+                  ocp.subject_to(ocp.t0 >= -1)
+
+              for localize_t0 in [False,True]:
+                if (not t0_free) and localize_t0: continue
+                for localize_T in [False,True]:
+                  if (not T_free) and localize_T: continue
+
+                  for grid in [
+                    UniformGrid(localize_T=localize_T,localize_t0=localize_t0),
+                    GeometricGrid(r,local=True,localize_T=localize_T,localize_t0=localize_t0),
+                    GeometricGrid(r**(N-1),local=False,localize_T=localize_T,localize_t0=localize_t0),
+                    FreeGrid(min=0.01,max=0.5)]:
+                      ocp.method(MultipleShooting(N=N,grid=grid))
+
+                      sol = ocp.solve()
+
+                      tolerance = 1e-6
+
+                      if isinstance(grid, UniformGrid):
+
+                        ts_ref = -1 + np.linspace(0, 2, 4*N+1)
+
+                        ts, _ = sol.sample(v, grid='integrator', refine=4)
+                        np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
+
+                      ts, _ = sol.sample(v, grid='control')
+                      if not isinstance(grid, FreeGrid):
+
+                        ts_ref = -1 + 2*np.array(grid.normalized(N))
+
+                        np.testing.assert_allclose(ts, ts_ref, atol=tolerance)
+
+                      np.testing.assert_allclose(ts[0], -1, atol=tolerance)
+                      np.testing.assert_allclose(ts[-1], 1, atol=tolerance)
+
+                      self.assertAlmostEqual(sol.value(ocp.t0),-1, places=5)
+                      self.assertAlmostEqual(sol.value(ocp.T),2, places=5)
+                      self.assertAlmostEqual(sol.value(ocp.tf),1, places=5)
+
 if __name__ == '__main__':
     unittest.main()

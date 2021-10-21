@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 ocp = Ocp(T=FreeTime(1.0))
 
 # Define constants
-m = 500
+m = 500.0
 c = 2
 d = 1000
 F_max = 2500

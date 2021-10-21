@@ -19,10 +19,40 @@
 #     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 #
+import os
+import sys
+
+in_matlab = "libmwbuffer" in sys.modules.keys()
+
+if in_matlab:
+  try:
+    dlopen_flags = sys.getdlopenflags()
+    # Fixes crash of numpy in Matlab
+    sys.setdlopenflags(10) # RTLD_DEEPBIND(8) | RTLD_NOW(2)
+  except:
+    pass
 
 from .multiple_shooting import MultipleShooting
 from .ocp import Ocp
 from .stage import Stage
 from .direct_method import DirectMethod
 from .direct_collocation import DirectCollocation
+from .single_shooting import SingleShooting
 from .freetime import FreeTime
+from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
+from .solution import OcpSolution
+from .external.manager import external_method
+
+try:
+  matlab_path = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))
+except:
+  matlab_path = "not_found"
+
+if in_matlab:
+  try:
+    sys.setdlopenflags(dlopen_flags)
+    del dlopen_flags
+  except:
+    pass
+
+del in_matlab

@@ -14,11 +14,20 @@ def run(*args, **kwargs):
     if pid.returncode!=0:
       sys.exit(pid.returncode)
 
+# Run main examples
 for root, dir, files in os.walk("examples"):
         if "wip" in root: continue
         for f in files:
           if f.endswith(".py"):
             run([sys.executable, os.path.join(root, f)], env=my_env)
+
+# Run external examples
+for root, dir, files in os.walk("rockit/external"):
+  if root.endswith("examples"):
+    for f in files:
+      if "wip" in root: continue
+      if f.endswith(".py"):
+        run([sys.executable, os.path.join(root, f)], env=my_env)
 
 run(["nosetests"])
 

@@ -5,14 +5,12 @@ stages:
 
 # shorthand for testing
 .test_template: &template
-  image: asteinh/ocpx-base
+  image: jgillis/meco_builder:rockit
   tags:
     - docker
   before_script:
-    - source activate ocpx
-    - mkdir -p .pip
-    - pip --cache-dir=.pip install casadi sphinx-gallery sphinx_rtd_theme coverage
     - python setup.py install
+
   cache:
     paths:
       - .pip
@@ -30,7 +28,7 @@ testing:examples:
   stage: testing
   <<: *template
   script:
-    - find  examples -name "*.py" -not -path "*/wip/*" | xargs -n 1 python
+    - find . -name "*.py" -not -path "*/wip/*" -path "*/examples/*" | xargs -n 1 python
 
 docs:sphinx:
   stage: docs
@@ -42,6 +40,8 @@ docs:sphinx:
     - cd docs/sphinx && mkdir -p apidoc
     - sphinx-apidoc -f -o ./apidoc/ ../../rockit/
     - make html
+    - find -name "*.html" -print0 | xargs -0 sed -i 's|https://mybinder.org/v2/gh/meco-software/rockit.git/master?filepath=notebooks/|https://mybinder.org/v2/git/https%3A%2F%2Fgitlab.kuleuven.be%2Fmeco-software%2Frockit.git/master?filepath=|g'
+
   artifacts:
     paths:
       - docs/sphinx/build

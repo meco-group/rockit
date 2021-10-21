@@ -21,14 +21,17 @@
 #
 
 import numpy as np
-from casadi import vertcat, vcat, DM, Function, hcat
+from casadi import vertcat, vcat, DM, Function, hcat, MX
+from .casadi_helpers import DM2numpy
 from numpy import nan
+import functools
 
 class OcpSolution:
     def __init__(self, nlpsol, stage):
         """Wrap casadi.nlpsol to simplify access to numerical solution."""
         self.sol = nlpsol
-        self.stage = stage
+        self.stage = stage._augmented # SHould this be ocP?
+        self._gist = np.array(nlpsol.value(self.stage.master.gist)).squeeze()
 
     def __call__(self, stage):
         """Sample expression at solution on a given grid.
@@ -40,8 +43,15 @@ class OcpSolution:
         """
         return OcpSolution(self.sol, stage=stage)
 
-    def value(self, expr, *args, **kwargs):
-        return self.sol.value(expr, *args, **kwargs)
+    def value(self, expr, *args):
+        """Get the value of an (non-signal) expression.
+
+        Parameters
+        ----------
+        expr : :obj:`casadi.MX`
+            Arbitrary expression containing no signals (states, controls) ...
+        """
+        return self.sol.value(self.stage.value(expr, *args))
 
     def sample(self, expr, grid, **kwargs):
         """Sample expression at solution on a given grid.
@@ -72,97 +82,80 @@ class OcpSolution:
         >>> sol = ocp.solve()
         >>> tx, xs = sol.sample(x, grid='control')
         """
-        if grid == 'control':
-            return self._grid_control(self.stage, expr, grid, **kwargs)
-        elif grid == 'integrator':
-            if 'refine' in kwargs:
-                return self._grid_intg_fine(self.stage, expr, grid, **kwargs)
-            else:
-                return self._grid_integrator(self.stage, expr, grid, **kwargs)
-        elif grid == 'integrator_roots':
-            return self._grid_integrator_roots(self.stage, expr, grid, **kwargs)
-        else:
-            msg = "Unknown grid option: {}\n".format(grid)
-            msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
-            raise Exception(msg)
+        time, res = self.stage.sample(expr, grid, **kwargs)
+        res = self.sol.value(res)
+        return self.sol.value(time), DM2numpy(res, MX(expr).shape, time.numel())
 
-    def _grid_control(self, stage, expr, grid):
-        """Evaluate expression at (N + 1) control points."""
-        sub_expr = []
-        for k in list(range(stage._method.N))+[-1]:
-            sub_expr.append(stage._method.eval_at_control(stage, expr, k))
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(stage._method.control_grid)
-        return time, np.array(res)
+    def sampler(self, *args):
+        """Returns a function that samples given expressions
 
-    def _grid_integrator(self, stage, expr, grid):
-        """Evaluate expression at (N*M + 1) integrator discretization points."""
-        sub_expr = []
-        time = []
-        for k in range(stage._method.N):
-            for l in range(stage._method.M):
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr, k, l))
-            time.append(stage._method.integrator_grid[k])
-        sub_expr.append(stage._method.eval_at_control(stage, expr, -1))
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(vcat(time))
-        return time, np.array(res)
 
-    def _grid_integrator_roots(self, stage, expr, grid):
-        """Evaluate expression at integrator roots."""
-        sub_expr = []
-        tr = []
-        for k in range(stage._method.N):
-            for l in range(stage._method.M):
-                for j in range(stage._method.xr[k][l].shape[1]):
-                    sub_expr.append(stage._method.eval_at_integrator_root(stage, expr, k, l, j))
-                tr.extend(stage._method.tr[k][l])
-        res = [self.sol.value(elem) for elem in sub_expr]
-        time = self.sol.value(hcat(tr))
-        return time, np.array(res)
+        This function has two modes of usage:
+        1)  sampler(exprs)  -> Python function
+        2)  sampler(name, exprs, options) -> CasADi function
 
-    def _grid_intg_fine(self, stage, expr, grid, refine):
-        """Evaluate expression at extra fine integrator discretization points."""
-        if stage._method.poly_coeff is None:
-            msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
-            raise Exception(msg)
-        N, M, T = stage._method.N, stage._method.M, stage._method.T
+        Parameters
+        ----------
+        exprs : :obj:`casadi.MX` or list of :obj:`casadi.MX`
+            List of arbitrary expression containing states, controls, ...
+        name : `str`
+            Name for CasADi Function
+        options : dict, optional
+            Options for CasADi Function
 
-        expr_f = Function('expr', [stage.x, stage.z, stage.u], [expr])
+        Returns
+        -------
+        t -> output
 
-        sub_expr = []
+        mode 1 : Python Function
+            Symbolically evaluated expression at points in time vector.
+        mode 2 : :obj:`casadi.Function`
+            Time from zero to final time, same length as res
 
-        time = self.sol.value(stage._method.control_grid)
-        total_time = []
-        for k in range(N):
-            t0 = time[k]
-            dt = (time[k+1]-time[k])/M
-            tlocal = np.linspace(0, dt, refine + 1) 
-            ts = DM(tlocal[:-1]).T
-            for l in range(M):
-                total_time.append(t0+tlocal[:-1])
-                coeff = stage._method.poly_coeff[k * M + l]
-                tpower = vcat([ts**i for i in range(coeff.shape[1])])
-                if stage._method.poly_coeff_z:
-                    coeff_z = stage._method.poly_coeff_z[k * M + l]
-                    tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
-                    z = coeff_z @ tpower_z
-                else:
-                    z = nan
-                sub_expr.append(expr_f(coeff @ tpower, z, stage._method.U[k]))
-                t0+=dt
+        Examples
+        --------
+        Assume an ocp with a stage is already defined.
 
-        ts = tlocal[-1]
-        total_time.append(time[k+1])
-        tpower = vcat([ts**i for i in range(coeff.shape[1])])
-        if stage._method.poly_coeff_z:
-            tpower_z = vcat([ts**i for i in range(coeff_z.shape[1])])
-            z = coeff_z @ tpower_z
-        else:
-            z = nan
-        sub_expr.append(expr_f(stage._method.poly_coeff[-1] @ tpower, z, stage._method.U[-1]))
+        >>> sol = ocp.solve()
+        >>> s = sol.sampler(x)
+        >>> s(1.0) # Value of x at t=1.0
+        """
+        s = self.stage.sampler(*args)
+        ret = functools.partial(s, self.gist)
+        ret.__doc__ = """
+                Parameters
+                ----------
+                t : float or float vector
+                    time or time-points to sample at
 
-        res = self.sol.value(hcat(sub_expr))
+                Returns
+                -------
+                :obj:`np.array`
 
-        time = np.hstack(total_time)
-        return time, res
+                """
+        return ret
+
+    @property
+    def gist(self):
+        """All numerical information needed to compute any value/sample
+
+        Returns
+        -------
+        1D numpy.ndarray
+           The composition of this array may vary between rockit versions
+
+
+        """
+        return self._gist
+
+    @property
+    def stats(self):
+        """Retrieve solver statistics
+
+        Returns
+        -------
+        Dictionary
+           The information contained is not structured and may change between rockit versions
+
+        """
+        return self.sol.stats()

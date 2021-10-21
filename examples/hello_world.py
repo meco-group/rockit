@@ -27,16 +27,19 @@ A Hello World Example
 Some basic example on solving an Optimal Control Problem with rockit.
 """
 
+
+# Make available sin, cos, etc
+from numpy import *
 # Import the project
 from rockit import *
-
 #%%
 # Problem specification
 # ---------------------
 
 # Start an optimal control environment with a time horizon of 10 seconds
-#  (free time problems can be configured with `FreeTime(initial_guess)`)
-ocp = Ocp(T=10)
+# starting from t0=0s.
+#  (free-time problems can be configured with `FreeTime(initial_guess)`)
+ocp = Ocp(t0=0, T=10)
 
 # Define two scalar states (vectors and matrices also supported)
 x1 = ocp.state()
@@ -46,19 +49,22 @@ x2 = ocp.state()
 #  (use `order=1` for piecewise linear)
 u = ocp.control()
 
+# Compose time-dependent expressions a.k.a. signals
+#  (explicit time-dependence is supported with `ocp.t`)
+e = 1 - x2**2
+
 # Specify differential equations for states
-#  (time dependency supported with `ocp.t`,
-#   DAEs also supported with `ocp.algebraic` and `add_alg`)
-ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+#  (DAEs also supported with `ocp.algebraic` and `add_alg`)
+ocp.set_der(x1, e * x1 - x2 + u)
 ocp.set_der(x2, x1)
 
-# Lagrange objective term
+# Lagrange objective term: signals in an integrand
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
-# Mayer objective term
+# Mayer objective term: signals evaluated at t_f = t0_+T
 ocp.add_objective(ocp.at_tf(x1**2))
 
 # Path constraints
-#  (must be valid on the whole time domain running from `t0` to `tf=t0+T`,
+#  (must be valid on the whole time domain running from `t0` to `tf`,
 #   grid options available such as `grid='inf'`)
 ocp.subject_to(x1 >= -0.25)
 ocp.subject_to(-1 <= (u <= 1 ))
@@ -76,14 +82,26 @@ ocp.subject_to(ocp.at_t0(x2) == 1)
 ocp.solver('ipopt')
 
 # Pick a solution method
+#  e.g. SingleShooting, MultipleShooting, DirectCollocation
+#
 #  N -- number of control intervals
 #  M -- number of integration steps per control interval
-method = MultipleShooting(N=10, M=2, intg='rk')
-#method = DirectCollocation(N=10, M=2)
+#  grid -- could specify e.g. UniformGrid() or GeometricGrid(4)
+method = MultipleShooting(N=10, intg='rk')
 ocp.method(method)
+
+# Set initial guesses for states, controls and variables.
+#  Default: zero
+ocp.set_initial(x2, 0)                 # Constant
+ocp.set_initial(x1, ocp.t/10)          # Function of time
+ocp.set_initial(u, linspace(0, 1, 10)) # Matrix
 
 # Solve
 sol = ocp.solve()
+
+# In case the solver fails, you can still look at the solution:
+# (you may need to wrap the solve line in try/except to avoid the script aborting)
+sol = ocp.non_converged_solution
 
 #%%
 # Post-processing
@@ -121,7 +139,7 @@ grid(True)
 # sphinx_gallery_thumbnail_number = 2
 
 # Refine the grid for a more detailed plot
-tsol, usol = sol.sample(u, grid='integrator',refine=100)
+tsol, usol = sol.sample(u, grid='integrator', refine=100)
 
 figure()
 plot(tsol,usol)

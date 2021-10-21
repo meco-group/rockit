@@ -47,10 +47,10 @@ def bang_bang_problem(stage_method):
 
     ocp.method(stage_method)
 
-    return (ocp, ocp.solve(), p, v, u)
+    return (ocp, p, v, u)
 
 
-def vdp_dae(method):
+def vdp_dae(method,x1limit=True):
   ocp = Ocp(T=10)
 
   # Define 2 states
@@ -72,7 +72,10 @@ def vdp_dae(method):
 
   # Path constraints
   ocp.subject_to(-1 <= (u <= 1))
-  ocp.subject_to(x1 >= -0.25)
+  if x1limit:
+    ocp.subject_to(x1 >= -0.25)
+
+  ocp.subject_to(ocp.at_tf(x1) >= 0)
 
   # Initial constraints
   ocp.subject_to(ocp.at_t0(x1) == 0)

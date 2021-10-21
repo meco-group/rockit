@@ -7,3 +7,6 @@ cover/
 
 # Install files
 *.egg-info/
+build
+c_generated_code
+dist

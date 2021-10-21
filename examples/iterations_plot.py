@@ -46,8 +46,7 @@ ocp.set_der(x2, x1)
 ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 
 # Path constraints
-ocp.subject_to(      u <= 1)
-ocp.subject_to(-1 <= u     )
+ocp.subject_to(-1 <= (u <= 1))
 ocp.subject_to(x1 >= -0.25) # grid='inf')
 
 # Initial constraints

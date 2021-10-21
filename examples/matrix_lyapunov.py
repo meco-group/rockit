@@ -55,8 +55,7 @@ P0 = diag([0.01**2,0.1**2])
 ocp.subject_to(ocp.at_t0(P) == P0)
 ocp.set_initial(P, P0)
 
-ocp.subject_to(       u <= 40)
-ocp.subject_to(-40 <= u      )
+ocp.subject_to(-40 <= (u <= 40))
 
 ocp.subject_to(x[0] >= -0.25)
 
@@ -93,7 +92,11 @@ plt.legend(["x1"])
 ts, Psol = sol.sample(P,grid = 'control')
 
 o = np.array([[1,0]])
-sigma =  np.sqrt(o*Psol*o.T)[:,0,0]
+
+sigma = []
+for i in range(len(ts)):
+  sigma.append(float(np.sqrt(o @ Psol[i,:,:] @ o.T)))
+sigma =  np.array(sigma)
 plt.plot([ts,ts],[xsol-sigma,xsol+sigma],'k')
 
 plt.legend(('OCP trajectory x1','bound on x1'))
