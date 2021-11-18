@@ -1,3 +1,37 @@
+#
+#     This file is part of rockit.
+#
+#     rockit -- Rapid Optimal Control Kit
+#     Copyright (C) 2019 MECO, KU Leuven. All rights reserved.
+#
+#     Rockit is free software; you can redistribute it and/or
+#     modify it under the terms of the GNU Lesser General Public
+#     License as published by the Free Software Foundation; either
+#     version 3 of the License, or (at your option) any later version.
+#
+#     Rockit is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#     Lesser General Public License for more details.
+#
+#     You should have received a copy of the GNU Lesser General Public
+#     License along with CasADi; if not, write to the Free Software
+#     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+#
+#
+"""
+Multistage drone race example
+=============================
+
+In this example, we use a multistage approach to tackle a gate racing problem
+which occurs in drone racing. The first gate is a rectangular gate, the second
+is circular. In each stage of the multistage ocp, the collision free space in
+front of, through and behind each gate is represented by a linear inequality
+constraint.
+A paper on this approach has been submitted to the AMC conference 2022 in
+Padova, Italy.
+"""
+
 from typing import Tuple
 import casadi as c
 import rockit as r
