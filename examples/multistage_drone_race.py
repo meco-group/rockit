@@ -287,7 +287,7 @@ opts = {"expand": True,
         "verbose": False,
         "print_time": True,
         "error_on_fail": True,
-        "ipopt": {"linear_solver": "ma57",
+        "ipopt": {"linear_solver": "mumps",  # "ma57" is faster!
                   "max_iter": 1000,
                   'print_level': 5,
                   'sb': 'yes',  # Suppress IPOPT banner
