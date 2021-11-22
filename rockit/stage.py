@@ -171,7 +171,7 @@ class Stage:
         """Create a state.
         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
 
-        Parameterrs
+        Parameters
         ----------
         n_rows : int, optional
             Number of rows
