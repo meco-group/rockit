@@ -147,6 +147,16 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = register_state(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'x','quad','meta'});
+      if isempty(kwargs)
+        res = obj.parent.register_state(args{:});
+      else
+        res = obj.parent.register_state(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = algebraic(obj,varargin)
       % Create an algebraic variable
       % Arguments: n_rows=1, n_cols=1, meta=None
@@ -182,6 +192,16 @@ classdef Stage < handle
         res = obj.parent.algebraic(args{:});
       else
         res = obj.parent.algebraic(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = register_algebraic(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'z','meta'});
+      if isempty(kwargs)
+        res = obj.parent.register_algebraic(args{:});
+      else
+        res = obj.parent.register_algebraic(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -235,6 +255,16 @@ classdef Stage < handle
         res = obj.parent.variable(args{:});
       else
         res = obj.parent.variable(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = register_variable(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','meta'});
+      if isempty(kwargs)
+        res = obj.parent.register_variable(args{:});
+      else
+        res = obj.parent.register_variable(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -296,6 +326,16 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = register_parameter(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p','grid','meta'});
+      if isempty(kwargs)
+        res = obj.parent.register_parameter(args{:});
+      else
+        res = obj.parent.register_parameter(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = control(obj,varargin)
       % Create a control signal to optimize for
       % Arguments: n_rows=1, n_cols=1, order=0, meta=None
@@ -341,6 +381,16 @@ classdef Stage < handle
         res = obj.parent.control(args{:});
       else
         res = obj.parent.control(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = register_control(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'u','meta'});
+      if isempty(kwargs)
+        res = obj.parent.register_control(args{:});
+      else
+        res = obj.parent.register_control(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end

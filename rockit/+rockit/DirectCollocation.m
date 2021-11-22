@@ -50,5 +50,15 @@ classdef DirectCollocation < rockit.DirectMethod
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = to_function(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'stage','name','args','results','margs'});
+      if isempty(kwargs)
+        res = obj.parent.to_function(args{:});
+      else
+        res = obj.parent.to_function(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
   end
 end
