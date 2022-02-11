@@ -214,7 +214,7 @@ class Ocp(Stage):
         intg_options["tf"] = 1
         intg = integrator('intg',intg,dae,intg_options)
 
-        z_initial_guess = MX.sym("z",self.z.sparsity())
+        z_initial_guess = MX.sym("z",self.z.sparsity()) if self.nz>0 else MX(0,1)
         
         intg_out = intg(x0=self.x, p=dae["p"], z0=z_initial_guess)
         simulator = Function('simulator',
