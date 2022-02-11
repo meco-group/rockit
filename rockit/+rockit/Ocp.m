@@ -138,6 +138,36 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = is_sys_time_varying(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.is_sys_time_varying(args{:});
+      else
+        res = obj.parent.is_sys_time_varying(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = is_parameter_appearing_in_sys(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.is_parameter_appearing_in_sys(args{:});
+      else
+        res = obj.parent.is_parameter_appearing_in_sys(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = sys_simulator(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'intg','intg_options'});
+      if isempty(kwargs)
+        res = obj.parent.sys_simulator(args{:});
+      else
+        res = obj.parent.sys_simulator(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function out = placeholders_transcribed(obj)
       % 
       %         May also be called after solving (issue #91)

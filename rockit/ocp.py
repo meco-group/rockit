@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import vertcat
+from casadi import vertcat, vcat, vvcat, which_depends, MX, substitute, integrator, Function, depends_on
 from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
 
@@ -159,3 +159,67 @@ class Ocp(Stage):
 
     def to_function(self, name, args, results, *margs):
         return self._method.to_function(self, name, args, results, *margs)
+
+    def is_sys_time_varying(self):
+        # For checks
+        self._ode()
+        ode = vvcat([self._state_der[k] for k in self.states])
+        alg = vvcat(self._alg)
+        rhs = vertcat(ode,alg)
+        return depends_on(rhs, self.t)
+
+    def is_parameter_appearing_in_sys(self):
+        # For checks
+        self._ode()
+        ode = vvcat([self._state_der[k] for k in self.states])
+        alg = vvcat(self._alg)
+        rhs = vertcat(ode,alg)
+        pall = self.parameters['']+self.parameters['control']
+        dep = [depends_on(rhs,p) for p in pall]
+        return dep
+
+    def sys_simulator(self, intg='rk', intg_options=None):
+        if intg_options is None:
+            intg_options = {}
+        intg_options = dict(intg_options)
+        # For checks
+        self._ode()
+        ode = vvcat([self._state_der[k] for k in self.states])
+        alg = vvcat(self._alg)
+
+        dae = {}
+        dae["x"] = self.x
+        dae["z"] = self.z
+
+        t0 = MX.sym("t0")
+        dt = MX.sym("dt")
+        tau = MX.sym("tau")
+        dae["t"] = tau
+
+        pall = self.parameters['']+self.parameters['control']
+        
+        #dep = which_depends(vertcat(ode,alg),vvcat(pall),1,True)
+
+
+        rhs = vertcat(ode,alg)
+        dep = [depends_on(rhs,p) for p in pall]
+
+        p = vvcat([p for p,dep in zip(pall,dep) if dep])
+
+        [ode,alg] = substitute([ode,alg],[self.t],[t0+tau*dt])
+        dae["ode"] = dt*ode
+        dae["alg"] = alg
+        dae["p"] = vertcat(self.u, t0, dt, p)
+        intg_options["t0"] = 0
+        intg_options["tf"] = 1
+        intg = integrator('intg',intg,dae,intg_options)
+
+        z_initial_guess = MX.sym("z",self.z.sparsity())
+        
+        intg_out = intg(x0=self.x, p=dae["p"], z0=z_initial_guess)
+        simulator = Function('simulator',
+            [self.x, self.u, p, t0, dt, z_initial_guess],
+            [intg_out["xf"], intg_out["zf"]],
+            ["x","u","p","t0","dt","z_initial_guess"],
+            ["xf","zf"])
+        return simulator
