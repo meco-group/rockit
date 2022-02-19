@@ -143,6 +143,12 @@ for i = 1:Nsim
     ocp.set_value(X_0, current_X(1:4));
     % Solve the optimization problem
     sol = ocp.solve();
+
+    % NOTE: sol.sample/ocp.set_value/ocp.solve
+    %       bring about some processing overhead
+    %       which may be larger than the actual online optimization
+    %       See repeated_solve.py
+
     % Log data for post-processing
     pos_history(i+1)   = full(current_X(1));
     theta_history(i+1) = full(current_X(2));
