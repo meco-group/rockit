@@ -81,14 +81,16 @@ ocp.set_der(dtheta, (-m*L*cos(theta)*sin(theta)*dtheta*dtheta + F*cos(theta)+(mc
 % Lagrange objective
 ocp.add_objective(ocp.integral(F*2 + 100*pos^2));
 
-% Path constraints
-ocp.subject_to(-2 <= F <= 2  );
-ocp.subject_to(-2 <= pos <= 2);
-
 % Initial constraints
 X = [pos;theta;dpos;dtheta];
 ocp.subject_to(ocp.at_t0(X)==X_0);
 ocp.subject_to(ocp.at_tf(X)==final_X);
+
+% Path constraints
+ocp.subject_to(-2 <= F <= 2  );
+% Note: pos is already fixed at t0 by initial constraints
+%       include_first false avoids adding a redundant constraint 
+ocp.subject_to(-2 <= pos <= 2, 'include_first',false);
 
 % Pick a solution method
 options = struct;

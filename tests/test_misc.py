@@ -893,5 +893,33 @@ class MiscTests(unittest.TestCase):
                       self.assertAlmostEqual(sol.value(ocp.T),2, places=5)
                       self.assertAlmostEqual(sol.value(ocp.tf),1, places=5)
 
+    def test_augmented_set_initial(self):
+      ocp = Ocp(t0=FreeTime(0),T=FreeTime(2))
+
+      p = ocp.state()
+      v = ocp.state()
+      u = ocp.control()
+
+      ocp.set_der(p, v)
+      ocp.set_der(v, u)
+
+      ocp.add_objective(ocp.tf)
+      ocp.subject_to(ocp.at_t0(p) == 0)
+      ocp.subject_to(ocp.at_t0(v) == 0)
+      ocp.subject_to(ocp.at_tf(p) == 1)
+      ocp.subject_to(ocp.at_tf(v) == 0)
+      ocp.subject_to(ocp.t0 == 0)
+      ocp.subject_to(ocp.tf == 2)
+
+      ocp.subject_to(-1 <= (u <= 1))
+      ocp.solver('ipopt',{"ipopt.tol":1e-12})
+
+      ocp.method(MultipleShooting(N=4))
+
+      sol = ocp.solve()
+      ocp.set_initial(ocp.t0, 2)
+      ocp.set_initial(ocp.T, 2)
+      ocp.solve()
+
 if __name__ == '__main__':
     unittest.main()

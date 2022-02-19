@@ -484,7 +484,7 @@ class Stage:
                 self._initial.move_to_end(var, last=False)
         for_all_primitives(var, value, action, "First argument to set_initial must be a variable/signal or a simple concatenation of variables/signals")
         if self.master is not None and self.master.is_transcribed:
-            self._method.set_initial(self, self.master._method, self._initial)
+            self._method.set_initial(self._augmented, self.master._method, self._initial)
 
     def set_der(self, state, der):
         """Assign a right-hand side to a state derivative
