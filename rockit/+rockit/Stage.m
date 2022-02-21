@@ -70,6 +70,16 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_param_value(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p'});
+      if isempty(kwargs)
+        res = obj.parent.internal_param_value(args{:});
+      else
+        res = obj.parent.internal_param_value(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = stage(obj,varargin)
       % Create a new :obj:`~rockit.stage.Stage` and add it as to the :obj:`~rockit.ocp.Ocp`.
       % Arguments: template=None, kwargs
@@ -884,6 +894,124 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_create_placeholder_expr(obj,varargin)
+      % 
+      % Arguments: expr, callback_name
+      %         Placeholders are transcribed in two phases
+      %            Phase 1: before any decision variables are created
+      %              e.g. augmenting the state-space (ocp.integral)
+      %            Phase 2: substituting to concrete decision variables
+      % 
+      %         
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'expr','callback_name'});
+      if isempty(kwargs)
+        res = obj.parent.internal_create_placeholder_expr(args{:});
+      else
+        res = obj.parent.internal_create_placeholder_expr(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_transcribe_placeholders(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'phase','method','placeholders'});
+      if isempty(kwargs)
+        res = obj.parent.internal_transcribe_placeholders(args{:});
+      else
+        res = obj.parent.internal_transcribe_placeholders(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_ode(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.internal_ode(args{:});
+      else
+        res = obj.parent.internal_ode(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_diffeq(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.internal_diffeq(args{:});
+      else
+        res = obj.parent.internal_diffeq(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_expr_apply(obj,varargin)
+      % 
+      % Arguments: expr, kwargs
+      %         Substitute placeholder symbols with actual decision variables,
+      %         or expressions involving decision variables
+      %         
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.internal_expr_apply(args{:});
+      else
+        res = obj.parent.internal_expr_apply(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_get_subst_set(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.internal_get_subst_set(args{:});
+      else
+        res = obj.parent.internal_get_subst_set(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_constr_apply(obj,varargin)
+      % 
+      % Arguments: expr, kwargs
+      %         Substitute placeholder symbols with actual decision variables,
+      %         or expressions involving decision variables
+      %         
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.internal_constr_apply(args{:});
+      else
+        res = obj.parent.internal_constr_apply(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_set_transcribed(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'val'});
+      if isempty(kwargs)
+        res = obj.parent.internal_set_transcribed(args{:});
+      else
+        res = obj.parent.internal_set_transcribed(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_transcribe_recurse(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'phase','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.internal_transcribe_recurse(args{:});
+      else
+        res = obj.parent.internal_transcribe_recurse(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_placeholders_transcribe_recurse(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'phase','placeholders'});
+      if isempty(kwargs)
+        res = obj.parent.internal_placeholders_transcribe_recurse(args{:});
+      else
+        res = obj.parent.internal_placeholders_transcribe_recurse(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = clone(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'parent','kwargs'});
@@ -891,6 +1019,16 @@ classdef Stage < handle
         res = obj.parent.clone(args{:});
       else
         res = obj.parent.clone(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal__deepcopy__(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'memo'});
+      if isempty(kwargs)
+        res = obj.parent.internal__deepcopy__(args{:});
+      else
+        res = obj.parent.internal__deepcopy__(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -940,6 +1078,54 @@ classdef Stage < handle
         res = obj.parent.sample(args{:});
       else
         res = obj.parent.sample(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_grid_control(obj,varargin)
+      % Evaluate expression at (N + 1) control points.
+      % Arguments: stage, expr, grid, include_first=True, include_last=True, transpose=False
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last','transpose'});
+      if isempty(kwargs)
+        res = obj.parent.internal_grid_control(args{:});
+      else
+        res = obj.parent.internal_grid_control(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_grid_integrator(obj,varargin)
+      % Evaluate expression at (N*M + 1) integrator discretization points.
+      % Arguments: stage, expr, grid, include_first=True, include_last=True
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last'});
+      if isempty(kwargs)
+        res = obj.parent.internal_grid_integrator(args{:});
+      else
+        res = obj.parent.internal_grid_integrator(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_grid_integrator_roots(obj,varargin)
+      % Evaluate expression at integrator roots.
+      % Arguments: stage, expr, grid, include_first=True, include_last=True
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last'});
+      if isempty(kwargs)
+        res = obj.parent.internal_grid_integrator_roots(args{:});
+      else
+        res = obj.parent.internal_grid_integrator_roots(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_grid_intg_fine(obj,varargin)
+      % Evaluate expression at extra fine integrator discretization points.
+      % Arguments: stage, expr, grid, refine, include_first=True, include_last=True
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,4,{'stage','expr','grid','refine','include_first','include_last'});
+      if isempty(kwargs)
+        res = obj.parent.internal_grid_intg_fine(args{:});
+      else
+        res = obj.parent.internal_grid_intg_fine(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -1007,6 +1193,34 @@ classdef Stage < handle
         res = obj.parent.sampler(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function out = internal__module__(obj)
+      % str(object='') -> str
+      % str(bytes_or_buffer[, encoding[, errors]]) -> str
+      % 
+      % Create a new string object from the given object. If encoding or
+      % errors is specified, then the object must expose a data buffer
+      % that will be decoded using the given encoding and error handler.
+      % Otherwise, returns the result of object.__str__() (if defined)
+      % or repr(object).
+      % encoding defaults to sys.getdefaultencoding().
+      % errors defaults to 'strict'.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__module__);
+    end
+    function out = internal__doc__(obj)
+      % str(object='') -> str
+      % str(bytes_or_buffer[, encoding[, errors]]) -> str
+      % 
+      % Create a new string object from the given object. If encoding or
+      % errors is specified, then the object must expose a data buffer
+      % that will be decoded using the given encoding and error handler.
+      % Otherwise, returns the result of object.__str__() (if defined)
+      % or repr(object).
+      % encoding defaults to sys.getdefaultencoding().
+      % errors defaults to 'strict'.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__doc__);
     end
     function out = master(obj)
       global pythoncasadiinterface
@@ -1085,9 +1299,60 @@ classdef Stage < handle
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.gist);
     end
+    function out = internal_is_original(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_is_original);
+    end
+    function out = internal_original(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_original);
+    end
+    function out = internal_augmented(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_augmented);
+    end
+    function out = internal_transcribed(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_transcribed);
+    end
+    function out = internal_is_transcribed(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_is_transcribed);
+    end
     function out = is_transcribed(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.is_transcribed);
+    end
+    function out = internal_parse_grid(obj)
+      % staticmethod(function) -> method
+      % 
+      % Convert a function to be a static method.
+      % 
+      % A static method does not receive an implicit first argument.
+      % To declare a static method, use this idiom:
+      % 
+      %      class C:
+      %          @staticmethod
+      %          def f(arg1, arg2, ...):
+      %              ...
+      % 
+      % It can be called either on the class (e.g. C.f()) or on an instance
+      % (e.g. C().f()).  The instance is ignored except for its class.
+      % 
+      % Static methods in Python are similar to those found in Java or C++.
+      % For a more advanced concept, see the classmethod builtin.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_parse_grid);
+    end
+    function out = internal__dict__(obj)
+      % dictionary for instance variables (if defined)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__dict__);
+    end
+    function out = internal__weakref__(obj)
+      % list of weak references to the object (if defined)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__weakref__);
     end
   end
 end

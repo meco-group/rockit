@@ -230,13 +230,15 @@ for class_name, cl in rockit.__dict__.items():
         if method.__name__=="__init__":
           ce.add_constructor(inspect.signature(method),method.__doc__)
         elif method.__name__.startswith("_") and method.__name__!="__call__":
-          continue
+          ce.add_method("internal"+method_name,inspect.signature(method),method.__doc__)
         else:
           if hasattr(method,'_decorator_original'):
             method = method._decorator_original
           ce.add_method(method_name,inspect.signature(method),method.__doc__)
       else:
-          if method_name.startswith("_"): continue
+          if method_name.startswith("_"):
+            ce.add_property("internal"+method_name, method.__doc__)
+            continue
           print(method_name)
 
           ce.add_property(method_name, method.__doc__)

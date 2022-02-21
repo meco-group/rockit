@@ -234,6 +234,34 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function out = internal__module__(obj)
+      % str(object='') -> str
+      % str(bytes_or_buffer[, encoding[, errors]]) -> str
+      % 
+      % Create a new string object from the given object. If encoding or
+      % errors is specified, then the object must expose a data buffer
+      % that will be decoded using the given encoding and error handler.
+      % Otherwise, returns the result of object.__str__() (if defined)
+      % or repr(object).
+      % encoding defaults to sys.getdefaultencoding().
+      % errors defaults to 'strict'.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__module__);
+    end
+    function out = internal__doc__(obj)
+      % str(object='') -> str
+      % str(bytes_or_buffer[, encoding[, errors]]) -> str
+      % 
+      % Create a new string object from the given object. If encoding or
+      % errors is specified, then the object must expose a data buffer
+      % that will be decoded using the given encoding and error handler.
+      % Otherwise, returns the result of object.__str__() (if defined)
+      % or repr(object).
+      % encoding defaults to sys.getdefaultencoding().
+      % errors defaults to 'strict'.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__doc__);
+    end
     function out = debug(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.debug);
@@ -250,6 +278,16 @@ classdef DirectMethod < handle
       %         
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.gist);
+    end
+    function out = internal__dict__(obj)
+      % dictionary for instance variables (if defined)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__dict__);
+    end
+    function out = internal__weakref__(obj)
+      % list of weak references to the object (if defined)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal__weakref__);
     end
   end
 end
