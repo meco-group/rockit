@@ -28,11 +28,16 @@ which occurs in drone racing. The first gate is a rectangular gate, the second
 is circular. In each stage of the multistage ocp, the collision free space in
 front of, through and behind each gate is represented by a linear inequality
 constraint.
-A paper on this approach has been submitted to the AMC conference 2022 in
-Padova, Italy.
+
+This approach has been published as:
+Bos, M., Decré, W., Swevers, J., Pipeleers, G. (2021).
+'Multi-stage Optimal Control Problem Formulation for Drone Racing through Gates and Tunnels',
+Proceedings of the 17th IEEE International Conference on Advanced Motion Control (AMC22),
+(Paper No. 21). Presented at the 2022 IEEE 17th International Conference on Advanced Motion Control (AMC),
+Padova, Italy, 18 Feb 2022-20 Feb 2022
 """
 
-from typing import Tuple
+
 import casadi as c
 import rockit as r
 import matplotlib.pyplot as plt
@@ -126,8 +131,7 @@ w5 = get_w_flyaway(pg2, exg2, dg2, margin)
 
 # -----------------------------------------------
 # Ocp construction functions
-def create_stage(ocp: r.Ocp, t0: r.FreeTime, T: r.FreeTime, N: int, w: c.DM
-                 ) -> Tuple[r.Stage, c.MX, c.MX, c.MX, c.MX, c.MX, c.MX]:
+def create_stage(ocp, t0, T, N, w):
     '''Create a rockit.stage object with drone dynamics, hyperplane
     constraints for this specific stage, method (multiple shooting) and
     contribution to the objective (total stage time).
@@ -176,9 +180,7 @@ def create_stage(ocp: r.Ocp, t0: r.FreeTime, T: r.FreeTime, N: int, w: c.DM
     return stage, p, v, at_, at, eul, Rrpy
 
 
-def create_tube_stage(ocp: r.Ocp, t0: r.FreeTime, T: r.FreeTime, N: int,
-                      pg: c.DM, ng: c.DM, rg: float, m: float
-                      ) -> Tuple[r.Stage, c.MX, c.MX, c.MX, c.MX, c.MX, c.MX]:
+def create_tube_stage(ocp, t0, T, N, pg, ng, rg, m):
     '''Same as create_stage, but with tubular constraint instead of hyperplane
     constraint.
     '''
@@ -228,7 +230,7 @@ def create_tube_stage(ocp: r.Ocp, t0: r.FreeTime, T: r.FreeTime, N: int,
     return stage, p, v, at_, at, eul, Rrpy
 
 
-def stitch_stages(ocp: r.Ocp, stage1: r.Stage, stage2: r.Stage):
+def stitch_stages(ocp, stage1, stage2):
     '''Set equality constraints to the end time and state of stage1 and the
     initial time and state of stage2 to stitch them together.
     '''
@@ -296,8 +298,6 @@ opts = {"expand": True,
                   }}
 ocp.solver("ipopt", opts)
 
-# =============================================================================
-# Solve the OCP
 
 # Create sampler
 sampler1 = stage1.sampler([p1, v1, at1, eul1, R1])
@@ -325,12 +325,13 @@ solve_ocp = ocp.to_function(
     [ocp._method.opti.x],
     [T1, T2, T3, T4, T5, ocp._method.opti.x, ocp.gist])
 
-# Solve!
+# =============================================================================
+# Solve the OCP!
+
 prev_sol = 0
 T1, T2, T3, T4, T5, prev_sol, gist = solve_ocp(prev_sol)
 # Solve again using previous solution:
 # T1, T2, T3, T4, T5, prev_sol, gist = solve_ocp(prev_sol)
-
 
 # =============================================================================
 # Postprocess
