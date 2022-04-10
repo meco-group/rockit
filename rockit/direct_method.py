@@ -54,14 +54,14 @@ class DirectMethod:
     def spy_jacobian(self):
         import matplotlib.pylab as plt
         J, title = self.jacobian(with_label=True)
-        plt.spy(np.array(J),vmin=0,vmax=1)
+        plt.spy(np.array(J))
         plt.title(title)
 
     def spy_hessian(self):
         import matplotlib.pylab as plt
         lag = self.opti.f + dot(self.opti.lam_g, self.opti.g)
         H, title = self.hessian(with_label=True)
-        plt.spy(np.array(H),vmin=0,vmax=1)
+        plt.spy(np.array(H))
         plt.title(title)
     
     def inherit(self, template):
