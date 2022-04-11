@@ -5,14 +5,17 @@ from numpy import *
 # Import the project
 from rockit import *
 import casadi as cs
+import glob
+import os
 
+intg_options = {"rootfinder": "nlpsol", "rootfinder_options": {"nlpsol":"ipopt","nlpsol_options":{"ipopt.print_level":0,"print_time":False,"ipopt.tol":1e-10}}}
 
 class ScalingTests(unittest.TestCase):
 
 
     def test_vdp(self):
 
-        for Method in [lambda **kwargs: SingleShooting(**kwargs), lambda **kwargs: MultipleShooting(**kwargs), lambda **kwargs:  DirectCollocation(**kwargs)]:
+        for Method in [lambda **kwargs: SingleShooting(intg='collocation',intg_options=intg_options,**kwargs), lambda **kwargs: MultipleShooting(intg='collocation',intg_options=intg_options,**kwargs), lambda **kwargs:  DirectCollocation(**kwargs)]:
 
             data_ref = None
             for run_type in ["ref","scaled"]:
@@ -30,13 +33,15 @@ class ScalingTests(unittest.TestCase):
                 su = 1
                 s = 1
                 si = 1
+                sz = 1
                 
                 if run_type=="scaled":
                     s1 = 2
                     s2 = 3
                     su = 5
                     s = 7
-                    si = 1000
+                    si = 11
+                    sz = 13
 
                 # Define two scalar states (vectors and matrices also supported)
                 x1 = ocp.state(scale=1/s1) # [m/s]
@@ -46,13 +51,15 @@ class ScalingTests(unittest.TestCase):
                 #  (use `order=1` for piecewise linear)
                 u = ocp.control(scale=1/su)
 
+                z = ocp.algebraic(scale=1/sz)
+                
                 # Compose time-dependent expressions a.k.a. signals
                 #  (explicit time-dependence is supported with `ocp.t`)
-                e = 1 - 1e-4*(s2*x2)**2
+                ocp.add_alg(sz*z-(1 - 1e-2*(s2*x2)**2),scale=sz)
 
                 # Specify differential equations for states
                 #  (DAEs also supported with `ocp.algebraic` and `add_alg`)
-                ocp.set_der(x1, (e * (s1*x1) - (s2*x2) + su*u)/s1, scale=1/s1)
+                ocp.set_der(x1, (sz*z * (s1*x1) - (s2*x2) + su*u)/s1, scale=1/s1)
                 ocp.set_der(x2, s1*x1/s2, scale=1/s2)
 
                 # Lagrange objective term: signals in an integrand
@@ -87,12 +94,12 @@ class ScalingTests(unittest.TestCase):
                 #  N -- number of control intervals
                 #  M -- number of integration steps per control interval
                 #  grid -- could specify e.g. UniformGrid() or GeometricGrid(4)
-                method = Method(N=10)
+                method = Method(N=4)
                 ocp.method(method)
 
                 # Set initial guesses for states, controls and variables.
                 #  Default: zero
-                ocp.set_initial(u, linspace(0, 1, 10)/su) # Matrix
+                ocp.set_initial(u, linspace(0, 1, 4)/su) # Matrix
 
                 # Solve
                 sol = ocp.solve()
@@ -103,9 +110,13 @@ class ScalingTests(unittest.TestCase):
                     data_ref = data
                 else:
                     for k in data.keys():
+
                         n = cs.norm_inf(data[k]-data_ref[k])
                         print(k, n)
-                        assert n<=1e-9
+                        assert n<=1e-7 # stems from integrator accuracy
+
+        for e in glob.glob("qpsol.*"):
+            os.remove(e)
 
 if __name__ == '__main__':
     unittest.main()

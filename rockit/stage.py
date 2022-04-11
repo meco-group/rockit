@@ -555,9 +555,10 @@ class Stage:
         for_all_primitives(state, next, action, "First argument to set_next must be a state or a simple concatenation of states")
         assert not self._state_der
 
-    def add_alg(self, constr):
+    def add_alg(self, constr, scale=1):
         self._set_transcribed(False)
-        self._alg.append(constr)
+        scale = self._parse_scale(constr, scale)
+        self._alg.append(constr/scale)
 
     def der(self, expr):
         if depends_on(expr, self.u):
