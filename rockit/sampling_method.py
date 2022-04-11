@@ -48,15 +48,17 @@ class FixedGrid(Grid):
         self.localize_t0 = localize_t0
         self.localize_T = localize_T
 
-    def bounds_T(self, opti, T_local, t0_local, k, T, N):
+    def bounds_T(self, T_local, t0_local, k, T, N):
         if self.localize_T:
             Tk = T_local[k]
             if k>=0 and k+1<N:
-                self.constrain_T(opti, T_local[k], T_local[k+1], N)
+                r = self.constrain_T(T_local[k], T_local[k+1], N)
+                if r is not None:
+                    yield r
         else:
             Tk = T*(self.normalized(N)[k+1]-self.normalized(N)[k])
         if self.localize_t0 and k>=0:
-            opti.subject_to(t0_local[k]+Tk==t0_local[k+1])
+            yield (t0_local[k]+Tk==t0_local[k+1],{})
 
     def get_t0_local(self, opti, k, t0, N):
         if self.localize_t0:
@@ -94,12 +96,13 @@ class FreeGrid(FixedGrid):
         FixedGrid.__init__(self, **kwargs)
         self.localize_T = True
 
-    def constrain_T(self,opti,T,Tnext,N):
+    def constrain_T(self,T,Tnext,N):
         pass
 
-    def bounds_T(self, opti, T_local, t0_local, k, T, N):
-        opti.subject_to(self.min <= (T_local[k] <= self.max))
-        FixedGrid.bounds_T(self, opti, T_local, t0_local, k, T, N)
+    def bounds_T(self, T_local, t0_local, k, T, N):
+        yield (self.min <= (T_local[k] <= self.max),{})
+        for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
+            yield e
 
     def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
         opti.subject_to(control_grid[-1]==tf)
@@ -124,19 +127,20 @@ class UniformGrid(FixedGrid):
     def __init__(self, **kwargs):
         FixedGrid.__init__(self, **kwargs)
 
-    def constrain_T(self,opti,T,Tnext,N):
-        opti.subject_to(T==Tnext)
+    def constrain_T(self,T,Tnext,N):
+        return (T==Tnext,{})
 
     def scale_first(self, N):
         return 1.0/N
 
-    def bounds_T(self, opti, T_local, t0_local, k, T, N):
+    def bounds_T(self, T_local, t0_local, k, T, N):
         if k==0:
             if self.localize_T:
-                opti.subject_to(self.min <= (T_local[0] <= self.max))
+                yield (self.min <= (T_local[0] <= self.max), {})
             else:
-                opti.subject_to(self.min <= (T/N <= self.max))
-        FixedGrid.bounds_T(self, opti, T_local, t0_local, k, T, N)
+                yield (self.min <= (T/N <= self.max), {})
+        for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
+            yield e
 
     def normalized(self, N):
         return list(np.linspace(0.0, 1.0, N+1))
@@ -184,23 +188,24 @@ class GeometricGrid(FixedGrid):
             return self._growth_factor**(1.0/(N-1))
         return self._growth_factor
 
-    def constrain_T(self,opti,T,Tnext,N):
-        opti.subject_to(T*self.growth_factor(N)==Tnext)
+    def constrain_T(self,T,Tnext,N):
+        return (T*self.growth_factor(N)==Tnext,{})
 
     def scale_first(self, N):
         return self.normalized(N)[1]
 
-    def bounds_T(self, opti, T_local, t0_local, k, T, N):
+    def bounds_T(self, T_local, t0_local, k, T, N):
         if self.localize_T:
             if k==0 or k==-1:
-                opti.subject_to(self.min <= (T_local[k] <= self.max))
+                yield (self.min <= (T_local[k] <= self.max), {})
         else:
             n = self.normalized(N)
             if k==0:
-                opti.subject_to(self.min <= (T*n[1] <= self.max))
+                yield (self.min <= (T*n[1] <= self.max),{})
             if k==-1:
-                opti.subject_to(self.min <= (T*(n[-1]-n[-2]) <= self.max))
-        FixedGrid.bounds_T(self, opti, T_local, t0_local, k, T, N)
+                yield (self.min <= (T*(n[-1]-n[-2]) <= self.max),{})
+        for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
+            yield e
 
     def normalized(self, N):
         g = self.growth_factor(N)
@@ -383,16 +388,16 @@ class SamplingMethod(DirectMethod):
 
 
     def add_constraints_before(self, stage, opti):
-        for c, meta, _ in stage._constraints["point"]:
+        for c, meta, args in stage._constraints["point"]:
             e = self.eval(stage, c)
             if 'r_at_tf' not in [a.name() for a in symvar(e)]:
-                opti.subject_to(e, meta=meta)
+                opti.subject_to(e, args["scale"], meta=meta)
 
     def add_constraints_after(self, stage, opti):
-        for c, meta, _ in stage._constraints["point"]:
+        for c, meta, args in stage._constraints["point"]:
             e = self.eval(stage, c)
             if 'r_at_tf' in [a.name() for a in symvar(e)]:
-                opti.subject_to(e, meta=meta)
+                opti.subject_to(e, args["scale"], meta=meta)
 
     def add_inf_constraints(self, stage, opti, c, k, l, meta):
         # Query the discretization method used for polynomial coefficients
@@ -483,11 +488,11 @@ class SamplingMethod(DirectMethod):
         if k==0:
             self.V_control = [[] for v in stage.variables['control']]
             for i, v in enumerate(stage.variables['states']):
-                self.V_states.append([opti.variable(v.shape[0], v.shape[1])])
+                self.V_states.append([opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v])])
         for i, v in enumerate(stage.variables['control']):
-            self.V_control[i].append(opti.variable(v.shape[0], v.shape[1]))
+            self.V_control[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         for i, v in enumerate(stage.variables['states']):
-            self.V_states[i].append(opti.variable(v.shape[0], v.shape[1]))
+            self.V_states[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
 
         self.t0_local[k] = self.time_grid.get_t0_local(opti, k, self.t0, self.N)
         self.T_local[k] = self.time_grid.get_T_local(opti, k, self.T, self.N)
@@ -509,7 +514,10 @@ class SamplingMethod(DirectMethod):
         self.time_grid.bounds_finalize(opti, self.control_grid, self.t0_local, self.t0+self.T, self.N)
 
     def add_coupling_constraints(self, stage, opti, k):
-        self.time_grid.bounds_T(opti, self.T_local, self.t0_local, k, self.T, self.N)
+        advanced = opti.advanced
+        for c,kwargs in self.time_grid.bounds_T(self.T_local, self.t0_local, k, self.T, self.N):
+            if not advanced.is_parametric(c):
+                opti.subject_to(c,**kwargs)
 
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[k] for p in self.P_control])

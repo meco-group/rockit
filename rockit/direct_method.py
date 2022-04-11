@@ -21,6 +21,7 @@
 #
 
 from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM, vertcat
+import casadi
 import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 from .solution import OcpSolution
@@ -81,7 +82,7 @@ class DirectMethod:
     def add_variables(self, stage, opti):
         V = []
         for v in stage.variables['']:
-            V.append(opti.variable(v.shape[0], v.shape[1]))
+            V.append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         self.V = veccat(*V)
 
     def main_transcribe(self, stage, phase=1, **kwargs):
@@ -205,7 +206,7 @@ class OptiWrapper(Opti):
         self.constraints = []
         self.objective = 0
 
-    def subject_to(self, expr=None, meta=None):
+    def subject_to(self, expr=None, scale=1, meta=None):
         meta = merge_meta(meta, get_meta())
         if expr is None:
             self.constraints = []
@@ -215,7 +216,7 @@ class OptiWrapper(Opti):
                     return
                 else:
                     raise Exception("You have a constraint that is never statisfied.")
-            self.constraints.append((expr, meta))
+            self.constraints.append((expr, scale, meta))
 
     def add_objective(self, expr):
         self.objective = self.objective + expr
@@ -233,11 +234,11 @@ class OptiWrapper(Opti):
     def non_converged_solution(self):
         return OptiSolWrapper(self, self.debug)
 
-    def variable(self,n=1,m=1):
+    def variable(self,n=1,m=1, scale=1):
         if n==0 or m==0:
             return MX(n, m)
         else:
-            return Opti.variable(self,n, m)
+            return scale*Opti.variable(self,n, m)
 
     def cache_advanced(self):
         self._advanced_cache = self.advanced
@@ -252,16 +253,42 @@ class OptiWrapper(Opti):
             self.initial_values.append(value)
 
     def transcribe_placeholders(self,phase,placeholders):
+        opti_advanced = self.advanced
         Opti.subject_to(self)
         n_constr = len(self.constraints)
         res = placeholders([c[0] for c in self.constraints] + [self.objective]+self.initial_keys)
-        for c, meta in zip(res[:n_constr], [c[1] for c in self.constraints]):
+        for c, scale, meta in zip(res[:n_constr], [c[1] for c in self.constraints], [c[2] for c in self.constraints]):
             try:
                 if MX(c).is_constant() and MX(c).is_one():
                     continue
+                mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
+                if mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]:
+                    print(mc.lb,mc.canon,mc.ub)
+                    lb = mc.lb/scale
+                    canon = mc.canon/scale
+                    ub = mc.ub/scale
+                    # Check for infinities
+                    try:
+                        lb_inf = np.all(np.array(evalf(lb)==-np.inf))
+                    except:
+                        lb_inf = False
+                    try:
+                        ub_inf = np.all(np.array(evalf(ub)==np.inf))
+                    except:
+                        ub_inf = False
+                    if lb_inf:
+                        c = canon <= ub
+                    elif ub_inf:
+                        c = lb <= canon
+                    else:     
+                        c = lb <= (canon <= ub)
+                if mc.type in [casadi.OPTI_EQUALITY, casadi.OPTI_GENERIC_EQUALITY]:
+                    lb = mc.lb/scale
+                    canon = mc.canon/scale
+                    c = lb==canon
                 Opti.subject_to(self,c)
             except Exception as e:
-                print(meta)
+                print(meta,c)
                 raise e
             self.update_user_dict(c, single_stacktrace(meta))
         Opti.minimize(self,res[n_constr])

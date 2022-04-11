@@ -66,30 +66,33 @@ class DirectCollocation(SamplingMethod):
 
 
     def add_variables(self, stage, opti):
+        scale_x = stage._scale_x
+        scale_z = stage._scale_z
+        scale_u = stage._scale_u
 
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        x = opti.variable(stage.nx)
+        x = opti.variable(stage.nx, scale=scale_x)
         self.X.append(x)
         self.add_variables_V(stage, opti)
-        z = opti.variable(stage.nz)
+        z = opti.variable(stage.nz, scale=scale_z)
         self.Zc_vars_base.append(z)
 
         for k in range(self.N):
-            self.U.append(opti.variable(stage.nu) if stage.nu>0 else MX(0,1))
+            self.U.append(opti.variable(stage.nu, scale=scale_u) if stage.nu>0 else MX(0,1))
             xr = []
             zr = []
             Xc = []
             Zc = []
             for i in range(self.M):
-                xc = opti.variable(stage.nx, self.degree)
+                xc = opti.variable(stage.nx, self.degree, scale=repmat(scale_x, 1, self.degree))
                 xr.append(xc)
-                zc = opti.variable(stage.nz, self.degree-1)
-                x0 = x if i==0 else opti.variable(stage.nx)
+                zc = opti.variable(stage.nz, self.degree-1, scale=repmat(scale_z, 1, self.degree-1))
+                x0 = x if i==0 else opti.variable(stage.nx, scale=scale_x)
                 Xc.append(horzcat(x0, xc))
                 self.Xc_vars.append(xc if i==0 else horzcat(x0, xc))
                 self.Xc_vars0.append(repmat(x, 1, self.degree if i==0 else self.degree+1))
-                z0 = z if i==0 else opti.variable(stage.nz)
+                z0 = z if i==0 else opti.variable(stage.nz, scale=scale_z)
                 zr.append(horzcat(z0, zc))
                 Zc.append(horzcat(z0,zc))
                 self.Zc_vars_rest.append(zc if i==0 else horzcat(z0, zc))
@@ -99,9 +102,9 @@ class DirectCollocation(SamplingMethod):
             self.zr.append(zr)
             self.Xc.append(Xc)
             self.Zc.append(Zc)
-            x = opti.variable(stage.nx)
+            x = opti.variable(stage.nx, scale=scale_x)
             self.X.append(x)
-            z = opti.variable(stage.nz)
+            z = opti.variable(stage.nz, scale=scale_z)
             self.Zc_vars_base.append(z)
             self.add_variables_V_control(stage, opti, k)
 
@@ -114,6 +117,9 @@ class DirectCollocation(SamplingMethod):
         self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self, stage, opti):
+        scale_x = stage._scale_x
+        scale_der_x = stage._scale_der_x
+        scale_z = stage._scale_z
         # Obtain the discretised system
         f = stage._ode()
 
@@ -172,20 +178,20 @@ class DirectCollocation(SamplingMethod):
                     Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
                     res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=p, t=self.tr[k][i][j])
                     # Collocation constraints
-                    opti.subject_to(Pidot_j == res["ode"])
+                    opti.subject_to(Pidot_j == res["ode"], scale=scale_der_x)
                     self.q = self.q + res["quad"]*dt*self.B[j]
                     if stage.nz:
-                        opti.subject_to(0 == res["alg"])
-                    for c, meta, _ in stage._constraints["integrator_roots"]:
-                        opti.subject_to(self.eval_at_integrator_root(stage, c, k, i, j), meta=meta)
+                        opti.subject_to(0 == res["alg"], scale = scale_z)
+                    for c, meta, args in stage._constraints["integrator_roots"]:
+                        opti.subject_to(self.eval_at_integrator_root(stage, c, k, i, j), scale=args["scale"], meta=meta)
 
                 # Continuity constraints
                 x_next = self.X[k + 1] if i==self.M-1 else self.Xc[k][i+1][:,0]
-                opti.subject_to(mtimes(self.Xc[k][i],self.D) == x_next)
+                opti.subject_to(mtimes(self.Xc[k][i],self.D) == x_next, scale=scale_x)
 
                 for c, meta, args in stage._constraints["integrator"]:
                     if k==0 and i==0 and not args["include_first"]: continue
-                    opti.subject_to(self.eval_at_integrator(stage, c, k, i), meta=meta)
+                    opti.subject_to(self.eval_at_integrator(stage, c, k, i), scale=args["scale"], meta=meta)
                         
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, i, meta)
@@ -194,7 +200,7 @@ class DirectCollocation(SamplingMethod):
                 if k==0 and not args["include_first"]: continue
                 # Add it to the optimizer, but first make x,u concrete.
                 try:
-                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                    opti.subject_to(self.eval_at_control(stage, c, k), scale=args["scale"], meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
 
@@ -202,14 +208,14 @@ class DirectCollocation(SamplingMethod):
             if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
             try:
-                opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+                opti.subject_to(self.eval_at_control(stage, c, -1), scale=args["scale"], meta=meta)
             except IndexError:
                 pass # Can be caused by ocp.offset -> drop constraint
 
         for c, meta, args in stage._constraints["integrator"]:  # for each constraint expression
             if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
-            opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+            opti.subject_to(self.eval_at_control(stage, c, -1), scale=args["scale"], meta=meta)
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master

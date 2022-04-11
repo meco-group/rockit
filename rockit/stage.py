@@ -84,11 +84,13 @@ class Stage:
         self.parent = parent
 
         self._meta = HashDict()
+        self._scale = HashDict()
         self._var_original = None
         self._var_augmented = None
 
         self._param_vals = HashDict()
         self._state_der = HashDict()
+        self._scale_der = HashDict()
         self._state_next = HashDict()
         self._alg = []
         self._constraints = defaultdict(list)
@@ -167,7 +169,14 @@ class Stage:
         self._set_transcribed(False)
         return s
 
-    def state(self, n_rows=1, n_cols=1, quad=False,meta=None):
+    def _parse_scale(self, e, scale):
+        if DM(scale).is_scalar():
+            return DM.ones(e.sparsity())*scale
+        else:
+            assert scale.shape==e.shape
+            return scale
+
+    def state(self, n_rows=1, n_cols=1, quad=False, scale=1, meta=None):
         """Create a state.
         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
 
@@ -201,14 +210,15 @@ class Stage:
         name = "q"+str(len(self.qstates)+1) if quad else "x"+str(len(self.states)+1)
         x = MX.sym(name, n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_state(x, meta=meta, quad=quad)
+        return self.register_state(x, meta=meta, quad=quad, scale=scale)
         
-    def register_state(self, x, quad=False, meta=None):
+    def register_state(self, x, quad=False, scale=1, meta=None):
         if isinstance(x, list):
             for e in x:
-                self.register_state(e, quad=quad, meta=meta)
+                self.register_state(e, quad=quad, scale=scale, meta=meta)
             return
         self._meta[x] = merge_meta(meta, get_meta())
+        self._scale[x] = self._parse_scale(x, scale)
         if quad:
             self.qstates.append(x)
         else:
@@ -216,7 +226,7 @@ class Stage:
         self._set_transcribed(False)
         return x
 
-    def algebraic(self, n_rows=1, n_cols=1,meta=None):
+    def algebraic(self, n_rows=1, n_cols=1, scale=1, meta=None):
         """Create an algebraic variable
         You must supply an algebraic relation with:obj:`~rockit.stage.Stage.set_alg`
 
@@ -237,19 +247,20 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         z = MX.sym("z", n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_algebraic(z, meta=meta)
+        return self.register_algebraic(z, scale=scale, meta=meta)
 
-    def register_algebraic(self, z, meta=None):
+    def register_algebraic(self, z, scale=1, meta=None):
         if isinstance(z, list):
             for e in z:
-                self.register_algebraic(e, meta=meta)
+                self.register_algebraic(e, scale=scale, meta=meta)
             return
         self._meta[z] = merge_meta(meta, get_meta())
+        self._scale[z] = self._parse_scale(z, scale)
         self.algebraics.append(z)
         self._set_transcribed(False)
         return z
 
-    def variable(self, n_rows=1, n_cols=1, grid = '',meta=None):
+    def variable(self, n_rows=1, n_cols=1, grid = '', scale=1, meta=None):
         """Create a variable
 
         Variables are unknowns in the Optimal Control problem
@@ -285,19 +296,20 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_variable(v, grid=grid, meta=meta)
+        return self.register_variable(v, grid=grid, scale=scale, meta=meta)
 
-    def register_variable(self, v, grid = '',meta=None):
+    def register_variable(self, v, grid = '', scale=1, meta=None):
         if isinstance(v, list):
             for e in v:
-                self.register_variable(e)
+                self.register_variable(e, scale=scale)
             return
         self._meta[v] = merge_meta(meta, get_meta())
+        self._scale[v] = self._parse_scale(v, scale)
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
 
-    def parameter(self, n_rows=1, n_cols=1, grid = '',meta=None):
+    def parameter(self, n_rows=1, n_cols=1, grid = '', scale=1, meta=None):
         """Create a parameter
 
         Parameters are symbols of an Optimal COntrol problem
@@ -338,19 +350,20 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_parameter(p, grid=grid, meta=meta)
+        return self.register_parameter(p, grid=grid, scale=scale, meta=meta)
 
-    def register_parameter(self, p, grid='', meta=None):
+    def register_parameter(self, p, grid='', scale=1, meta=None):
         if isinstance(p,list):
             for e in p:
-                self.register_parameter(e)
+                self.register_parameter(e, scale=scale)
             return
         self._meta[p] = merge_meta(meta, get_meta())
+        self._scale[p] = self._parse_scale(p, scale)
         self.parameters[grid].append(p)
         self._set_transcribed(False)
         return p
 
-    def control(self, n_rows=1, n_cols=1, order=0,meta=None):
+    def control(self, n_rows=1, n_cols=1, order=0, scale=1, meta=None):
         """Create a control signal to optimize for
 
         A control signal is parametrized as a piecewise polynomial.
@@ -380,22 +393,23 @@ class Stage:
         """
 
         if order >= 1:
-            u = self.state(n_rows, n_cols)
-            helper_u = self.control(n_rows=n_rows, n_cols=n_cols, order=order - 1)
+            u = self.state(n_rows, n_cols, scale=scale)
+            helper_u = self.control(n_rows=n_rows, n_cols=n_cols, order=order - 1, scale=scale)
             self.set_der(u, helper_u)
             return u
 
         u = MX.sym("u", n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        self.register_control(u, meta=meta)
+        self.register_control(u, scale=scale, meta=meta)
         return u
 
-    def register_control(self, u, meta=None):
+    def register_control(self, u, scale=1, meta=None):
         if isinstance(u,list):
             for e in u:
-                self.register_control(e)
+                self.register_control(e, scale=scale)
             return
         self._meta[u] = merge_meta(meta, get_meta())
+        self._scale[u] = self._parse_scale(u, scale)
         self.controls.append(u)
         self._set_transcribed(False)
         return u
@@ -486,7 +500,7 @@ class Stage:
         if self.master is not None and self.master.is_transcribed:
             self._method.set_initial(self._augmented, self.master._method, self._initial)
 
-    def set_der(self, state, der):
+    def set_der(self, state, der, scale=1):
         """Assign a right-hand side to a state derivative
 
         Parameters
@@ -512,6 +526,7 @@ class Stage:
             if state not in self.states and state not in self.qstates:
                 raise Exception("You used set_der on a non-state: " + str(state))
             self._state_der[state] = der
+            self._scale_der[state] = self._parse_scale(state, scale)
         for_all_primitives(state, der, action, "First argument to set_der must be a state or a simple concatenation of states")
 
     def set_next(self, state, next):
@@ -641,7 +656,7 @@ class Stage:
         self._set_transcribed(False)
         self._constraints = defaultdict(list)
 
-    def subject_to(self, constr, grid=None,include_first=True,include_last=True,meta=None):
+    def subject_to(self, constr, grid=None,include_first=True,include_last=True,scale=1,meta=None):
         """Adds a constraint to the problem
 
         Parameters
@@ -692,7 +707,8 @@ class Stage:
             if grid != 'point': 
                 raise Exception("Expected signal expression since grid '" + grid + "' was given.")
         
-        args = {"grid": grid, "include_last": include_last, "include_first": include_first}
+        scale = self._parse_scale(constr, scale)
+        args = {"grid": grid, "include_last": include_last, "include_first": include_first, "scale": scale}
         self._constraints[grid].append((constr, get_meta(meta), args))
 
     def at_t0(self, expr):
@@ -835,6 +851,30 @@ class Stage:
         return self.p.numel()
 
     @property
+    def _scale_x(self):
+        return vvcat([self._scale[x] for x in self.states])
+
+    @property
+    def _scale_der_x(self):
+        return vvcat([self._scale_der[x] for x in self.states])
+
+    @property
+    def _scale_z(self):
+        return vvcat([self._scale[z] for z in self.algebraics])
+
+    @property
+    def _scale_u(self):
+        return vvcat([self._scale[u] for u in self.controls])
+
+    @property
+    def _scale_p(self):
+        return vvcat([self._scale[p] for p in self.parameters['']+self.parameters['control']])
+
+    @property
+    def _scale_v(self):
+        return vvcat([self._scale[v] for v in self.variables['']+self.variables['control']])
+
+    @property
     def gist(self):
         """Obtain an expression packing all information needed to obtain value/sample
 
@@ -857,6 +897,17 @@ class Stage:
         """
  
         return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.parameters['control']), vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
+
+    def is_parametric(self, expr):
+        """Does the expression depend only on parameters?
+
+        Returns
+        -------
+        res : bool
+
+        """
+ 
+        return not depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['']+self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def _create_placeholder_expr(self, expr, callback_name):
         """
@@ -1139,6 +1190,7 @@ class Stage:
         ret._var_original = self._var_original
 
         ret._meta = self._meta
+        ret._scale = self._scale
 
         ret._var_is_transcribed = False
         return ret

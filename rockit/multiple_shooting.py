@@ -31,13 +31,13 @@ class MultipleShooting(SamplingMethod):
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
+        self.X.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.states]))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(vcat([opti.variable(s.numel()) for s in stage.controls]) if stage.nu>0 else MX(0,1))
+            self.U.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.add_variables_V_control(stage, opti, k)
-            self.X.append(vcat([opti.variable(s.numel()) for s in stage.states]))
+            self.X.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.states]))
             
 
         self.add_variables_V_control_finalize(stage, opti)
@@ -78,24 +78,25 @@ class MultipleShooting(SamplingMethod):
 
         self.xk.append(self.X[-1])
         self.zk.append(self.zk[-1])
+        scale_x = stage._scale_x
 
         for k in range(self.N):
             FF = FFs[k]
             # Dynamic constraints a.k.a. gap-closing constraints
-            opti.subject_to(self.X[k + 1] == FF["xf"])
+            opti.subject_to(self.X[k + 1] == FF["xf"], scale=scale_x)
             self.q = self.q + FF["qf"]
 
             for l in range(self.M):
                 for c, meta, args in stage._constraints["integrator"]:
                     if k==0 and l==0 and not args["include_first"]: continue
-                    opti.subject_to(self.eval_at_integrator(stage, c, k, l), meta=meta)
+                    opti.subject_to(self.eval_at_integrator(stage, c, k, l), scale=args["scale"], meta=meta)
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, l, meta)
 
             for c, meta, args in stage._constraints["control"]:  # for each constraint expression
                 if k==0 and not args["include_first"]: continue
                 try:
-                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                    opti.subject_to(self.eval_at_control(stage, c, k), scale=args["scale"], meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
 
@@ -105,7 +106,7 @@ class MultipleShooting(SamplingMethod):
             if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
             try:
-                opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+                opti.subject_to(self.eval_at_control(stage, c, -1), scale=args["scale"], meta=meta)
             except IndexError:
                 pass 
             

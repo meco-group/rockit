@@ -29,14 +29,16 @@ class SingleShooting(SamplingMethod):
         SamplingMethod.__init__(self, **kwargs)
 
     def add_variables(self,stage,opti):
+        scale_x = stage._scale_x
+        scale_u = stage._scale_u
 
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(opti.variable(stage.nx))
+        self.X.append(opti.variable(stage.nx, scale=scale_x))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(opti.variable(stage.nu) if stage.nu>0 else MX(0,1))
+            self.U.append(opti.variable(stage.nu, scale=scale_u) if stage.nu>0 else MX(0,1))
             self.X.append(None)
             self.add_variables_V_control(stage, opti, k)
 
@@ -87,14 +89,14 @@ class SingleShooting(SamplingMethod):
             for l in range(self.M):
                 for c, meta, args in stage._constraints["integrator"]:
                     if k==0 and l==0 and not args["include_first"]: continue
-                    opti.subject_to(self.eval_at_integrator(stage, c, k, l), meta=meta)
+                    opti.subject_to(self.eval_at_integrator(stage, c, k, l), scale=args["scale"], meta=meta)
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, l, meta)
 
             for c, meta, args in stage._constraints["control"]:  # for each constraint expression
                 if k==0 and not args["include_first"]: continue
                 try:
-                    opti.subject_to(self.eval_at_control(stage, c, k), meta=meta)
+                    opti.subject_to(self.eval_at_control(stage, c, k), scale=args["scale"], meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
 
@@ -102,6 +104,6 @@ class SingleShooting(SamplingMethod):
             if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.
             try:
-                opti.subject_to(self.eval_at_control(stage, c, -1), meta=meta)
+                opti.subject_to(self.eval_at_control(stage, c, -1), scale=args["scale"], meta=meta)
             except IndexError:
                 pass # Can be caused by ocp.offset -> drop constraint
