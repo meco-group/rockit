@@ -201,6 +201,11 @@ class Stage:
         n_cols : int, optional
             Number of columns
             Default: 1
+        scale : float or :obj:`~casadi.DM`, optional
+            Provide a nominal value of the state for numerical scaling
+            In essence, this has the same effect as defining x = scale*ocp.state(),
+            except that set_initial(x, ...) keeps working
+            Default: 1
 
         Returns
         -------
@@ -414,6 +419,11 @@ class Stage:
             Number of columns
         order : int, optional
             Order of polynomial. order=0 denotes a constant.
+        scale : float or :obj:`~casadi.DM`, optional
+            Provide a nominal value of the state for numerical scaling
+            In essence, this has the same effect as defining u = scale*ocp.control(),
+            except that set_initial(u, ...) keeps working
+            Default: 1
         Returns
         -------
         s : :obj:`~casadi.MX`
@@ -739,6 +749,12 @@ class Stage:
             Group vector-valued constraints along the vector dimension into a scalar constraint
         group_control : GroupTechnique, optional
             Group constraints together along the control grid
+
+        scale : float or :obj:`~casadi.DM`, optional
+            Provide a nominal value for this constraint
+            In essence, this has the same effect as dividing all sides of the constraints by scale
+            Default: 1
+
         Examples
         --------
 

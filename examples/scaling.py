@@ -56,6 +56,10 @@ with_scaling = True
 ocp = Ocp(t0=0, T=10)
 
 x1 = ocp.state(scale=1/1000 if with_scaling else 1) # [km/s] - nominal value is 1m/s = 1/1000 km/s
+# In essence, the scale argument has the same effect as defining:
+# x1 = 1/1000*ocp.state(),
+# Except that ocp.set_initial(x1, ...) keeps working
+
 x2 = ocp.state(scale=1000 if with_scaling else 1)   # [mm]   - nominal value is 1m = 1000 mm
 
 u = ocp.control(scale=3600**2 if with_scaling else 1) # [m/h^2] - nominal value is 1 m/s^2 = 3600^2 m/h^2
@@ -69,13 +73,22 @@ ocp.add_objective(ocp.at_tf((1000*x1)**2))
 
 # Path constraints
 ocp.subject_to(x1 >= -0.25*1e-3, scale=1/1000 if with_scaling else 1)
+# The scale argument has the same effect as multiplying all sides with 1000
 ocp.subject_to(-3600**2 <= (u <= 3600**2), scale=3600**2 if with_scaling else 1)
 
 # Boundary constraints
 ocp.subject_to(ocp.at_t0(x1) == 0, scale=1/1000 if with_scaling else 1)
 ocp.subject_to(ocp.at_t0(x2) == 1000, scale=1000 if with_scaling else 1)
 
-ocp.solver('ipopt')
+
+# Once the problem is properly scale, it is best to shut off Ipopt scaling
+options = {"ipopt.nlp_scaling_method": "none"}
+# It can also make sense to shut off auto-scaling of Mumps linear solver
+# In fact, this sometimes makes Mumps more resilient like ma57
+options["ipopt.mumps_permuting_scaling"] = 0
+options["ipopt.mumps_scaling"] = 0
+
+ocp.solver('ipopt', options)
 
 method = MultipleShooting(N=10, intg='rk')
 ocp.method(method)
