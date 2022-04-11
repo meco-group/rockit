@@ -261,31 +261,32 @@ class OptiWrapper(Opti):
             try:
                 if MX(c).is_constant() and MX(c).is_one():
                     continue
-                mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
-                if mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]:
-                    print(mc.lb,mc.canon,mc.ub)
-                    lb = mc.lb/scale
-                    canon = mc.canon/scale
-                    ub = mc.ub/scale
-                    # Check for infinities
-                    try:
-                        lb_inf = np.all(np.array(evalf(lb)==-np.inf))
-                    except:
-                        lb_inf = False
-                    try:
-                        ub_inf = np.all(np.array(evalf(ub)==np.inf))
-                    except:
-                        ub_inf = False
-                    if lb_inf:
-                        c = canon <= ub
-                    elif ub_inf:
-                        c = lb <= canon
-                    else:     
-                        c = lb <= (canon <= ub)
-                if mc.type in [casadi.OPTI_EQUALITY, casadi.OPTI_GENERIC_EQUALITY]:
-                    lb = mc.lb/scale
-                    canon = mc.canon/scale
-                    c = lb==canon
+                if not scale.is_one():
+                    mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
+                    if mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]:
+                        print(mc.lb,mc.canon,mc.ub)
+                        lb = mc.lb/scale
+                        canon = mc.canon/scale
+                        ub = mc.ub/scale
+                        # Check for infinities
+                        try:
+                            lb_inf = np.all(np.array(evalf(lb)==-np.inf))
+                        except:
+                            lb_inf = False
+                        try:
+                            ub_inf = np.all(np.array(evalf(ub)==np.inf))
+                        except:
+                            ub_inf = False
+                        if lb_inf:
+                            c = canon <= ub
+                        elif ub_inf:
+                            c = lb <= canon
+                        else:     
+                            c = lb <= (canon <= ub)
+                    if mc.type in [casadi.OPTI_EQUALITY, casadi.OPTI_GENERIC_EQUALITY]:
+                        lb = mc.lb/scale
+                        canon = mc.canon/scale
+                        c = lb==canon
                 Opti.subject_to(self,c)
             except Exception as e:
                 print(meta,c)
