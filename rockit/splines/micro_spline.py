@@ -76,6 +76,8 @@ def eval_on_knots(xi,d,subsamples=0):
       k = evalf(k)
   except:
       pass
+  if d==0:
+    basis = basis[:-1,:]
   return k,basis
 
 def bspline_derivative(c,xi,d):
@@ -88,12 +90,8 @@ if __name__ == "__main__":
     d = 3
     n = 10
     t = DM(np.linspace(0,1,n)).T
-    #print(eval_on_knots(t,d))       # works
-    print(eval_on_knots(MX(t),d))   # gives nan
-    xi = MX(t)
-    knots = xi.T#horzcat(repmat(xi[0],1,d),xi,repmat(xi[-1],1,d)).T
-    A = DM(knots.numel(),1)
-    A[0] = 1
-    print(A,knots,A/knots)
-    print(evalf(A/knots))
-    
+    print(eval_on_knots(t,d))       # works
+    for dd in range(d+1):
+      print(d-dd, [e.shape for e in eval_on_knots(t,d-dd,subsamples=2)])
+      eval_on_knots(t,d-dd,subsamples=2)[1].sparsity().spy()
+
