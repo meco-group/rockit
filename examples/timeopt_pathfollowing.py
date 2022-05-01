@@ -1,10 +1,39 @@
+#
+#     This file is part of rockit.
+#
+#     rockit -- Rapid Optimal Control Kit
+#     Copyright (C) 2019 MECO, KU Leuven. All rights reserved.
+#
+#     Rockit is free software; you can redistribute it and/or
+#     modify it under the terms of the GNU Lesser General Public
+#     License as published by the Free Software Foundation; either
+#     version 3 of the License, or (at your option) any later version.
+#
+#     Rockit is distributed in the hope that it will be useful,
+#     but WITHOUT ANY WARRANTY; without even the implied warranty of
+#     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+#     Lesser General Public License for more details.
+#
+#     You should have received a copy of the GNU Lesser General Public
+#     License along with CasADi; if not, write to the Free Software
+#     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
+#
+#
+
+"""
+Time-optimal pathfollowing
+======================================
+
+Two-link system see two_link.png
+There is a geometric path given yd(s)
+We seek to traverse the path exactly, as fast as possible (torque limited)
+We start from a certain speed
+
+"""
+
 from casadi import *
 from rockit import *
 
-# Two-link system see two_link.png
-# There is a geometric path given yd(s)
-# We seek to traverse the path exactly, as fast as possible (torque limited)
-# We start from a certain speed
 
 #Define kinematic parameters
 l1 = 1 #length
