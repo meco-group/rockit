@@ -2,7 +2,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, UniformGrid, GeometricGrid, FreeGrid
 from problems import integrator_control_problem, vdp, vdp_dae
-from casadi import DM, jacobian, sum1, sum2, MX, rootfinder
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 try:
@@ -920,6 +920,12 @@ class MiscTests(unittest.TestCase):
       ocp.set_initial(ocp.t0, 2)
       ocp.set_initial(ocp.T, 2)
       ocp.solve()
+      
+      
+    def test_der_t(self):
+      ocp = Ocp()
 
+      r = evalf(ocp.der(ocp.t))
+      self.assertEqual(r,1)
 if __name__ == '__main__':
     unittest.main()
