@@ -178,6 +178,34 @@ class Ocp(Stage):
         dep = [depends_on(rhs,p) for p in pall]
         return dep
 
+    def sys_dae(self):
+        # For checks
+        self._ode()
+        ode = vvcat([self._state_der[k] for k in self.states])
+        alg = vvcat(self._alg)
+
+        dae = {}
+        dae["x"] = self.x
+        dae["z"] = self.z
+
+        t0 = MX.sym("t0")
+        dt = MX.sym("dt")
+        tau = MX.sym("tau")
+        dae["t"] = self.t
+
+        pall = self.parameters['']+self.parameters['control']
+
+        rhs = vertcat(ode,alg)
+        dep = [depends_on(rhs,p) for p in pall]
+
+        p = vvcat([p for p,dep in zip(pall,dep) if dep])
+
+        dae["ode"] = ode
+        dae["alg"] = alg
+        dae["p"] = p
+        dae["u"] = self.u
+        return dae
+
     def sys_simulator(self, intg='rk', intg_options=None):
         if intg_options is None:
             intg_options = {}
