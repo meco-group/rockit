@@ -229,6 +229,9 @@ class SamplingMethod(DirectMethod):
             Name for CasADi Function
         options : dict, optional
             Options for CasADi Function
+        intg : `str`
+            Rockit-specific methods: 'rk', 'expl_euler' - these allow to make use of signal sampling with 'refine'
+            Others are passed on as-is to CasADi
         """
         DirectMethod.__init__(self, **kwargs)
         self.N = N
@@ -321,6 +324,14 @@ class SamplingMethod(DirectMethod):
         f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
         return Function('F', [X, U, t0, DT, P], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
+
+    def intg_expl_euler(self, f, X, U, P, Z):
+        assert Z.is_empty()
+        DT = MX.sym("DT")
+        t0 = MX.sym("t0")
+        k = f(x=X, u=U, p=P, t=t0)
+        poly_coeff = hcat([X, k["ode"]])
+        return Function('F', [X, U, t0, DT, P], [X + DT * k["ode"], poly_coeff, DT * k["quad"], MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
 
     def intg_builtin(self, f, X, U, P, Z):
         # A single CVODES step
