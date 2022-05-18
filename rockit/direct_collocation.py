@@ -192,7 +192,6 @@ class DirectCollocation(SamplingMethod):
                 for c, meta, args in stage._constraints["integrator"]:
                     if k==0 and i==0 and not args["include_first"]: continue
                     opti.subject_to(self.eval_at_integrator(stage, c, k, i), scale=args["scale"], meta=meta)
-                        
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, i, meta)
 
@@ -251,15 +250,25 @@ class DirectCollocation(SamplingMethod):
         all_args = vvcat(args)
         _,states = stage.sample(stage.x,grid='control')
 
+        name_in = None
+        if len(margs)>0 and isinstance(margs[0], list) and np.all([isinstance(e,str) for e in margs[0]]):
+            name_in = list(margs[0])
+
         add_xc = depends_on(all_args, states) and not depends_on(all_args, self.Xc_vars)
         add_zc = add_zc and not depends_on(all_args, self.Zc_vars_rest)
         inner_args = list(args)
         if add_xc:
             inner_args += [self.Xc_vars]
+            if name_in: name_in += ["Xc_vars"]
         if add_zc:
-            inner_args += [self.Zc_vars_rest]  
+            inner_args += [self.Zc_vars_rest]
+            if name_in: name_in += ["Zc_vars_rest"]
 
-        f = SamplingMethod.to_function(self, stage, name, inner_args, results, *margs)
+        inner_margs = list(margs)
+        if name_in:
+            inner_margs[0] = name_in
+
+        f = SamplingMethod.to_function(self, stage, name, inner_args, results, *inner_margs)
         f_args = f.mx_in()[:len(args)]
         call_args = list(f_args)
         if add_xc:
