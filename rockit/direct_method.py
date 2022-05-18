@@ -261,7 +261,7 @@ class OptiWrapper(Opti):
             try:
                 if MX(c).is_constant() and MX(c).is_one():
                     continue
-                if not scale.is_one():
+                if not MX(scale).is_one():
                     mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
                     if mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]:
                         print(mc.lb,mc.canon,mc.ub)
