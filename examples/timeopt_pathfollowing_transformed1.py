@@ -138,7 +138,7 @@ print("Transit time [s]: ", sol.value(ocp.T))
 
 # Post processing
 
-import pylab as plt
+import matplotlib.pyplot as plt
 plt.figure()
 
 plt.subplot(3,1,1)

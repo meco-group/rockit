@@ -149,7 +149,7 @@ ocp.set_initial(τ, 1)
 ocp.set_initial(q, 1)
 ocp.set_initial(q̇, 1)
 
-ocp.method(MultipleShooting(N=5000))
+ocp.method(MultipleShooting(N=100))
 
 ocp.solver("ipopt",{"expand":True})
 
@@ -163,7 +163,7 @@ print("Transit time [s]: ", sol.value(ocp.T))
 
 # Post processing
 
-import pylab as plt
+import matplotlib.pyplot as plt
 
 plt.figure()
 plt.subplot(2,1,1)

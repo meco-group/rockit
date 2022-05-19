@@ -152,7 +152,7 @@ print("Transit time [s]: ", sol.value(T))
 
 # Post processing
 
-import pylab as plt
+import matplotlib.pyplot as plt
 
 plt.figure()
 plt.plot(*sol.sample(a,grid='integrator',refine=10))
