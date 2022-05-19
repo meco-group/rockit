@@ -158,6 +158,8 @@ for i in range(Nsim):
     theta_history[i+1] = current_X[1].full()
     F_history[i]       = Fsol[0]
 
+print("Plot the results")
+
 # -------------------------------
 # Plot the results
 # -------------------------------
@@ -176,11 +178,13 @@ ax2.axvline(x=2*Tf, color='k', linestyle='--')
 ax2.text(2*Tf+0.1,0.025,'disturbance applied',rotation=90)
 fig.tight_layout()
 
+print("Animate results")
+
 # -------------------------------
 # Animate results
 # -------------------------------
 #plt.ion() # Enable plt interactive
-if False and plt.isinteractive():
+if False:# plt.isinteractive():
   fig2, ax3 = plt.subplots(1, 1)
   plt.ion()
   ax3.set_xlabel("X [m]")
@@ -194,4 +198,7 @@ if False and plt.isinteractive():
       ax3.plot(pendulum_pos_k[:,0], pendulum_pos_k[:,1], "-", linewidth = 1.5, color = color_k)
       ax3.plot(pendulum_pos_k[1,0], pendulum_pos_k[1,1], "o", markersize = 10, color = color_k)
       plt.pause(dt)
+
+print("show")
 plt.show(block=True)
+print("end")
