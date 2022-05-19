@@ -204,6 +204,6 @@ plt.ylabel("y position [m]")
 plt.title("Geometric plot")
 
 
-plt.show()
+plt.show(block=True)
 
 
