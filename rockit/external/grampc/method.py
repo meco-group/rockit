@@ -21,7 +21,7 @@
 #
 
 from ...freetime import FreeTime
-from ..method import ExternalMethod
+from ..method import ExternalMethod, linear_coeffs
 from ...solution import OcpSolution
 
 import numpy as np
@@ -34,12 +34,88 @@ import subprocess
 import os
 from ctypes import *
 
+
+"""
+In general, the constraints should be formulated in such a way that there are no conflicts. However,
+numerical difficulties can arise in some problems if constraints are formulated twice for the last point.
+Therefore, GRAMPC does not evaluate the constraints g and h for the last trajectory point if terminal
+constraints are defined, i.e. NgT + NhT > 0. In contrast, if no terminal constraints are defined, the
+functions g and h are evaluated for all points. Note that the opposite behavior is easy to implement
+by including g and h in the terminal constraints gT and hT .
+
+
+"""
+
+
+def format_float(e):
+    return "%0.18f" % e
+
+def strlist(a):
+    elems = []
+    for e in a:
+        if isinstance(e,str):
+            elems.append('"'+e+'"')
+        elif isinstance(e,float):
+            elems.append(format_float(e))
+        else:
+            elems.append(str(e))
+    return ",".join(elems)
+    
+def check_Js(J):
+    """
+    Checks if J, a pre-multiplier for slacks, is of legitimate structure
+    Empty rows are allowed
+    """
+    try:
+        J = evalf(J)
+    except:
+        raise Exception("Slack error")
+    assert np.all(np.array(J.nonzeros())==1), "All nonzeros must be 1"
+    # Check if slice of permutation of unit matrix
+    assert np.all(np.array(sum2(J))<=1), "Each constraint can only depend on one slack at most"
+    assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
+
+
+
 class GrampcMethod(ExternalMethod):
-    def __init__(self,**kwargs):
+    def __init__(self,
+    	Nhor = 20,           # Number of steps for the system integration
+        MaxGradIter = 1000,   # Maximum number of gradient iterations
+	    MaxMultIter = 1, # Maximum number of augmented Lagrangian iterations */
+	    ShiftControl = "off", 
+        LineSearchMax = 2.0,
+	    LineSearchExpAutoFallback = "off",
+
+        AugLagUpdateGradientRelTol = 1.0, 
+	    ConstraintsAbsTol = 1e-4,
+
+        PenaltyMax = 1e4,
+	    PenaltyMin = 50.0,
+	    PenaltyIncreaseFactor = 1.1,
+	    PenaltyDecreaseFactor = 1.0,
+
+        ConvergenceCheck = "on",
+	    ConvergenceGradientRelTol = 1e-6,
+        **kwargs):
         ExternalMethod.__init__(self, **kwargs)
         self.codegen_name = 'casadi_codegen'
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
+
+        self.Nhor = Nhor
+        self.MaxGradIter = MaxGradIter
+        self.MaxMultIter = MaxMultIter
+        self.ShiftControl = ShiftControl
+        self.LineSearchMax = LineSearchMax
+        self.LineSearchExpAutoFallback = LineSearchExpAutoFallback
+        self.AugLagUpdateGradientRelTol = AugLagUpdateGradientRelTol
+        self.ConstraintsAbsTol = ConstraintsAbsTol
+        self.PenaltyMax = PenaltyMax
+        self.PenaltyMin = PenaltyMin
+        self.PenaltyIncreaseFactor = PenaltyIncreaseFactor
+        self.PenaltyDecreaseFactor = PenaltyDecreaseFactor
+        self.ConvergenceCheck = ConvergenceCheck
+        self.ConvergenceGradientRelTol = ConvergenceGradientRelTol
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -375,6 +451,41 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
 
+        X0 = DM.zeros(stage.nx, self.N+1)
+        U0 = DM.zeros(stage.nu, self.N)
+
+        for var, expr in stage._initial.items():
+            if depends_on(expr, stage.t):
+                expr = evalf(substitute(expr,stage.t, self.control_grid_init))
+
+            var = substitute([var],self.raw,self.optivar)[0]
+            Jx, Ju, r = linear_coeffs(var,self.X, self.U)
+            Jx = evalf(Jx)
+            Ju = evalf(Ju)
+            r = evalf(r)
+            assert r.is_zero()
+            check_Js(Jx)
+            check_Js(Ju)
+            assert Jx.nnz()==0 or Ju.nnz()==0
+            expr = reshape_number(var, expr)
+            is_matrix = False
+            if expr.shape[1]!= var.shape[1]:
+                if expr.shape[1]==self.N*var.shape[1] or expr.shape[1]==(self.N+1)*var.shape[1]:
+                    is_matrix = True
+                else:
+                    raise Exception("Initial guess of wrong shape")
+            assert expr.shape[0]==var.shape[0]
+            if Jx.sparsity().get_col():
+                for k in range(self.N+1):
+                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
+            if Ju.sparsity().get_col():
+                for k in range(self.N):
+                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
+
+        print("x0, u0")
+        X0 = list(np.array(X0).mean(axis=1))
+        U0 = list(np.array(U0).mean(axis=1))
+
         self.output_file.write("""
 /** Additional functions required for semi-implicit systems 
     M*dx/dt(t) = f(t0+t,x(t),u(t),p) using the solver RODAS 
@@ -442,19 +553,92 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->w);\n")
         self.output_file.write("}\n")   
 
+        nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
         self.output_file.write("typeGRAMPC* setup() {\n")
+        print(self.control_grid_init)
+        if not isinstance(self.ConstraintsAbsTol,list):
+            self.ConstraintsAbsTol = [self.ConstraintsAbsTol] * nc
         self.output_file.write(f"""
             typeGRAMPC *grampc;
             typeUSERPARAM* userparam = malloc(sizeof(cs_struct));
+            double ConstraintsAbsTol[{nc}] = {{{",".join("%.16e" % e for e in self.ConstraintsAbsTol)}}};
+            double x0[{stage.nx}] = {{{strlist(X0)}}};
+            double u0[{stage.nu}] = {{{strlist(U0)}}};
 
             preamble(userparam);
 
             /********* grampc init *********/
             grampc_init(&grampc, userparam);
 
+            grampc_setparam_real_vector(grampc, "x0", x0);
+            //grampc_setparam_real_vector(grampc, "xdes", 0);
+
+            grampc_setparam_real_vector(grampc, "u0", u0);
+            //grampc_setparam_real_vector(grampc, "udes", 0);
+            //grampc_setparam_real_vector(grampc, "umax", umax);
+            //grampc_setparam_real_vector(grampc, "umin", umin);
+
+            grampc_setparam_real(grampc, "Thor", {self.control_grid_init[-1]-self.control_grid_init[0]});
+
+            grampc_setparam_real(grampc, "dt", {self.control_grid_init[1]-self.control_grid_init[0]});
+            grampc_setparam_real(grampc, "t0", {self.control_grid_init[0]});
+
+            /********* Option definition *********/
+            grampc_setopt_int(grampc, "Nhor", {self.Nhor});
+            grampc_setopt_int(grampc, "MaxGradIter", {self.MaxGradIter});
+            grampc_setopt_int(grampc, "MaxMultIter", {self.MaxMultIter});
+            grampc_setopt_string(grampc, "ShiftControl", "{self.ShiftControl}");
+
+            grampc_setopt_real(grampc, "LineSearchMax", {self.LineSearchMax});
+            grampc_setopt_string(grampc, "LineSearchExpAutoFallback", "{self.LineSearchExpAutoFallback}");
+
+            grampc_setopt_real(grampc, "AugLagUpdateGradientRelTol", {self.AugLagUpdateGradientRelTol});
+            grampc_setopt_real_vector(grampc, "ConstraintsAbsTol", ConstraintsAbsTol);
+
+            grampc_setopt_real(grampc, "PenaltyMax", {self.PenaltyMax});
+            grampc_setopt_real(grampc, "PenaltyMin", {self.PenaltyMin});
+            grampc_setopt_real(grampc, "PenaltyIncreaseFactor", {self.PenaltyIncreaseFactor});
+            grampc_setopt_real(grampc, "PenaltyDecreaseFactor", {self.PenaltyDecreaseFactor});
+
+            grampc_setopt_string(grampc, "ConvergenceCheck", "{self.ConvergenceCheck}");
+            grampc_setopt_real(grampc, "ConvergenceGradientRelTol", {self.ConvergenceGradientRelTol});
+
+            /********* estimate and set PenaltyMin *********/
+            grampc_estim_penmin(grampc, 1);
+
+            grampc_printopt(grampc);
+            grampc_printparam(grampc);
+
             return grampc;
         """)
         self.output_file.write("}\n")
+
+        self.output_file.write("void solve(typeGRAMPC* grampc) {\n")
+        self.output_file.write(f"""
+            /* run grampc */
+            printf("Running GRAMPC!\\n");
+            grampc_run(grampc);
+            printf("yay!\\n");
+
+            /* run convergence test */
+            /*if (grampc->opt->ConvergenceCheck == INT_ON) {{
+                converged_grad = convergence_test_gradient(grampc->opt->ConvergenceGradientRelTol, grampc);
+                if (converged_grad) {{
+                    converged_const = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
+                }}
+            }}*/
+
+            /* check solver status */
+            if (grampc->sol->status > 0) {{
+                if (grampc_printstatus(grampc->sol->status, STATUS_LEVEL_ERROR)) {{
+                    printf("at iteration %i:\\n -----\\n", 0);
+                }}
+            }}
+
+        """)
+        self.output_file.write("}\n")
+
+
         self.output_file.write("void destroy(typeGRAMPC* grampc) {\n")
         self.output_file.write(f"""
             postamble(grampc->userparam);
@@ -466,6 +650,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write("int main() {\n")
         self.output_file.write(f"""
             typeGRAMPC* s = setup();
+            solve(s);
             destroy(s);
         """)
         self.output_file.write("}\n")
@@ -538,9 +723,11 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
 
         self._register("setup",[], m_type)
         self._register("destroy",[m_type], m_type)
+        self._register("solve",[m_type], m_type)
 
         grampc = self._setup()
         print(grampc)
+        self._solve(grampc)
         self._destroy(grampc)
 
 

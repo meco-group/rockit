@@ -82,7 +82,7 @@ ocp.subject_to(ocp.at_t0(x2) == 1)
 ocp.solver('ipopt')
 
 # Pick a solution method
-method = external_method('grampc')
+method = external_method('grampc',N=10)
 ocp.method(method)
 
 # Set initial guesses for states, controls and variables.
