@@ -243,7 +243,7 @@ class GrampcMethod(ExternalMethod):
 
 
         # Total Lagrange integrand
-        lagrange = placeholders(self.lagrange,preference=['expose'])*self.N
+        lagrange = placeholders(self.lagrange,preference=['expose'])
         # Total Mayer term
         mayer = placeholders(self.mayer,preference=['expose'])
 
