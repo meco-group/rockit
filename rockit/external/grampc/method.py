@@ -30,6 +30,7 @@ import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 
+import subprocess
 import os
 
 class GrampcMethod(ExternalMethod):
@@ -382,7 +383,9 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  free({self.user}->w);\n")
         self.output_file.write("}\n")        
 
+        self.output_file.close()
         self.codegen.generate()
+        
 
         build_dir_abs = "."
 
@@ -427,6 +430,7 @@ class GrampcMethod(ExternalMethod):
             cmake --build build --config Release
             cmake --install build --prefix .
             """)
+        subprocess.run(["bash","build.sh"])
             
     def set_matrices(self):
         self.ocp.parameter_values = np.array(self.P0).reshape((-1))
