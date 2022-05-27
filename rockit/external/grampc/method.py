@@ -25,7 +25,7 @@ from ..method import ExternalMethod, linear_coeffs
 from ...solution import OcpSolution
 
 import numpy as np
-from casadi import CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
+from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
@@ -79,7 +79,7 @@ def check_Js(J):
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,
-    	Nhor = 20,           # Number of steps for the system integration
+    	M = 1,
         MaxGradIter = 1000,   # Maximum number of gradient iterations
 	    MaxMultIter = 1, # Maximum number of augmented Lagrangian iterations */
 	    ShiftControl = "off", 
@@ -98,11 +98,12 @@ class GrampcMethod(ExternalMethod):
 	    ConvergenceGradientRelTol = 1e-6,
         **kwargs):
         ExternalMethod.__init__(self, **kwargs)
+        self.M = M
         self.codegen_name = 'casadi_codegen'
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
-
-        self.Nhor = Nhor
+        self.user_grampc = "((cs_struct*) grampc->userparam)"
+        self.Nhor = self.N*self.M
         self.MaxGradIter = MaxGradIter
         self.MaxMultIter = MaxMultIter
         self.ShiftControl = ShiftControl
@@ -131,7 +132,6 @@ class GrampcMethod(ExternalMethod):
     def gen_interface(self, f):
         f = f.expand()
         self.codegen.add(f)
-        print(f)
         self.preamble.append(f"{f.name()}_incref();")
         self.preamble.append(f"{f.name()}_work(&sz_arg_local, &sz_res_local, &sz_iw_local, &sz_w_local);")
         self.preamble.append("if (sz_arg_local>sz_arg) sz_arg=sz_arg_local;")
@@ -181,6 +181,9 @@ class GrampcMethod(ExternalMethod):
             casadi_int stride;
             casadi_real* p;
             typeGRAMPC* grampc;
+            casadi_real* x_opt;
+            casadi_real* u_opt;
+            casadi_real* v_opt;
         }} cs_struct;
     """)
         self.stage = stage
@@ -321,6 +324,7 @@ class GrampcMethod(ExternalMethod):
 
         self.lagrange = substitute([obj], var_mayer, [DM.zeros(e.shape) for e in var_mayer])[0]
         self.mayer = substitute([obj], var_lagrange, [DM.zeros(e.shape) for e in var_lagrange])[0]
+        self.P0 = DM.zeros(stage.np)
 
     def transcribe_phase2(self, stage, **kwargs):
         
@@ -369,7 +373,6 @@ class GrampcMethod(ExternalMethod):
                 ub_inf = np.all(np.array(evalf(ub)==inf))
             except:
                 ub_inf = False
-            print(mc.type)
 
             if mc.type == casadi.OPTI_EQUALITY:
                 eq.append(canon-ub)
@@ -482,7 +485,6 @@ class GrampcMethod(ExternalMethod):
                 for k in range(self.N):
                     U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
 
-        print("x0, u0")
         X0 = list(np.array(X0).mean(axis=1))
         U0 = list(np.array(U0).mean(axis=1))
 
@@ -539,6 +541,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->res = malloc(sizeof(casadi_real*)*sz_res);
         {self.user}->iw = sz_iw>0 ? malloc(sizeof(casadi_int)*sz_iw) : 0;
         {self.user}->w = sz_w>0 ? malloc(sizeof(casadi_real)*sz_w) : 0;
+        {self.user}->x_opt = malloc(sizeof(casadi_real)*{stage.nx*self.Nhor});
+        {self.user}->u_opt = malloc(sizeof(casadi_real)*{stage.nu*self.Nhor});
+        //{self.user}->v_opt = malloc(sizeof(casadi_real)*{self.v.numel()});
 
 
         """)
@@ -551,11 +556,13 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->res);\n")
         self.output_file.write(f"  free({self.user}->iw);\n")
         self.output_file.write(f"  free({self.user}->w);\n")
+        self.output_file.write(f"  free({self.user}->x_opt);\n")
+        self.output_file.write(f"  free({self.user}->u_opt);\n")
+        #self.output_file.write(f"  free({self.user}->v_opt);\n")
         self.output_file.write("}\n")   
 
         nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
         self.output_file.write("typeGRAMPC* setup() {\n")
-        print(self.control_grid_init)
         if not isinstance(self.ConstraintsAbsTol,list):
             self.ConstraintsAbsTol = [self.ConstraintsAbsTol] * nc
         self.output_file.write(f"""
@@ -613,6 +620,17 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         """)
         self.output_file.write("}\n")
 
+        self.output_file.write(f"""
+            void write_p(typeGRAMPC* grampc, const casadi_real* p) {{
+                for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = p[i];
+            }}
+            void read_x_opt(typeGRAMPC* grampc, casadi_real* x_opt) {{
+                for (int i=0;i<{stage.nx*self.Nhor};++i) x_opt[i] = {self.user_grampc}->x_opt[i];
+            }}
+            void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
+                for (int i=0;i<{stage.nu*self.Nhor};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
+            }}""")
+
         self.output_file.write("void solve(typeGRAMPC* grampc) {\n")
         self.output_file.write(f"""
             /* run grampc */
@@ -627,6 +645,21 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                     converged_const = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
                 }}
             }}*/
+
+
+            for(int k=0;k<grampc->opt->Nhor;++k) {{
+                for (int j=0;j<{stage.nx};++j) {{
+                    int i = k*{stage.nx}+j;
+                    {self.user_grampc}->x_opt[i] = grampc->rws->x[i]*grampc->opt->xScale[j]+grampc->opt->xOffset[j];
+                }}
+                for (int j=0;j<{stage.nu};++j) {{
+                    int i = k*{stage.nu}+j;
+                    {self.user_grampc}->u_opt[i] = grampc->rws->u[i]*grampc->opt->uScale[j]+grampc->opt->uOffset[j];
+                }}
+            }}
+
+
+
 
         """)
         self.output_file.write("}\n")
@@ -717,58 +750,27 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("setup",[], m_type)
         self._register("destroy",[m_type], m_type)
         self._register("solve",[m_type], m_type)
-
-        grampc = self._setup()
-        print(grampc)
-        self._solve(grampc)
-        self._destroy(grampc)
-
+        self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
+        self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
+        self._register("write_p",[m_type, POINTER(c_double)], m_type)
+        self.grampc = self._setup()
 
     def set_matrices(self):
-        self.ocp.parameter_values = np.array(self.P0).reshape((-1))
+        P0 = np.array(self.P0)
+        self._write_p(self.grampc, P0.ctypes.data_as(POINTER(c_double)))
 
-        res = self.mmap(p=self.P0,t=self.normalized_time_grid.T)
-        # Set matrices
-        for k, (_,is_vec) in self.m.items():
-            v = np.array(res[k])
-            v[v==-inf] = -INF
-            v[v==inf] = INF
-            if k=="lbx_e":
-                self.ocp_solver.constraints_set(self.N, "lbx", v[:,-1])
-            elif k=="ubx_e":
-                self.ocp_solver.constraints_set(self.N, "ubx", v[:,-1])
-            elif k=="C_e":
-                if v.shape[0]*v.shape[1]>0:
-                    self.ocp_solver.constraints_set(self.N, "C", v[:,:self.mmap.size2_out("C_e")])
-            elif k=="lg_e":
-                self.ocp_solver.constraints_set(self.N, "lg", v[:,-1])
-            elif k=="ug_e":
-                self.ocp_solver.constraints_set(self.N, "ug", v[:,-1])
-            elif k=="lh_e":
-                self.ocp_solver.constraints_set(self.N, "lh", v[:,-1])
-            elif k=="uh_e":
-                self.ocp_solver.constraints_set(self.N, "uh", v[:,-1])
-            elif k=="lbx_0":
-                self.ocp_solver.constraints_set(0, "lbx", v[:,0])
-            elif k=="ubx_0":
-                self.ocp_solver.constraints_set(0, "ubx", v[:,0])
-            else:
-                for i in range(self.N):
-                    if i==0 and k in ["lbx","ubx"]: continue
-                    stride = self.mmap.size2_out(k)
-                    if v.shape[0]>0:
-                        e = v[:,i*stride:(i+1)*stride]
-                        if is_vec:
-                            e = e.reshape((-1))
-                        self.ocp_solver.constraints_set(i, k, e, api='new')
+    def __del__(self):
+        if hasattr(self,'_destroy'):
+            self._destroy(self.grampc)
 
     def solve(self, stage):
         self.set_matrices()
-        status = self.ocp_solver.solve()
-        self.ocp_solver.print_statistics()
-        x = [self.ocp_solver.get(i, "x") for i in range(self.N+1)]
-        u = [self.ocp_solver.get(i, "u") for i in range(self.N)]
-        return OcpSolution(SolWrapper(self, vcat(x), vcat(u)), stage)
+        self._solve(self.grampc)
+        x_opt = np.zeros((stage.nx, self.Nhor+1),dtype=np.float64,order='F')
+        self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
+        u_opt = np.zeros((stage.nu, self.Nhor),dtype=np.float64,order='F')
+        self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
+        return OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt)), stage)
 
     def eval(self, stage, expr):
         return expr

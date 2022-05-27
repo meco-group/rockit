@@ -82,14 +82,14 @@ ocp.subject_to(ocp.at_t0(x2) == 1)
 ocp.solver('ipopt')
 
 # Pick a solution method
-method = external_method('grampc',N=10)
+method = external_method('grampc',N=20)
 ocp.method(method)
 
 # Set initial guesses for states, controls and variables.
 #  Default: zero
 ocp.set_initial(x2, 0)                 # Constant
-ocp.set_initial(x1, ocp.t/10)          # Function of time
-ocp.set_initial(u, linspace(0, 0.1, 10)) # Matrix
+ocp.set_initial(x1, ocp.t/20)          # Function of time
+ocp.set_initial(u, linspace(0, 0.1, 20)) # Matrix
 
 # Solve
 sol = ocp.solve()
