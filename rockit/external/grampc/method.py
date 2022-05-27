@@ -30,10 +30,14 @@ import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 
+import os
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
+        self.codegen_name = 'casadi_codegen'
+        self.grampc_driver = 'grampc_driver'
+        self.user = "((cs_struct*) userparam)"
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -44,30 +48,32 @@ class GrampcMethod(ExternalMethod):
         self.codegen.add(f)
         print(f)
         self.preamble.append(f"{f.name()}_incref();")
-        self.preamble.append(f"{f.name()}_work(sz_arg_local, sz_res_local, sz_iw_local, sz_w_local);")
+        self.preamble.append(f"{f.name()}_work(&sz_arg_local, &sz_res_local, &sz_iw_local, &sz_w_local);")
         self.preamble.append("if (sz_arg_local>sz_arg) sz_arg=sz_arg_local;")
         self.preamble.append("if (sz_res_local>sz_res) sz_res=sz_res_local;")
         self.preamble.append("if (sz_iw_local>sz_iw) sz_iw=sz_iw_local;")
         self.preamble.append("if (sz_w_local>sz_iw) sz_w=sz_w_local;")
         self.postamble.append(f"{f.name()}_decref();")
 
+        scalar = lambda name: name in ["t","T"]
+
         args = [
-                f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}"
+                f"ctypeRNum {'' if scalar(f.name_in(i)) else '*'}{f.name_in(i)}"
                     for i in range(f.n_in())
                     if "p_fixed" not in f.name_in(i)]
-        self.output_file.write(f"void {f.name()}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
+        self.output_file.write(f"void {f.name()[3:]}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
         self.output_file.write("  int mem;\n")
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         for i in range(f.n_in()):
             e = f.name_in(i)
-            if e=="t":
-                self.output_file.write(f"  userparam->arg[{i}] = &t;\n")
+            if scalar(e):
+                self.output_file.write(f"  {self.user}->arg[{i}] = &{e};\n")
             elif e=="p_fixed":
-                self.output_file.write(f"  userparam->arg[{i}] = userparam->p;\n")
+                self.output_file.write(f"  {self.user}->arg[{i}] = {self.user}->p;\n")
             else:
-                self.output_file.write(f"  userparam->arg[{i}] = {e};\n")
-        self.output_file.write("  userparam->res[0] = out;\n")
-        self.output_file.write(f"  {f.name()}(userparam->arg, userparam->res, userparam->w, userparam->iw, mem);\n")
+                self.output_file.write(f"  {self.user}->arg[{i}] = {e};\n")
+        self.output_file.write(f"  {self.user}->res[0] = out;\n")
+        self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
         self.output_file.write(f"}}\n")
 
     def transcribe_phase1(self, stage, **kwargs):
@@ -76,7 +82,20 @@ class GrampcMethod(ExternalMethod):
                          "casadi_int sz_arg_local, sz_res_local, sz_iw_local, sz_w_local;",
                         ]
         self.postamble = []
-        self.output_file = open("runtime.c", "w")
+        self.output_file = open(f"{self.grampc_driver}.c", "w")
+        self.output_file.write(f"""
+        #include "{self.codegen_name}.h"
+        #include "grampc.h"
+
+        typedef struct cs_struct_def {{
+            const casadi_real** arg;
+            casadi_real** res;
+            casadi_int* iw;
+            casadi_real* w;
+            casadi_int stride;
+            casadi_real* p;
+        }} cs_struct;
+    """)
         self.stage = stage
         self.opti = Opti()
 
@@ -84,7 +103,9 @@ class GrampcMethod(ExternalMethod):
         self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
 
         f = stage._ode()
-        self.codegen = CodeGenerator("test.c")
+        options = {}
+        options["with_header"] = True
+        self.codegen = CodeGenerator(f"{self.codegen_name}.c", options)
 
 
         self.v = vvcat(stage.variables[''])
@@ -92,11 +113,11 @@ class GrampcMethod(ExternalMethod):
 
         assert f.numel_out("alg")==0
         assert f.numel_out("quad")==0
-        ffct = Function("ffct", [stage.t, stage.x, stage.u, self.v, stage.p], [ densify(f(x=stage.x, u=stage.u, p=stage.p, t=stage.t)["ode"])],['t','x','u','p','p_fixed'],['out'])
+        ffct = Function("cs_ffct", [stage.t, stage.x, stage.u, self.v, stage.p], [ densify(f(x=stage.x, u=stage.u, p=stage.p, t=stage.t)["ode"])],['t','x','u','p','p_fixed'],['out'])
         self.gen_interface(ffct)
-        self.gen_interface(ffct.factory("dfdx_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:x"]))
-        self.gen_interface(ffct.factory("dfdu_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:u"]))
-        self.gen_interface(ffct.factory("dfdp_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:p"]))
+        self.gen_interface(ffct.factory("cs_dfdx_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:x"]))
+        self.gen_interface(ffct.factory("cs_dfdu_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:u"]))
+        self.gen_interface(ffct.factory("cs_dfdp_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:p"]))
 
 
         """
@@ -228,17 +249,17 @@ class GrampcMethod(ExternalMethod):
 
         xdes = MX.sym("xdes", stage.x.sparsity())
         udes = MX.sym("udes", stage.u.sparsity())
-        lfct = Function("lfct", [stage.t, stage.x, stage.u, self.v, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "p_fixed", "xdes", "udes"], ["out"])
+        lfct = Function("cs_lfct", [stage.t, stage.x, stage.u, self.v, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "p_fixed", "xdes", "udes"], ["out"])
         self.gen_interface(lfct)
-        self.gen_interface(lfct.factory("dldx",["t","x","u","p","p_fixed"],["grad:out:x"]))
-        self.gen_interface(lfct.factory("dldu",["t","x","u","p","p_fixed"],["grad:out:u"]))
-        self.gen_interface(lfct.factory("dldp",["t","x","u","p","p_fixed"],["grad:out:p"]))
+        self.gen_interface(lfct.factory("cs_dldx",["t","x","u","p","p_fixed", "xdes", "udes"],["grad:out:x"]))
+        self.gen_interface(lfct.factory("cs_dldu",["t","x","u","p","p_fixed", "xdes", "udes"],["grad:out:u"]))
+        self.gen_interface(lfct.factory("cs_dldp",["t","x","u","p","p_fixed", "xdes", "udes"],["grad:out:p"]))
 
-        Vfct = Function("Vfct", [stage.T, stage.x, self.v, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "p_fixed", "xdes"], ["out"])
+        Vfct = Function("cs_Vfct", [stage.T, stage.x, self.v, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "p_fixed", "xdes"], ["out"])
         self.gen_interface(Vfct)
-        self.gen_interface(Vfct.factory("dVdx",["T","x","p","p_fixed"],["grad:out:x"]))
-        self.gen_interface(Vfct.factory("dVdp",["T","x","p","p_fixed"],["grad:out:p"]))
-        self.gen_interface(Vfct.factory("dVdT",["T","x","p","p_fixed"],["grad:out:T"]))
+        self.gen_interface(Vfct.factory("cs_dVdx",["T","x","p","p_fixed","xdes"],["grad:out:x"]))
+        self.gen_interface(Vfct.factory("cs_dVdp",["T","x","p","p_fixed","xdes"],["grad:out:p"]))
+        self.gen_interface(Vfct.factory("cs_dVdT",["T","x","p","p_fixed","xdes"],["grad:out:T"]))
 
         eq = [] #
         ineq = [] # <=0
@@ -275,17 +296,17 @@ class GrampcMethod(ExternalMethod):
         eq = vvcat(eq)
         ineq = vvcat(ineq)
 
-        gfct = Function("gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
+        gfct = Function("cs_gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
         self.gen_interface(gfct)
-        self.gen_interface(gfct.factory("dgdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
-        self.gen_interface(gfct.factory("dgdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
-        self.gen_interface(gfct.factory("dgdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(gfct.factory("cs_dgdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(gfct.factory("cs_dgdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
+        self.gen_interface(gfct.factory("cs_dgdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
 
-        hfct = Function("hfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(ineq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
+        hfct = Function("cs_hfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(ineq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
         self.gen_interface(hfct)
-        self.gen_interface(hfct.factory("dhdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
-        self.gen_interface(hfct.factory("dhdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
-        self.gen_interface(hfct.factory("dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(hfct.factory("cs_dhdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(hfct.factory("cs_dhdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
+        self.gen_interface(hfct.factory("cs_dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
 
 
         # Process point constraints
@@ -330,322 +351,83 @@ class GrampcMethod(ExternalMethod):
         eq = vvcat(eq_term)
         ineq_term = vvcat(ineq_term)
 
-        gTfct = Function("gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        gTfct = Function("cs_gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
         self.gen_interface(gTfct)
-        self.gen_interface(gTfct.factory("dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
-        self.gen_interface(gTfct.factory("dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
-        self.gen_interface(gTfct.factory("dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
+        self.gen_interface(gTfct.factory("cs_dgTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(gTfct.factory("cs_dgTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(gTfct.factory("cs_dgTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
-        hTfct = Function("hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        hTfct = Function("cs_hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
         self.gen_interface(hTfct)
-        self.gen_interface(hTfct.factory("dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
-        self.gen_interface(hTfct.factory("dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
-        self.gen_interface(hTfct.factory("dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
+        self.gen_interface(hTfct.factory("cs_dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(hTfct.factory("cs_dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
 
         self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
         for l in self.preamble:
             self.output_file.write("  " + l + "\n")
-        self.output_file.write("  userparam->arg = malloc(sizeof(const casadi_real*)sz_w);\n")
-        self.output_file.write("  userparam->res = malloc(sizeof(casadi_real*)sz_res);\n")
-        self.output_file.write("  userparam->iw = malloc(sizeof(casadi_int)sz_iw);\n")
-        self.output_file.write("  userparam->w = malloc(sizeof(casadi_real)sz_w);\n")
+        self.output_file.write(f"  {self.user}->arg = malloc(sizeof(const casadi_real*)*sz_w);\n")
+        self.output_file.write(f"  {self.user}->res = malloc(sizeof(casadi_real*)*sz_res);\n")
+        self.output_file.write(f"  {self.user}->iw = malloc(sizeof(casadi_int)*sz_iw);\n")
+        self.output_file.write(f"  {self.user}->w = malloc(sizeof(casadi_real)*sz_w);\n")
         self.output_file.write("}\n")
 
         self.output_file.write("void postamble(typeUSERPARAM* userparam) {\n")
         for l in self.postamble:
             self.output_file.write("  " + l + "\n")
-        self.output_file.write("  free(userparam->arg);\n")
-        self.output_file.write("  free(userparam->res);\n")
-        self.output_file.write("  free(userparam->iw);\n")
-        self.output_file.write("  free(userparam->w);\n")
+        self.output_file.write(f"  free({self.user}->arg);\n")
+        self.output_file.write(f"  free({self.user}->res);\n")
+        self.output_file.write(f"  free({self.user}->iw);\n")
+        self.output_file.write(f"  free({self.user}->w);\n")
         self.output_file.write("}\n")        
 
         self.codegen.generate()
 
-        # Process point constraints
-        # Probably should de-duplicate stuff wrt path constraints code
-        for c, meta, _ in stage._constraints["point"]:
-            try:
-                # Make sure you resolve u to r_at_t0/r_at_tf
-                c = placeholders(c,max_phase=1)
-                has_t0 = 'r_at_t0' in [a.name() for a in symvar(c)]
-                has_tf = 'r_at_tf' in [a.name() for a in symvar(c)]
+        build_dir_abs = "."
 
-                cb = c
-                c = substitute([placeholders(c,preference='expose')],self.raw,self.optivar)[0]
-                mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
-                lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
+        cmake_file_name = os.path.join(build_dir_abs,"CMakeLists.txt")
+        with open(cmake_file_name,"w") as out:
+            out.write(f"""
+            project(grampc_export)
 
-                # Check for infinities
-                try:
-                    lb_inf = np.all(np.array(evalf(lb)==-inf))
-                except:
-                    lb_inf = False
-                try:
-                    ub_inf = np.all(np.array(evalf(ub)==inf))
-                except:
-                    ub_inf = False
+            set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 
-                if has_t0 and has_tf:
-                    raise Exception("Constraints mixing value at t0 and tf not allowed.")
-                
-                assert not depends_on(canon, self.slack), "Path constraints may only have non-signal slacks"
+            cmake_minimum_required(VERSION 3.0)
 
-                if has_t0:
-                    assert not depends_on(canon, self.slack_e), "Initial constraints may not have slacks."
-                
-                # Slack positivity constraint
-                if depends_on(canon, self.slack_e) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
-                    J,c = linear_coeff(canon, self.slack_e)
-                    is_perm = legit_Js(J)
-                    lb_zero = np.all(np.array(evalf(lb-c)==0))
-                    assert is_perm and lb_zero and ub_inf, "Only constraints allowed on slacks are '>=0'"
-                    slack_e_has_pos_const[J.sparsity().get_col()] = 1
-                    continue
-                
-                assert is_linear(canon, self.slack_e), "slacks can only enter linearly in constraints"
+            add_library(grampc INTERFACE)
 
-                if has_t0:
-                    # t0
-                    check = is_linear(canon, stage.x)
-                    check = check and not depends_on(canon, stage.u)
-                    assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
+            find_library(GRAMPC_LIB NAMES grampc HINTS /home/jgillis/programs/grampc-code/libs)
+            find_path(GRAMPC_INCLUDE_DIR
+            grampc.h
+            HINTS /home/jgillis/programs/grampc-code/include
+            )
 
-                    J,c = linear_coeff(canon, stage.x)
-                    Jbx_0.append(J)
-                    lbx_0.append(lb-c)
-                    ubx_0.append(ub-c)
+            target_link_libraries(grampc INTERFACE ${{GRAMPC_LIB}})
+            target_include_directories(grampc INTERFACE ${{GRAMPC_INCLUDE_DIR}})
 
-                    Jbxe_0.append( (mc.type == casadi.OPTI_EQUALITY) * J)
-                else:
-                    # tf
-                    assert not depends_on(canon,stage.u), "Terminal constraints cannot depend on u"
-                    if is_linear(canon, stage.x):
-                        # lbx <= Jbx x <= ubx
-                        J,Js,c = linear_coeffs(canon, stage.x, self.slack_e)
-                        if legit_J(J):
-                            Jbx_e.append(J)
-                            lbx_e.append(lb-c)
-                            ubx_e.append(ub-c)
+            add_library({self.grampc_driver} SHARED {self.grampc_driver}.c)
+            target_link_libraries({self.grampc_driver} grampc)
 
-                            if not ub_inf: Js *= -1
-                            check_Js(Js)
-                            Jsbx_e.append(Js)
-                            mark(slack_e_lower if ub_inf else slack_e_upper, Js)
+            install(TARGETS {self.grampc_driver} RUNTIME DESTINATION . LIBRARY DESTINATION .)
 
-                            continue
-                        # lg <= Cx <= ug
-                        J, Js, c = linear_coeffs(canon, stage.x, self.slack_e)
-                        C_e.append(J)
-                        lg_e.append(lb-c)
-                        ug_e.append(ub-c)
-                        if not ub_inf: Js *= -1
-                        check_Js(Js)
-                        Jsg_e.append(Js)
-                        mark(slack_e_lower if ub_inf else slack_e_upper, Js)
-                    else:
-                        Js, c = linear_coeff(canon, self.slack_e)
-                        # lh <= h(x,u) <= uh
-                        h_e.append(c)
-                        lh_e.append(lb)
-                        uh_e.append(ub)
-                        if not ub_inf: Js *= -1
-                        check_Js(Js)
-                        Jsh_e.append(Js)
-                        mark(slack_e_lower if ub_inf else slack_e_upper, Js)
-            except Exception as e:
-                print(meta)
-                raise e
-
-        # Lump together Js* across individual path constraint categories
-        Jsbx_e = MX(0, 1) if len(Jsbx_e)==0 else vcat(Jsbx_e)
-        Jsg_e = MX(0, 1) if len(Jsg_e)==0 else vcat(Jsg_e)
-        Jsh_e = MX(0, 1) if len(Jsh_e)==0 else vcat(Jsh_e)
-
-        # Indices needed to pull lower and upper parts of Qs, bs apart
-        li = sparsify(slack_e_lower).sparsity().row()
-        ui = sparsify(slack_e_upper).sparsity().row()
-
-        ns = self.slack_e.nnz()
-
-        Zl = MX(ns, ns)
-        Zu = MX(ns, ns)
-        zl = MX(ns, 1)
-        zu = MX(ns, 1)
-        Zl[li,li] = Qs_e[li,li]
-        Zu[ui,ui] = Qs_e[ui,ui]
-        zl[li,0] = bs_e[li,0]
-        zu[ui,0] = bs_e[ui,0]
-
-        bxi = Jsbx_e.sparsity().get_col()
-        gi = Jsg_e.sparsity().get_col()
-        hi = Jsh_e.sparsity().get_col()
-        ni = bxi+gi+hi
-
-        # Re-order slacks according to (bu,bx,g,h)
-        Zl = Zl[ni,ni]
-        Zu = Zu[ni,ni]
-        zl = zl[ni]
-        zu = zu[ni]
-
-        assert np.all(np.array(slack_e_has_pos_const)), "Only variables allowed are slacks (and they need '>=0' constraints)"
-
-        # After re-ordering slacks, Js* become unit matrices interwoven with zero rows
-        # But let's just work with idxs* directly
-        self.ocp.constraints.idxsbx_e = np.array(Jsbx_e.sparsity().row())
-        self.ocp.constraints.idxsg_e = np.array(Jsg_e.sparsity().row())
-        self.ocp.constraints.idxsh_e = np.array(Jsh_e.sparsity().row())
-
-        # These should become parametric
-        self.ocp.cost.Zl_e = export_num_vec(diag(Zl))
-        self.ocp.cost.Zu_e = export_num_vec(diag(Zu))
-        self.ocp.cost.zu_e = export_num_vec(zu)
-        self.ocp.cost.zl_e = export_num_vec(zl)
-
-        ocp.constraints.constr_type = 'BGH'
-
-        # No export_num here, let's do things parametrically
-        self.m = m = OrderedDict()
-
-        self.ocp.constraints.Jbx = export_num(Jbx)
-        m["lbx"] = export_vec(lbx)
-        m["ubx"] = export_vec(ubx)
-
-        self.ocp.constraints.Jbu = export_num(Jbu)
-        m["lbu"] = export_vec(lbu)
-        m["ubu"] = export_vec(ubu)
-
-        m["C"] = export(C)
-        m["D"] = export(D)
-        m["lg"] = export_vec(lg)
-        m["ug"] = export_vec(ug)
-
-        ocp.model.con_h_expr = export_expr(h)
-        m["lh"] = export_vec(lh)
-        m["uh"] = export_vec(uh)
-
-        if h_e:
-            ocp.model.con_h_expr_e = export_expr(h_e)
-            m["lh_e"] = export_vec(lh_e)
-            m["uh_e"] = export_vec(uh_e)
-
-        self.ocp.constraints.Jbx_e = export_num(Jbx_e)
-        m["lbx_e"] = export_vec(lbx_e)
-        m["ubx_e"] = export_vec(ubx_e)
-
-        m["C_e"] = export(C_e)
-        m["lg_e"] = export_vec(lg_e)
-        m["ug_e"] = export_vec(ug_e)
-
-        self.ocp.constraints.Jbx_0 = export_num(Jbx_0)
-
-        def None2Empty(a):
-            if a is None:
-                return MX(0, 1)
-            else:
-                return a
-
-        if self.expand:
-            temp = Function('temp', [stage.x, stage.u, stage.p], [None2Empty(ocp.model.cost_expr_ext_cost), None2Empty(ocp.model.cost_expr_ext_cost_e),  None2Empty(ocp.model.con_h_expr_e), None2Empty(ocp.model.con_h_expr)])
-            [ocp.model.cost_expr_ext_cost, ocp.model.cost_expr_ext_cost_e, ocp.model.con_h_expr_e, ocp.model.con_h_expr] = temp(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)
-
-        # Issue: if you indicate some states for equality, they are eliminated,
-        # and the presence of other bounds on that state are problematic
-        #
-        # Filter idxbxe_0
-        idxbxe_0 = np.sum(export_num(Jbxe_0),1).nonzero()[0]
-        idx = list(J_to_idx(export_num(Jbx_0)))
-        idxbxe_0_filtered = []
-        for e in idxbxe_0:
-            if idx.count(e)==1:
-                idxbxe_0_filtered.append(e)
-        # Still not safe
-        idxbxe_0_filtered = []
-        self.ocp.constraints.idxbxe_0 = np.array(idxbxe_0_filtered)
-        m["lbx_0"] = export_vec(lbx_0)
-        m["ubx_0"] = export_vec(ubx_0)
-
-        args = [v[0] for v in m.values()]
-        self.mmap = Function('mmap',[stage.p,stage.t],args,['p','t'],list(m.keys()))
-
-        for k,v in stage._param_vals.items():
-            self.set_value(stage, self, k, v)
-
-        self.ocp.parameter_values = np.array(self.P0).reshape((-1))
-
-        res = self.mmap(p=self.P0,t=0)
-        # Set matrices
-        for k, (_,is_vec) in self.m.items():
-            v = np.array(res[k])
-            if is_vec:
-                v = v.reshape((-1))
-            v[v==-inf] = -INF
-            v[v==inf] = INF
-            setattr(self.ocp.constraints, k, v)
-
-        for k, v in self.args.items():
-            setattr(ocp.solver_options, k, v)
-
-
-        ocp.solver_options.tf = 1 if isinstance(stage._T, FreeTime) else stage._T
-        ocp.solver_options.qp_solver_iter_max = 1000
-        #ocp.solver_options.tol = 1e-8
-        #ocp.solver_options.print_level = 15
-        ocp.solver_options.shooting_nodes = self.time_grid
-        # AcadosOcpOptions
-
-        # By-pass acados's heuristic to check lbx==ubx numerically
-        ocp.dims.nbxe_0 = self.ocp.constraints.idxbxe_0.shape[0]
-
-        self.ocp_solver = AcadosOcpSolver(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
-
-        #self.ocp_solver.options_set("step_length", 0.1)
-        #self.ocp_solver.options_set("globalization", "fixed_step") # fixed_step, merit_backtracking
-        if self.linesearch:
-            self.ocp_solver.options_set("globalization", "merit_backtracking")
-
-        X0 = DM.zeros(ocp.dims.nx, self.N+1)
-        U0 = DM.zeros(ocp.dims.nu, self.N)
-
-
-        for var, expr in stage._initial.items():
-            if depends_on(expr, stage.t):
-                expr = evalf(substitute(expr,stage.t, self.control_grid_init))
-
-            var = substitute([var],self.raw,self.optivar)[0]
-            Jx, Ju, r = linear_coeffs(var,self.X, self.U)
-            Jx = evalf(Jx)
-            Ju = evalf(Ju)
-            r = evalf(r)
-            assert r.is_zero()
-            check_Js(Jx)
-            check_Js(Ju)
-            assert Jx.nnz()==0 or Ju.nnz()==0
-            expr = reshape_number(var, expr)
-            is_matrix = False
-            if expr.shape[1]!= var.shape[1]:
-                if expr.shape[1]==self.N*var.shape[1] or expr.shape[1]==(self.N+1)*var.shape[1]:
-                    is_matrix = True
-                else:
-                    raise Exception("Initial guess of wrong shape")
-            assert expr.shape[0]==var.shape[0]
-            if Jx.sparsity().get_col():
-                for k in range(self.N+1):
-                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
-            if Ju.sparsity().get_col():
-                for k in range(self.N):
-                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
-
-        X0 = np.array(X0)
-        U0 = np.array(U0)
-
-        for k in range(self.N+1):
-            self.ocp_solver.set(k, "x", X0[:,k])
-
-        for k in range(self.N):
-            self.ocp_solver.set(k, "u", U0[:,k])
-
+            """)
+        cmake_file_name = os.path.join(build_dir_abs,"build.bat")
+        with open(cmake_file_name,"w") as out:
+            out.write(f"""
+            echo "Should be ran in 'x64 Native Tools Command Prompt for VS'"
+            cmake -G "Visual Studio 16 2019" -A x64 -B build
+            cmake --build build --config Release
+            cmake --install build --prefix .
+            """)
+        cmake_file_name = os.path.join(build_dir_abs,"build.sh")
+        with open(cmake_file_name,"w") as out:
+            out.write(f"""
+            cmake -DCMAKE_INSTALL_PREFIX=. -B build
+            cmake --build build --config Release
+            cmake --install build --prefix .
+            """)
+            
     def set_matrices(self):
         self.ocp.parameter_values = np.array(self.P0).reshape((-1))
 
