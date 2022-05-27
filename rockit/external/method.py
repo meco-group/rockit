@@ -91,13 +91,7 @@ class ExternalMethod:
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
         return stage._transcribe_placeholders(phase, self, placeholders)
- 
-    def fill_placeholders_integral(self, phase, stage, expr, *args):
-        if phase==1:
-            I = stage.state()
-            stage.set_der(I, expr)
-            stage.subject_to(stage.at_t0(I)==0)
-            return stage.at_tf(I)
+
 
     def fill_placeholders_sum_control(self, phase, stage, expr, *args):
         if phase==1:

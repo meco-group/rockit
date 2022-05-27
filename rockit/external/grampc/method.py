@@ -20,100 +20,80 @@
 #
 #
 
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver, AcadosModel
-from acados_template.utils import J_to_idx
-
 from ...freetime import FreeTime
 from ..method import ExternalMethod
 from ...solution import OcpSolution
 
 import numpy as np
-from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
+from casadi import CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 
 
-INF = 1e5
-
-def linear_coeffs(expr, *args):
-    """ Multi-argument extesion to CasADi linear_coeff"""
-    J,c = linear_coeff(expr, vcat(args))
-    cs = np.cumsum([0]+[e.numel() for e in args])
-    return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
-
-def legit_J(J):
-    """
-    Checks if J, a pre-multiplier for states and control, is of legitimate structure
-    J must a slice of a permuted unit matrix.
-    """
-    try:
-        J = evalf(J)
-    except:
-        return False
-    if not np.all(np.array(J.nonzeros())==1): # All nonzeros must be one
-        return False
-    # Each row must contain exactly 1 nonzero
-    if not np.all(np.array(sum2(J))==1):
-        return False
-    # Each column must contain at most 1 nonzero
-    if not np.all(np.array(sum1(J))<=1):
-        return False
-    return True
-
-def legit_Js(J):
-    """
-    Checks if J, a pre-multiplier for slacks, is of legitimate structure
-    Empty rows are allowed
-    """
-    try:
-        check_Js(J)
-    except:
-        return False
-    return True
-
-def check_Js(J):
-    """
-    Checks if J, a pre-multiplier for slacks, is of legitimate structure
-    Empty rows are allowed
-    """
-    try:
-        J = evalf(J)
-    except:
-        raise Exception("Slack error")
-    assert np.all(np.array(J.nonzeros())==1), "All nonzeros must be 1"
-    # Check if slice of permutation of unit matrix
-    assert np.all(np.array(sum2(J))<=1), "Each constraint can only depend on one slack at most"
-    assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
-
-
-class AcadosMethod(ExternalMethod):
+class GrampcMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
-            I = stage.state()
-            stage.set_der(I, expr)
-            stage.subject_to(stage.at_t0(I)==0)
-            return stage.at_tf(I)
-            
+            return expr
+
+    def gen_interface(self, f, seed_one=False):
+        f = f.expand()
+        self.codegen.add(f)
+        print(f)
+        self.preamble.append(f"{f.name()}_incref();")
+        self.preamble.append(f"{f.name()}_work(sz_arg_local, sz_res_local, sz_iw_local, sz_w_local);")
+        self.preamble.append("if (sz_arg_local>sz_arg) sz_arg=sz_arg_local;")
+        self.preamble.append("if (sz_res_local>sz_res) sz_res=sz_res_local;")
+        self.preamble.append("if (sz_iw_local>sz_iw) sz_iw=sz_iw_local;")
+        self.preamble.append("if (sz_w_local>sz_iw) sz_w=sz_w_local;")
+        self.postamble.append(f"{f.name()}_decref();")
+
+        args = [f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}" for i in range(f.n_in()) if ("adj" not in f.name_in(i) or not seed_one)]
+        self.output_file.write(f"void {f.name()}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
+        self.output_file.write("  int mem;\n")
+        self.output_file.write(f"  mem = {f.name()}_checkout();\n")
+        for i in range(f.n_in()):
+            e = f.name_in(i)
+            if e=="t":
+                self.output_file.write(f"  userparam->arg[{i}] = &t;\n")
+            elif "adj" in e and seed_one:
+                self.output_file.write(f"  userparam->arg[{i}] = &userparam->one;\n")
+            else:
+                self.output_file.write(f"  userparam->arg[{i}] = {e};\n")
+        self.output_file.write("  userparam->res[0] = out;\n")
+        self.output_file.write(f"  {f.name()}(userparam->arg, userparam->res, userparam->w, userparam->iw, mem);\n")
+        self.output_file.write(f"}}\n")
+
     def transcribe_phase1(self, stage, **kwargs):
+
+        self.preamble = ["casadi_int sz_arg=0, sz_res=0, sz_iw=0, sz_w=0;",
+                         "casadi_int sz_arg_local, sz_res_local, sz_iw_local, sz_w_local;",
+                        ]
+        self.postamble = []
+        self.output_file = open("runtime.c", "w")
         self.stage = stage
-        self.ocp = ocp = AcadosOcp()
         self.opti = Opti()
-
-
 
         self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
         self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
 
-        import gc
-        gc.collect()
-
-        model = AcadosModel()
-
         f = stage._ode()
+        self.codegen = CodeGenerator("test.c")
+
+
+        assert f.numel_out("alg")==0
+        assert f.numel_out("quad")==0
+        ffct = Function("ffct", [stage.t, stage.x, stage.u, stage.p], [ densify(f(x=stage.x, u=stage.u, p=stage.p, t=stage.t)["ode"])],['t','x','u','p'],['out'])
+        self.gen_interface(ffct)
+        self.gen_interface(ffct.factory("dfdx_vec",["t","x","adj:out","u","p"],["densify:adj:x"]))
+        self.gen_interface(ffct.factory("dfdu_vec",["t","x","adj:out","u","p"],["densify:adj:u"]))
+        self.gen_interface(ffct.factory("dfdp_vec",["t","x","adj:out","u","p"],["densify:adj:p"]))
+
+
+        """
 
         if self.expand:
             model_x = SX.sym("x", stage.x.sparsity())
@@ -184,11 +164,33 @@ class AcadosMethod(ExternalMethod):
         # set dimensions
         ocp.dims.N = self.N
 
+
+
+
+        self.initial_conditions = []
+        self.final_conditions = []
+        """
+
+        #self.time_grid = self.grid(stage._t0, stage._T, self.N)
+        self.normalized_time_grid = self.grid(0.0, 1.0, self.N)
+        self.time_grid = self.normalized_time_grid
+        if not isinstance(stage._T, FreeTime): self.time_grid*= stage._T
+        if not isinstance(stage._t0, FreeTime): self.time_grid+= stage._t0
+        self.control_grid = MX(stage.t0 + self.normalized_time_grid*stage.T).T
+
+        inits = []
+        inits.append((stage.T, stage._T.T_init if isinstance(stage._T, FreeTime) else stage._T))
+        inits.append((stage.t0, stage._t0.T_init if isinstance(stage._t0, FreeTime) else stage._t0))
+
+        self.control_grid_init = evalf(substitute([self.control_grid], [a for a,b in inits],[b for a,b in inits])[0])
+
+        #self.control_grid = self.normalized_time_grid
+
         var_lagrange = []
         var_mayer = []
         obj = MX(stage._objective)
         for e in symvar(obj):
-            if "sum_control" in e.name():
+            if "integral" in e.name():
                 var_lagrange.append(e)
             else:#elif "at_tf" in e.name():
                 var_mayer.append(e)
@@ -198,18 +200,52 @@ class AcadosMethod(ExternalMethod):
         self.lagrange = substitute([obj], var_mayer, [DM.zeros(e.shape) for e in var_mayer])[0]
         self.mayer = substitute([obj], var_lagrange, [DM.zeros(e.shape) for e in var_lagrange])[0]
 
-
-        self.initial_conditions = []
-        self.final_conditions = []
-
     def transcribe_phase2(self, stage, **kwargs):
+        
         opti_advanced = self.opti.advanced
         placeholders = kwargs["placeholders"]
+
+
 
         # Total Lagrange integrand
         lagrange = placeholders(self.lagrange,preference=['expose'])*self.N
         # Total Mayer term
         mayer = placeholders(self.mayer,preference=['expose'])
+
+        xdes = MX.sym("xdes", stage.x.sparsity())
+        udes = MX.sym("udes", stage.u.sparsity())
+        lfct = Function("lfct", [stage.t, stage.x, stage.u, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "xdes", "udes"], ["out"])
+        self.gen_interface(lfct)
+        self.gen_interface(lfct.factory("dldx",["t","x","u","p","adj:out"],["densify:adj:x"]), seed_one=True)
+        self.gen_interface(lfct.factory("dldu",["t","x","u","p","adj:out"],["densify:adj:u"]), seed_one=True)
+        self.gen_interface(lfct.factory("dldp",["t","x","u","p","adj:out"],["densify:adj:p"]), seed_one=True)
+
+        Vfct = Function("Vfct", [stage.T, stage.x, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "xdes"], ["out"])
+        self.gen_interface(Vfct)
+        self.gen_interface(Vfct.factory("dVdx",["T","x","p","adj:out"],["densify:adj:x"]), seed_one=True)
+        self.gen_interface(Vfct.factory("dVdp",["T","x","p","adj:out"],["densify:adj:p"]), seed_one=True)
+        self.gen_interface(Vfct.factory("dVdT",["T","x","p","adj:out"],["densify:adj:T"]), seed_one=True)
+
+        self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
+        for l in self.preamble:
+            self.output_file.write("  " + l + "\n")
+        self.output_file.write("  userparam->arg = malloc(sizeof(const casadi_real*)sz_w);\n")
+        self.output_file.write("  userparam->res = malloc(sizeof(casadi_real*)sz_res);\n")
+        self.output_file.write("  userparam->iw = malloc(sizeof(casadi_int)sz_iw);\n")
+        self.output_file.write("  userparam->w = malloc(sizeof(casadi_real)sz_w);\n")
+        self.output_file.write("  userparam->one = 1;\n")
+        self.output_file.write("}\n")
+
+        self.output_file.write("void postamble(typeUSERPARAM* userparam) {\n")
+        for l in self.postamble:
+            self.output_file.write("  " + l + "\n")
+        self.output_file.write("  free(userparam->arg);\n")
+        self.output_file.write("  free(userparam->res);\n")
+        self.output_file.write("  free(userparam->iw);\n")
+        self.output_file.write("  free(userparam->w);\n")
+        self.output_file.write("}\n")        
+
+        self.codegen.generate()
 
         assert not depends_on(mayer, stage.u), "Mayer term of objective may not depend on controls"
 
