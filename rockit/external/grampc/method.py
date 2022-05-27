@@ -51,7 +51,10 @@ class GrampcMethod(ExternalMethod):
         self.preamble.append("if (sz_w_local>sz_iw) sz_w=sz_w_local;")
         self.postamble.append(f"{f.name()}_decref();")
 
-        args = [f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}" for i in range(f.n_in())]
+        args = [
+                f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}"
+                    for i in range(f.n_in())
+                    if "p_fixed" not in f.name_in(i)]
         self.output_file.write(f"void {f.name()}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
         self.output_file.write("  int mem;\n")
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
@@ -59,6 +62,8 @@ class GrampcMethod(ExternalMethod):
             e = f.name_in(i)
             if e=="t":
                 self.output_file.write(f"  userparam->arg[{i}] = &t;\n")
+            elif e=="p_fixed":
+                self.output_file.write(f"  userparam->arg[{i}] = userparam->p;\n")
             else:
                 self.output_file.write(f"  userparam->arg[{i}] = {e};\n")
         self.output_file.write("  userparam->res[0] = out;\n")
@@ -82,13 +87,16 @@ class GrampcMethod(ExternalMethod):
         self.codegen = CodeGenerator("test.c")
 
 
+        self.v = vvcat(stage.variables[''])
+
+
         assert f.numel_out("alg")==0
         assert f.numel_out("quad")==0
-        ffct = Function("ffct", [stage.t, stage.x, stage.u, stage.p], [ densify(f(x=stage.x, u=stage.u, p=stage.p, t=stage.t)["ode"])],['t','x','u','p'],['out'])
+        ffct = Function("ffct", [stage.t, stage.x, stage.u, self.v, stage.p], [ densify(f(x=stage.x, u=stage.u, p=stage.p, t=stage.t)["ode"])],['t','x','u','p','p_fixed'],['out'])
         self.gen_interface(ffct)
-        self.gen_interface(ffct.factory("dfdx_vec",["t","x","adj:out","u","p"],["densify:adj:x"]))
-        self.gen_interface(ffct.factory("dfdu_vec",["t","x","adj:out","u","p"],["densify:adj:u"]))
-        self.gen_interface(ffct.factory("dfdp_vec",["t","x","adj:out","u","p"],["densify:adj:p"]))
+        self.gen_interface(ffct.factory("dfdx_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:x"]))
+        self.gen_interface(ffct.factory("dfdu_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:u"]))
+        self.gen_interface(ffct.factory("dfdp_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:p"]))
 
 
         """
@@ -169,6 +177,14 @@ class GrampcMethod(ExternalMethod):
         self.final_conditions = []
         """
 
+        self.X = self.opti.variable(*stage.x.shape)
+        self.U = self.opti.variable(*stage.u.shape)
+        self.P = self.opti.parameter(*stage.p.shape)
+        self.t = self.opti.parameter()
+
+        self.raw = [stage.x,stage.u,stage.p,stage.t]
+        self.optivar = [self.X, self.U, self.P, self.t]
+
         #self.time_grid = self.grid(stage._t0, stage._T, self.N)
         self.normalized_time_grid = self.grid(0.0, 1.0, self.N)
         self.time_grid = self.normalized_time_grid
@@ -212,17 +228,120 @@ class GrampcMethod(ExternalMethod):
 
         xdes = MX.sym("xdes", stage.x.sparsity())
         udes = MX.sym("udes", stage.u.sparsity())
-        lfct = Function("lfct", [stage.t, stage.x, stage.u, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "xdes", "udes"], ["out"])
+        lfct = Function("lfct", [stage.t, stage.x, stage.u, self.v, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "p_fixed", "xdes", "udes"], ["out"])
         self.gen_interface(lfct)
-        self.gen_interface(lfct.factory("dldx",["t","x","u","p"],["grad:out:x"]))
-        self.gen_interface(lfct.factory("dldu",["t","x","u","p"],["grad:out:u"]))
-        self.gen_interface(lfct.factory("dldp",["t","x","u","p"],["grad:out:p"]))
+        self.gen_interface(lfct.factory("dldx",["t","x","u","p","p_fixed"],["grad:out:x"]))
+        self.gen_interface(lfct.factory("dldu",["t","x","u","p","p_fixed"],["grad:out:u"]))
+        self.gen_interface(lfct.factory("dldp",["t","x","u","p","p_fixed"],["grad:out:p"]))
 
-        Vfct = Function("Vfct", [stage.T, stage.x, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "xdes"], ["out"])
+        Vfct = Function("Vfct", [stage.T, stage.x, self.v, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "p_fixed", "xdes"], ["out"])
         self.gen_interface(Vfct)
-        self.gen_interface(Vfct.factory("dVdx",["T","x","p"],["grad:out:x"]))
-        self.gen_interface(Vfct.factory("dVdp",["T","x","p"],["grad:out:p"]))
-        self.gen_interface(Vfct.factory("dVdT",["T","x","p"],["grad:out:T"]))
+        self.gen_interface(Vfct.factory("dVdx",["T","x","p","p_fixed"],["grad:out:x"]))
+        self.gen_interface(Vfct.factory("dVdp",["T","x","p","p_fixed"],["grad:out:p"]))
+        self.gen_interface(Vfct.factory("dVdT",["T","x","p","p_fixed"],["grad:out:T"]))
+
+        eq = [] #
+        ineq = [] # <=0
+        eq_term = []
+        ineq_term = []
+
+
+        # Process path constraints
+        for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:
+            c = substitute([placeholders(c,preference=['expose'])],self.raw,self.optivar)[0]
+            mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
+            lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
+            # lb <= canon <= ub
+            # Check for infinities
+            try:
+                lb_inf = np.all(np.array(evalf(lb)==-inf))
+            except:
+                lb_inf = False
+            try:
+                ub_inf = np.all(np.array(evalf(ub)==inf))
+            except:
+                ub_inf = False
+            print(mc.type)
+
+            if mc.type == casadi.OPTI_EQUALITY:
+                eq.append(canon-ub)
+            else:
+                assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]
+                if not ub_inf:
+                    ineq.append(canon-ub)
+                if not lb_inf:
+                    ineq.append(lb-canon)
+
+        eq = vvcat(eq)
+        ineq = vvcat(ineq)
+
+        gfct = Function("gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
+        self.gen_interface(gfct)
+        self.gen_interface(gfct.factory("dgdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(gfct.factory("dgdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
+        self.gen_interface(gfct.factory("dgdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+
+        hfct = Function("hfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(ineq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
+        self.gen_interface(hfct)
+        self.gen_interface(hfct.factory("dhdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(hfct.factory("dhdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
+        self.gen_interface(hfct.factory("dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+
+
+        # Process point constraints
+        # Probably should de-duplicate stuff wrt path constraints code
+        for c, meta, _ in stage._constraints["point"]:
+            # Make sure you resolve u to r_at_t0/r_at_tf
+            c = placeholders(c,max_phase=1)
+            has_t0 = 'r_at_t0' in [a.name() for a in symvar(c)]
+            has_tf = 'r_at_tf' in [a.name() for a in symvar(c)]
+
+            cb = c
+            c = substitute([placeholders(c,preference='expose')],self.raw,self.optivar)[0]
+            mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
+            lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
+
+            if has_t0:
+                # t0
+                check = is_linear(canon, stage.x)
+                check = check and not depends_on(canon, vertcat(stage.u, self.v))
+                assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
+                continue
+
+            # Check for infinities
+            try:
+                lb_inf = np.all(np.array(evalf(lb)==-inf))
+            except:
+                lb_inf = False
+            try:
+                ub_inf = np.all(np.array(evalf(ub)==inf))
+            except:
+                ub_inf = False
+
+            if mc.type == casadi.OPTI_EQUALITY:
+                eq_term.append(canon-ub)
+            else:
+                assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]
+                if not ub_inf:
+                    eq_term.append(canon-ub)
+                if not lb_inf:
+                    ineq_term.append(lb-canon)
+
+        eq = vvcat(eq_term)
+        ineq_term = vvcat(ineq_term)
+
+        gTfct = Function("gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        self.gen_interface(gTfct)
+        self.gen_interface(gTfct.factory("dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(gTfct.factory("dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(gTfct.factory("dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
+
+        hTfct = Function("hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        self.gen_interface(hTfct)
+        self.gen_interface(hTfct.factory("dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
+        self.gen_interface(hTfct.factory("dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
+        self.gen_interface(hTfct.factory("dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
+
 
         self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
         for l in self.preamble:
@@ -243,268 +362,6 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write("}\n")        
 
         self.codegen.generate()
-
-        assert not depends_on(mayer, stage.u), "Mayer term of objective may not depend on controls"
-
-        ocp = self.ocp
-
-        # At the moment, we don't detect any structure in cost...
-        ocp.cost.cost_type = 'EXTERNAL'
-        ocp.cost.cost_type_e = 'EXTERNAL'
-
-        # .. except for slacks
-        assert not depends_on(lagrange, self.slack_e), "Lagrange term may not depend on a non-signal slack"
-        assert not depends_on(mayer, self.slack), "Mayer term may not depend on a signal slack"
-        Qs, bs, lagrange = quadratic_coeff(lagrange, self.slack)
-        Qs += DM.zeros(Sparsity.diag(Qs.shape[0]))
-        assert Qs.sparsity().is_diag(), "Slacks cannot be mixed in Lagrange objective"
-        Qs_e, bs_e, mayer = quadratic_coeff(mayer, vertcat(self.slack,self.slack_e))
-        Qs_e += DM.zeros(Sparsity.diag(Qs_e.shape[0]))
-        assert Qs_e.sparsity().is_diag(), "Slacks cannot be mixed in Mayer objective"
-
-        assert not depends_on(veccat(Qs, bs, Qs_e, bs_e), vertcat(stage.x, stage.u, self.slack, self.slack_e)), \
-            "Slack part of objective must be quadratic in slacks and depend only on parameters"
-
-        ocp.model.cost_expr_ext_cost = lagrange
-        ocp.model.cost_expr_ext_cost_e = mayer
-
-        #import ipdb
-        #ipdb.set_trace()
-        #raise Exception("")
-
-        # For reference: https://github.com/acados/acados/blob/master/docs/problem_formulation/problem_formulation_ocp_mex.pdf
-
-        Jbx = []; lbx = []; ubx = []; Jsbx = []
-        Jbu = []; lbu = []; ubu = []; Jsbu = []
-        C = []; D = []; lg = []; ug = []; Jsg = []
-        h = []; lh = []; uh = []; Jsh = []
-
-        h_e = []; lh_e = []; uh_e = []; Jsh_e = []
-        Jbx_e = []; lbx_e = []; ubx_e = []; Jsbx_e = []
-        C_e = []; lg_e = []; ug_e = []; Jsg_e = []
-
-        lbx_0 = [];ubx_0 = []
-        Jbx_0 = [];Jbxe_0 = []
-
-
-
-        def mark(slack, Js):
-            assert np.all(np.array(slack[Js.sparsity().get_col()])==0)
-            slack[Js.sparsity().get_col()] = 1
-    
-        def export_expr(m):
-            if isinstance(m,list):
-                if len(m)==0:
-                    return MX(0, 1)
-                else:
-                    return vcat(m)
-            return m
-        
-        def export_num(m):
-            res=np.array(evalf(export_expr(m)))
-            if np.any(res==-inf) or np.any(res==inf):
-                print("WARNING: Double-sided constraints are much preferred. Replaced inf with %f." % INF)
-            res[res==-inf] = -INF
-            res[res==inf] = INF
-            return res
-
-        def export_num_vec(m):
-            return np.array(evalf(export_expr(m))).reshape(-1)
-
-        def export(m):
-            return (export_expr(m),False)
-
-        def export_vec(m):
-            return (export_expr(m),True)
-
-
-        # Flags to verify that each slack has a >=0 constraint
-        slack_has_pos_const = DM.zeros(*self.slack.shape)
-
-        # Flags to check sign
-        slack_lower = DM.zeros(*self.slack.shape)
-        slack_upper = DM.zeros(*self.slack.shape)
-
-        # Process path constraints
-        for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:
-            try:
-                c = substitute([placeholders(c,preference=['expose'])],self.raw,self.optivar)[0]
-                mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
-                lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
-
-                # Check for infinities
-                try:
-                    lb_inf = np.all(np.array(evalf(lb)==-inf))
-                except:
-                    lb_inf = False
-                try:
-                    ub_inf = np.all(np.array(evalf(ub)==inf))
-                except:
-                    ub_inf = False
-
-                assert not depends_on(canon, self.slack_e), "Path constraints may only have signal slacks"
-                
-                # Slack positivity constraint
-                if depends_on(canon, self.slack) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
-                    J,c = linear_coeff(canon, self.slack)
-                    is_perm = legit_Js(J)
-                    lb_zero = np.all(np.array(evalf(lb-c)==0))
-                    assert is_perm and lb_zero and ub_inf, "Only constraints allowed on slacks are '>=0'"
-                    slack_has_pos_const[J.sparsity().get_col()] = 1
-                    continue
-                
-                assert is_linear(canon, self.slack), "slacks can only enter linearly in constraints"
-
-                if is_linear(canon, vertcat(stage.x,stage.u)):
-                    # Linear is states and controls
-                    if not depends_on(canon, stage.x):
-                        # lbu <= Jbu u <= ubu
-                        J, Js, c = linear_coeffs(canon, stage.u, self.slack)
-                        if legit_J(J):
-                            Jbu.append(J)
-                            lbu.append(lb-c)
-                            ubu.append(ub-c)
-                            if Js.nnz()>0:
-                                assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
-                            
-                            if not ub_inf: Js *= -1
-                            check_Js(Js)
-                            Jsbu.append(Js)
-                            mark(slack_lower if ub_inf else slack_upper, Js)
-                            continue
-                        # Fallthrough
-                    if not depends_on(canon, stage.u):
-                        # lbx <= Jbx x <= ubx
-                        J, Js, c = linear_coeffs(canon, stage.x, self.slack)
-                        if legit_J(J):
-                            Jbx.append(J)
-                            lbx.append(lb-c)
-                            ubx.append(ub-c)
-                            if args["include_last"]:
-                                assert not depends_on(canon, self.slack), " lbx <= Jbx x <= ubx does not support slacks for qualifier include_last=True."
-                                Jbx_e.append(J)
-                                lbx_e.append(lb-c)
-                                ubx_e.append(ub-c)
-                            if args["include_first"]:
-                                assert not depends_on(canon, self.slack), "lbx <= Jbx x <= ubx does not support slacks for qualifier include_first=True."
-                                Jbx_0.append(J)
-                                lbx_0.append(lb-c)
-                                ubx_0.append(ub-c)
-                                Jbxe_0.append( (mc.type == casadi.OPTI_EQUALITY) * J)
-                            if Js.nnz()>0:
-                                assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]      
-                            if not ub_inf: Js *= -1
-                            check_Js(Js)
-                            Jsbx.append(Js)
-                            mark(slack_lower if ub_inf else slack_upper, Js)
-                            continue
-                        # Fallthrough
-                    # lg <= Cx + Du <= ug
-                    J1, J2, Js, c = linear_coeffs(canon, stage.x,stage.u, self.slack)
-                    C.append(J1)
-                    D.append(J2)
-                    lg.append(lb-c)
-                    ug.append(ub-c)
-                    if args["include_last"]:
-                        assert not depends_on(canon, self.slack), "lg <= Cx + Du <= ug does not support slacks for qualifier include_last=True.\n" + str(meta)
-                        if J2.nnz()>0:
-                            raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_last=False.\n"  + str(meta))
-                        else:
-                            C_e.append(J1)
-                            lg_e.append(lb-c)
-                            ug_e.append(ub-c)
-                    if not args["include_first"]:
-                        raise Exception("lg <= Cx + Du <= ug only supported for qualifier include_first=True.\n" + str(meta))
-                    if Js.nnz()>0:
-                        assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
-                    if not ub_inf: Js *= -1
-                    check_Js(Js)
-                    Jsg.append(Js)
-                    mark(slack_lower if ub_inf else slack_upper, Js)
-
-                else:
-                    # Nonlinear constraints
-                    Js, c = linear_coeffs(canon, self.slack)
-                    # lh <= h(x,u) <= uh
-                    h.append(c)
-                    lh.append(lb)
-                    uh.append(ub)
-                    if args["include_last"]:
-                        if depends_on(canon, stage.u):
-                            if args["include_last"]!="auto":
-                                raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_last=False.\n" + str(meta))
-                        else:
-                            assert not depends_on(canon, self.slack), "lh <= h(x,u) <= uh does not support slacks for qualifier include_last=True."
-                            h_e.append(c)
-                            lh_e.append(lb)
-                            uh_e.append(ub)
-                    if not args["include_first"]:
-                        raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=True.\n" + str(meta))                            
-                    if Js.nnz()>0:
-                        assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
-                    if not ub_inf: Js *= -1
-                    check_Js(Js)
-                    Jsh.append(Js)
-                    mark(slack_lower if ub_inf else slack_upper, Js)
-            except Exception as e:
-                print(meta)
-                raise e
-        
-        # Lump together Js* across individual path constraint categories
-        Jsbu = MX(0, 1) if len(Jsbu)==0 else vcat(Jsbu)
-        Jsbx = MX(0, 1) if len(Jsbx)==0 else vcat(Jsbx)
-        Jsg = MX(0, 1) if len(Jsg)==0 else vcat(Jsg)
-        Jsh = MX(0, 1) if len(Jsh)==0 else vcat(Jsh)
-
-        # Indices needed to pull lower and upper parts of Qs, bs apart
-        li = sparsify(slack_lower).sparsity().row()
-        ui = sparsify(slack_upper).sparsity().row()
-
-        ns = self.slack.nnz()
-
-        Zl = MX(ns, ns)
-        Zu = MX(ns, ns)
-        zl = MX(ns, 1)
-        zu = MX(ns, 1)
-        Zl[li,li] = Qs[li,li]
-        Zu[ui,ui] = Qs[ui,ui]
-        zl[li,0] = bs[li,0]
-        zu[ui,0] = bs[ui,0]
-
-        # Columns give you the indices of used slacks
-        bui = Jsbu.sparsity().get_col()
-        bxi = Jsbx.sparsity().get_col()
-        gi = Jsg.sparsity().get_col()
-        hi = Jsh.sparsity().get_col()
-        ni = bui+bxi+gi+hi
-
-        # Re-order slacks according to (bu,bx,g,h)
-        Zl = Zl[ni,ni]
-        Zu = Zu[ni,ni]
-        zl = zl[ni]
-        zu = zu[ni]
-
-        assert np.all(np.array(slack_has_pos_const)), "Only variables allowed are slacks (and they need '>=0' constraints)"
-
-        # After re-ordering slacks, Js* become unit matrices interwoven with zero rows
-        # But let's just work with idxs* directly
-        self.ocp.constraints.idxsbu = np.array(Jsbu.sparsity().row())
-        self.ocp.constraints.idxsbx = np.array(Jsbx.sparsity().row())
-        self.ocp.constraints.idxsg = np.array(Jsg.sparsity().row())
-        self.ocp.constraints.idxsh = np.array(Jsh.sparsity().row())
-
-        # These should become parametric
-        self.ocp.cost.Zl = export_num_vec(diag(Zl))
-        self.ocp.cost.Zu = export_num_vec(diag(Zu))
-        self.ocp.cost.zu = export_num_vec(zu)
-        self.ocp.cost.zl = export_num_vec(zl)
-
-        # Flags to verify that each slack has a >=0 constraint
-        slack_e_has_pos_const = DM.zeros(*self.slack_e.shape)
-
-        # Flags to check sign
-        slack_e_lower = DM.zeros(*self.slack_e.shape)
-        slack_e_upper = DM.zeros(*self.slack_e.shape)
 
         # Process point constraints
         # Probably should de-duplicate stuff wrt path constraints code
