@@ -39,7 +39,7 @@ class GrampcMethod(ExternalMethod):
         if phase==1:
             return expr
 
-    def gen_interface(self, f, seed_one=False):
+    def gen_interface(self, f):
         f = f.expand()
         self.codegen.add(f)
         print(f)
@@ -51,7 +51,7 @@ class GrampcMethod(ExternalMethod):
         self.preamble.append("if (sz_w_local>sz_iw) sz_w=sz_w_local;")
         self.postamble.append(f"{f.name()}_decref();")
 
-        args = [f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}" for i in range(f.n_in()) if ("adj" not in f.name_in(i) or not seed_one)]
+        args = [f"ctypeRNum {'' if 't'==f.name_in(i) else '*'}{f.name_in(i)}" for i in range(f.n_in())]
         self.output_file.write(f"void {f.name()}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
         self.output_file.write("  int mem;\n")
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
@@ -59,8 +59,6 @@ class GrampcMethod(ExternalMethod):
             e = f.name_in(i)
             if e=="t":
                 self.output_file.write(f"  userparam->arg[{i}] = &t;\n")
-            elif "adj" in e and seed_one:
-                self.output_file.write(f"  userparam->arg[{i}] = &userparam->one;\n")
             else:
                 self.output_file.write(f"  userparam->arg[{i}] = {e};\n")
         self.output_file.write("  userparam->res[0] = out;\n")
@@ -216,15 +214,15 @@ class GrampcMethod(ExternalMethod):
         udes = MX.sym("udes", stage.u.sparsity())
         lfct = Function("lfct", [stage.t, stage.x, stage.u, stage.p, xdes, udes], [densify(lagrange)], ["t", "x", "u", "p", "xdes", "udes"], ["out"])
         self.gen_interface(lfct)
-        self.gen_interface(lfct.factory("dldx",["t","x","u","p","adj:out"],["densify:adj:x"]), seed_one=True)
-        self.gen_interface(lfct.factory("dldu",["t","x","u","p","adj:out"],["densify:adj:u"]), seed_one=True)
-        self.gen_interface(lfct.factory("dldp",["t","x","u","p","adj:out"],["densify:adj:p"]), seed_one=True)
+        self.gen_interface(lfct.factory("dldx",["t","x","u","p"],["grad:out:x"]))
+        self.gen_interface(lfct.factory("dldu",["t","x","u","p"],["grad:out:u"]))
+        self.gen_interface(lfct.factory("dldp",["t","x","u","p"],["grad:out:p"]))
 
         Vfct = Function("Vfct", [stage.T, stage.x, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "xdes"], ["out"])
         self.gen_interface(Vfct)
-        self.gen_interface(Vfct.factory("dVdx",["T","x","p","adj:out"],["densify:adj:x"]), seed_one=True)
-        self.gen_interface(Vfct.factory("dVdp",["T","x","p","adj:out"],["densify:adj:p"]), seed_one=True)
-        self.gen_interface(Vfct.factory("dVdT",["T","x","p","adj:out"],["densify:adj:T"]), seed_one=True)
+        self.gen_interface(Vfct.factory("dVdx",["T","x","p"],["grad:out:x"]))
+        self.gen_interface(Vfct.factory("dVdp",["T","x","p"],["grad:out:p"]))
+        self.gen_interface(Vfct.factory("dVdT",["T","x","p"],["grad:out:T"]))
 
         self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
         for l in self.preamble:
@@ -233,7 +231,6 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write("  userparam->res = malloc(sizeof(casadi_real*)sz_res);\n")
         self.output_file.write("  userparam->iw = malloc(sizeof(casadi_int)sz_iw);\n")
         self.output_file.write("  userparam->w = malloc(sizeof(casadi_real)sz_w);\n")
-        self.output_file.write("  userparam->one = 1;\n")
         self.output_file.write("}\n")
 
         self.output_file.write("void postamble(typeUSERPARAM* userparam) {\n")
