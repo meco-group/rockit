@@ -76,6 +76,34 @@ def check_Js(J):
     assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
 
 
+def mark(slack, Js):
+    assert np.all(np.array(slack[Js.sparsity().get_col()])==0)
+    slack[Js.sparsity().get_col()] = 1
+
+def export_expr(m):
+    if isinstance(m,list):
+        if len(m)==0:
+            return MX(0, 1)
+        else:
+            return vcat(m)
+    return m
+
+def export_num(m):
+    res=np.array(evalf(export_expr(m)))
+    if np.any(res==-inf) or np.any(res==inf):
+        print("WARNING: Double-sided constraints are much preferred. Replaced inf with %f." % INF)
+    res[res==-inf] = -INF
+    res[res==inf] = INF
+    return res
+
+def export_num_vec(m):
+    return np.array(evalf(export_expr(m))).reshape(-1)
+
+def export(m):
+    return (export_expr(m),False)
+
+def export_vec(m):
+    return (export_expr(m),True)
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,
@@ -184,6 +212,7 @@ class GrampcMethod(ExternalMethod):
             casadi_real* x_opt;
             casadi_real* u_opt;
             casadi_real* v_opt;
+            casadi_real* x_current;
         }} cs_struct;
     """)
         self.stage = stage
@@ -208,85 +237,6 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(ffct.factory("cs_dfdx_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:x"]))
         self.gen_interface(ffct.factory("cs_dfdu_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:u"]))
         self.gen_interface(ffct.factory("cs_dfdp_vec",["t","x","adj:out","u","p","p_fixed"],["densify:adj:p"]))
-
-
-        """
-
-        if self.expand:
-            model_x = SX.sym("x", stage.x.sparsity())
-            model_u = SX.sym("u", stage.u.sparsity())
-            model_p = SX.sym("p", stage.p.sparsity())
-            model_xdot = SX.sym("xdot", stage.x.sparsity())
-
-            tT = Function('temp',[stage.x,stage.u,stage.p],[self.t, self.T])
-            model_t, model_T = tT(model_x, model_u, model_p)
-        else:
-            model_x = stage.x
-            model_u = stage.u
-            model_p = stage.p
-            model_xdot = MX.sym("xdot", stage.nx)
-            model_t = self.t
-            model_T = self.T
-
-        res = f(x=model_x, u=model_u, p=vertcat(model_p, DM.nan(stage.v.shape)), t=model_t)
-        if isinstance(stage._T,FreeTime):
-            f_expl = model_T*res["ode"]
-        else:
-            f_expl = res["ode"]
-
-        model.f_impl_expr = model_xdot-f_expl
-        model.f_expl_expr = f_expl
-        model.x = model_x
-        model.xdot = model_xdot
-        model.u = model_u
-        model.p = model_p
-        self.P0 = DM.zeros(stage.np)
-
-        slack = MX(0, 1) if len(stage.variables['control'])==0 else vvcat(stage.variables['control'])
-        slack_e = MX(0, 1) if len(stage.variables[''])==0 else vvcat(stage.variables[''])
-
-        self.slack = slack
-        self.slack_e = slack_e
-        self.slacks = vertcat(slack, slack_e)
-
-        self.X = self.opti.variable(*stage.x.shape)
-        self.U = self.opti.variable(*stage.u.shape)
-        self.P = self.opti.parameter(*stage.p.shape)
-        self.S = self.opti.variable(*slack.shape)
-        self.Se = self.opti.variable(*slack_e.shape)
-        self.t = self.opti.parameter()
-
-        self.raw = [stage.x,stage.u,stage.p,slack,slack_e,stage.t]
-        self.optivar = [self.X, self.U, self.P, self.S, self.Se, self.t]
-
-        #self.time_grid = self.grid(stage._t0, stage._T, self.N)
-        self.normalized_time_grid = self.grid(0.0, 1.0, self.N)
-        self.time_grid = self.normalized_time_grid
-        if not isinstance(stage._T, FreeTime): self.time_grid*= stage._T
-        if not isinstance(stage._t0, FreeTime): self.time_grid+= stage._t0
-        self.control_grid = MX(stage.t0 + self.normalized_time_grid*stage.T).T
-
-        inits = []
-        inits.append((stage.T, stage._T.T_init if isinstance(stage._T, FreeTime) else stage._T))
-        inits.append((stage.t0, stage._t0.T_init if isinstance(stage._t0, FreeTime) else stage._t0))
-
-        self.control_grid_init = evalf(substitute([self.control_grid], [a for a,b in inits],[b for a,b in inits])[0])
-
-        #self.control_grid = self.normalized_time_grid
-
-        model.name = "rockit_model"
-
-        ocp.model = model
-
-        # set dimensions
-        ocp.dims.N = self.N
-
-
-
-
-        self.initial_conditions = []
-        self.final_conditions = []
-        """
 
         self.X = self.opti.variable(*stage.x.shape)
         self.U = self.opti.variable(*stage.u.shape)
@@ -398,6 +348,11 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hfct.factory("cs_dhdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
         self.gen_interface(hfct.factory("cs_dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
 
+        # No export_num here, let's do things parametrically
+        self.m = m = OrderedDict()
+
+        x0_eq = []
+        x0_b = []
 
         # Process point constraints
         # Probably should de-duplicate stuff wrt path constraints code
@@ -416,8 +371,12 @@ class GrampcMethod(ExternalMethod):
                 # t0
                 check = is_linear(canon, stage.x)
                 check = check and not depends_on(canon, vertcat(stage.u, self.v))
-                assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
-                continue
+                assert check and mc.type == casadi.OPTI_EQUALITY, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
+
+                J,c = linear_coeff(canon, stage.x)
+                J = evalf(J)
+                x0_eq.append(J)
+                x0_b.append(lb-c)
 
             # Check for infinities
             try:
@@ -438,6 +397,11 @@ class GrampcMethod(ExternalMethod):
                 if not lb_inf:
                     ineq_term.append(lb-canon)
 
+        x0_eq = vcat(x0_eq)
+        x0_b = vcat(x0_b)
+        x0_expr = casadi.solve(x0_eq, x0_b)
+        m["x_current"] = export_vec(x0_expr)
+
         eq_term = vvcat(eq_term)
         ineq_term = vvcat(ineq_term)
 
@@ -453,40 +417,8 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hTfct.factory("cs_dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
         self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
-
-        X0 = DM.zeros(stage.nx, self.N+1)
-        U0 = DM.zeros(stage.nu, self.N)
-
-        for var, expr in stage._initial.items():
-            if depends_on(expr, stage.t):
-                expr = evalf(substitute(expr,stage.t, self.control_grid_init))
-
-            var = substitute([var],self.raw,self.optivar)[0]
-            Jx, Ju, r = linear_coeffs(var,self.X, self.U)
-            Jx = evalf(Jx)
-            Ju = evalf(Ju)
-            r = evalf(r)
-            assert r.is_zero()
-            check_Js(Jx)
-            check_Js(Ju)
-            assert Jx.nnz()==0 or Ju.nnz()==0
-            expr = reshape_number(var, expr)
-            is_matrix = False
-            if expr.shape[1]!= var.shape[1]:
-                if expr.shape[1]==self.N*var.shape[1] or expr.shape[1]==(self.N+1)*var.shape[1]:
-                    is_matrix = True
-                else:
-                    raise Exception("Initial guess of wrong shape")
-            assert expr.shape[0]==var.shape[0]
-            if Jx.sparsity().get_col():
-                for k in range(self.N+1):
-                    X0[Jx.sparsity().get_col(),k] = expr[Jx.row(),k if is_matrix else 0]
-            if Ju.sparsity().get_col():
-                for k in range(self.N):
-                    U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
-
-        X0 = list(np.array(X0).mean(axis=1))
-        U0 = list(np.array(U0).mean(axis=1))
+        args = [v[0] for v in m.values()]
+        self.mmap = Function('mmap',[stage.p],args,['p'],list(m.keys()))
 
         self.output_file.write("""
 /** Additional functions required for semi-implicit systems 
@@ -544,7 +476,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->x_opt = malloc(sizeof(casadi_real)*{stage.nx*self.Nhor});
         {self.user}->u_opt = malloc(sizeof(casadi_real)*{stage.nu*self.Nhor});
         //{self.user}->v_opt = malloc(sizeof(casadi_real)*{self.v.numel()});
-
+        {self.user}->x_current = malloc(sizeof(casadi_real)*{stage.nx});
 
         """)
         self.output_file.write("}\n")
@@ -559,6 +491,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->x_opt);\n")
         self.output_file.write(f"  free({self.user}->u_opt);\n")
         #self.output_file.write(f"  free({self.user}->v_opt);\n")
+        self.output_file.write(f"  free({self.user}->x_current);\n")
         self.output_file.write("}\n")   
 
         nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
@@ -569,18 +502,18 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             typeGRAMPC *grampc;
             typeUSERPARAM* userparam = malloc(sizeof(cs_struct));
             double ConstraintsAbsTol[{nc}] = {{{",".join("%.16e" % e for e in self.ConstraintsAbsTol)}}};
-            double x0[{stage.nx}] = {{{strlist(X0)}}};
-            double u0[{stage.nu}] = {{{strlist(U0)}}};
+            //double x0[{stage.nx}] = 
+            //double u0[{stage.nu}] = 
 
             preamble(userparam);
 
             /********* grampc init *********/
             grampc_init(&grampc, userparam);
 
-            grampc_setparam_real_vector(grampc, "x0", x0);
+            //grampc_setparam_real_vector(grampc, "x0", x0);
             //grampc_setparam_real_vector(grampc, "xdes", 0);
 
-            grampc_setparam_real_vector(grampc, "u0", u0);
+            //grampc_setparam_real_vector(grampc, "u0", u0);
             //grampc_setparam_real_vector(grampc, "udes", 0);
             //grampc_setparam_real_vector(grampc, "umax", umax);
             //grampc_setparam_real_vector(grampc, "umin", umin);
@@ -624,6 +557,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             void write_p(typeGRAMPC* grampc, const casadi_real* p) {{
                 for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = p[i];
             }}
+            void write_x_current(typeGRAMPC* grampc, const casadi_real* x_current) {{
+                for (int i=0;i<{stage.nx};++i) {self.user_grampc}->x_current[i] = x_current[i];
+            }}
             void read_x_opt(typeGRAMPC* grampc, casadi_real* x_opt) {{
                 for (int i=0;i<{stage.nx*self.Nhor};++i) x_opt[i] = {self.user_grampc}->x_opt[i];
             }}
@@ -635,6 +571,8 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"""
             /* run grampc */
             printf("Running GRAMPC!\\n");
+            grampc_setparam_real_vector(grampc, "x0", {self.user_grampc}->x_current);
+
             grampc_run(grampc);
             grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
 
@@ -753,11 +691,17 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
         self._register("write_p",[m_type, POINTER(c_double)], m_type)
+        self._register("write_x_current",[m_type, POINTER(c_double)], m_type)
         self.grampc = self._setup()
 
     def set_matrices(self):
         P0 = np.array(self.P0)
+
+        res = self.mmap(p=self.P0)
+
         self._write_p(self.grampc, P0.ctypes.data_as(POINTER(c_double)))
+        x_current = np.array(res["x_current"])
+        self._write_x_current(self.grampc, x_current.ctypes.data_as(POINTER(c_double)))
 
     def __del__(self):
         if hasattr(self,'_destroy'):
