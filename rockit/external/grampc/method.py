@@ -618,7 +618,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             /* run grampc */
             printf("Running GRAMPC!\\n");
             grampc_run(grampc);
-            printf("yay!\\n");
+            grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
 
             /* run convergence test */
             /*if (grampc->opt->ConvergenceCheck == INT_ON) {{
@@ -627,13 +627,6 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                     converged_const = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
                 }}
             }}*/
-
-            /* check solver status */
-            if (grampc->sol->status > 0) {{
-                if (grampc_printstatus(grampc->sol->status, STATUS_LEVEL_ERROR)) {{
-                    printf("at iteration %i:\\n -----\\n", 0);
-                }}
-            }}
 
         """)
         self.output_file.write("}\n")
