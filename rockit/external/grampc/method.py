@@ -44,6 +44,8 @@ functions g and h are evaluated for all points. Note that the opposite behavior 
 by including g and h in the terminal constraints gT and hT .
 
 
+TODO: debug with example from repo, make callbacks print
+
 """
 
 
