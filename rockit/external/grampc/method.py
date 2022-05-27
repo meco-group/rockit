@@ -188,6 +188,9 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
         self.output_file.write(f"  {f.name()}_release(mem);\n")
+        self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
+        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%f \", out[i]);\n")
+        self.output_file.write(f"  printf(\"\\n\");\n")
         self.output_file.write(f"}}\n")
 
     def transcribe_phase1(self, stage, **kwargs):
@@ -336,6 +339,8 @@ class GrampcMethod(ExternalMethod):
         eq = vvcat(eq)
         ineq = vvcat(ineq)
 
+        print(ineq)
+
         gfct = Function("cs_gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
         self.gen_interface(gfct)
         self.gen_interface(gfct.factory("cs_dgdx_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
@@ -411,6 +416,7 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(gTfct.factory("cs_dgTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
         self.gen_interface(gTfct.factory("cs_dgTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
+        print(ineq_term)
         hTfct = Function("cs_hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
         self.gen_interface(hTfct)
         self.gen_interface(hTfct.factory("cs_dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
