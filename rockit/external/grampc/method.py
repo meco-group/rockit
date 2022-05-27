@@ -176,8 +176,11 @@ class GrampcMethod(ExternalMethod):
                     if "p_fixed" not in f.name_in(i)]
         self.output_file.write(f"void {f.name()[3:]}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
         self.output_file.write("  int mem;\n")
+        adj_i = None
         for i in range(f.n_in()):
             e = f.name_in(i)
+            if "adj" in e:
+                adj_i = i
             if scalar(e):
                 self.output_file.write(f"  {self.user}->arg[{i}] = &{e};\n")
             elif e=="p_fixed":
@@ -189,7 +192,10 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
         self.output_file.write(f"  {f.name()}_release(mem);\n")
         self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
-        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%f \", out[i]);\n")
+        if adj_i is not None:
+            self.output_file.write(f"  for (int i=0;i<{f.numel_in(adj_i)};++i) printf(\"%e \", {f.name_in(adj_i)}[i]);\n")
+            self.output_file.write(f"  printf(\" -> \");\n")
+        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%e \", out[i]);\n")
         self.output_file.write(f"  printf(\"\\n\");\n")
         self.output_file.write(f"}}\n")
 
