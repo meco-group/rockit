@@ -32,6 +32,7 @@ from collections import OrderedDict
 
 import subprocess
 import os
+from ctypes import *
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,**kwargs):
@@ -43,6 +44,13 @@ class GrampcMethod(ExternalMethod):
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
             return expr
+
+    def _register(self,fun_name,argtypes,restype):
+        self.prefix=""
+        fun = getattr(self.lib,self.prefix+fun_name)
+        setattr(self,"_"+fun_name,fun)
+        fun.argtypes = argtypes
+        fun.restype = restype
 
     def gen_interface(self, f):
         f = f.expand()
@@ -96,6 +104,7 @@ class GrampcMethod(ExternalMethod):
             casadi_real* w;
             casadi_int stride;
             casadi_real* p;
+            typeGRAMPC* grampc;
         }} cs_struct;
     """)
         self.stage = stage
@@ -350,7 +359,7 @@ class GrampcMethod(ExternalMethod):
                 if not lb_inf:
                     ineq_term.append(lb-canon)
 
-        eq = vvcat(eq_term)
+        eq_term = vvcat(eq_term)
         ineq_term = vvcat(ineq_term)
 
         gTfct = Function("cs_gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
@@ -366,13 +375,62 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
 
+        self.output_file.write("""
+/** Additional functions required for semi-implicit systems 
+    M*dx/dt(t) = f(t0+t,x(t),u(t),p) using the solver RODAS 
+    ------------------------------------------------------- **/
+/** Jacobian df/dx in vector form (column-wise) **/
+void dfdx(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+{
+}
+/** Jacobian df/dx in vector form (column-wise) **/
+void dfdxtrans(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+{
+}
+/** Jacobian df/dt **/
+void dfdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+{
+}
+/** Jacobian d(dH/dx)/dt  **/
+void dHdxdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *vec, ctypeRNum *p, typeUSERPARAM *userparam)
+{
+}
+/** Mass matrix in vector form (column-wise, either banded or full matrix) **/
+void Mfct(typeRNum *out, typeUSERPARAM *userparam)
+{
+}
+/** Transposed mass matrix in vector form (column-wise, either banded or full matrix) **/
+void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
+{
+}
+        """)
+        self.output_file.write(f"""
+            /** OCP dimensions: states (Nx), controls (Nu), parameters (Np), equalities (Ng), 
+            inequalities (Nh), terminal equalities (NgT), terminal inequalities (NhT) **/
+            void ocp_dim(typeInt *Nx, typeInt *Nu, typeInt *Np, typeInt *Ng, typeInt *Nh, typeInt *NgT, typeInt *NhT, typeUSERPARAM *userparam)
+            {{
+                *Nx = {stage.nx};
+                *Nu = {stage.nu};
+                *Np = {self.v.numel()};
+                *Ng = {eq.numel()};
+                *Nh = {ineq.numel()};
+                *NgT = {eq_term.numel()};
+                *NhT = {ineq_term.numel()};
+            }}
+        """)
+
+
         self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
         for l in self.preamble:
             self.output_file.write("  " + l + "\n")
-        self.output_file.write(f"  {self.user}->arg = malloc(sizeof(const casadi_real*)*sz_w);\n")
-        self.output_file.write(f"  {self.user}->res = malloc(sizeof(casadi_real*)*sz_res);\n")
-        self.output_file.write(f"  {self.user}->iw = malloc(sizeof(casadi_int)*sz_iw);\n")
-        self.output_file.write(f"  {self.user}->w = malloc(sizeof(casadi_real)*sz_w);\n")
+        self.output_file.write(f"""
+        {self.user}->arg = malloc(sizeof(const casadi_real*)*sz_arg);
+        {self.user}->res = malloc(sizeof(casadi_real*)*sz_res);
+        {self.user}->iw = sz_iw>0 ? malloc(sizeof(casadi_int)*sz_iw) : 0;
+        {self.user}->w = sz_w>0 ? malloc(sizeof(casadi_real)*sz_w) : 0;
+
+
+        """)
         self.output_file.write("}\n")
 
         self.output_file.write("void postamble(typeUSERPARAM* userparam) {\n")
@@ -382,7 +440,37 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  free({self.user}->res);\n")
         self.output_file.write(f"  free({self.user}->iw);\n")
         self.output_file.write(f"  free({self.user}->w);\n")
-        self.output_file.write("}\n")        
+        self.output_file.write("}\n")   
+
+        self.output_file.write("typeGRAMPC* setup() {\n")
+        self.output_file.write(f"""
+            typeGRAMPC *grampc;
+            typeUSERPARAM* userparam = malloc(sizeof(cs_struct));
+
+            preamble(userparam);
+
+            /********* grampc init *********/
+            grampc_init(&grampc, userparam);
+
+            return grampc;
+        """)
+        self.output_file.write("}\n")
+        self.output_file.write("void destroy(typeGRAMPC* grampc) {\n")
+        self.output_file.write(f"""
+            postamble(grampc->userparam);
+            free(grampc->userparam);
+
+        """)
+        self.output_file.write("}\n")
+
+        self.output_file.write("int main() {\n")
+        self.output_file.write(f"""
+            typeGRAMPC* s = setup();
+            destroy(s);
+        """)
+        self.output_file.write("}\n")
+        
+     
 
         self.output_file.close()
         self.codegen.generate()
@@ -407,13 +495,16 @@ class GrampcMethod(ExternalMethod):
             HINTS /home/jgillis/programs/grampc-code/include
             )
 
-            target_link_libraries(grampc INTERFACE ${{GRAMPC_LIB}})
+            target_link_libraries(grampc INTERFACE ${{GRAMPC_LIB}} m)
             target_include_directories(grampc INTERFACE ${{GRAMPC_INCLUDE_DIR}})
 
-            add_library({self.grampc_driver} SHARED {self.grampc_driver}.c)
+            add_library({self.grampc_driver} SHARED {self.grampc_driver}.c {self.codegen_name}.c)
+            add_executable({self.grampc_driver}_main {self.grampc_driver}.c {self.codegen_name}.c)
+            
             target_link_libraries({self.grampc_driver} grampc)
+            target_link_libraries({self.grampc_driver}_main grampc)
 
-            install(TARGETS {self.grampc_driver} RUNTIME DESTINATION . LIBRARY DESTINATION .)
+            install(TARGETS {self.grampc_driver} {self.grampc_driver}_main RUNTIME DESTINATION . LIBRARY DESTINATION .)
 
             """)
         cmake_file_name = os.path.join(build_dir_abs,"build.bat")
@@ -427,12 +518,32 @@ class GrampcMethod(ExternalMethod):
         cmake_file_name = os.path.join(build_dir_abs,"build.sh")
         with open(cmake_file_name,"w") as out:
             out.write(f"""
-            cmake -DCMAKE_INSTALL_PREFIX=. -B build
-            cmake --build build --config Release
+            cmake -DCMAKE_INSTALL_PREFIX=. -DCMAKE_BUILD_TYPE=Debug -B build
+            cmake --build build
             cmake --install build --prefix .
             """)
         subprocess.run(["bash","build.sh"])
             
+        # PyDLL instead of CDLL to keep GIL:
+        # virtual machine emits Python prints
+        if os.name == "nt":
+            libname = self.grampc_driver+".dll"
+        else:
+            libname = "lib"+self.grampc_driver+".so"
+        self.lib = PyDLL(os.path.join(build_dir_abs,libname))
+
+        # Type aliases
+        m_type = c_void_p
+        CONST = lambda x: x
+
+        self._register("setup",[], m_type)
+        self._register("destroy",[m_type], m_type)
+
+        grampc = self._setup()
+        print(grampc)
+        self._destroy(grampc)
+
+
     def set_matrices(self):
         self.ocp.parameter_values = np.array(self.P0).reshape((-1))
 
