@@ -64,7 +64,6 @@ class GrampcMethod(ExternalMethod):
                     if "p_fixed" not in f.name_in(i)]
         self.output_file.write(f"void {f.name()[3:]}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
         self.output_file.write("  int mem;\n")
-        self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         for i in range(f.n_in()):
             e = f.name_in(i)
             if scalar(e):
@@ -74,7 +73,9 @@ class GrampcMethod(ExternalMethod):
             else:
                 self.output_file.write(f"  {self.user}->arg[{i}] = {e};\n")
         self.output_file.write(f"  {self.user}->res[0] = out;\n")
+        self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
+        self.output_file.write(f"  {f.name()}_release(mem);\n")
         self.output_file.write(f"}}\n")
 
     def transcribe_phase1(self, stage, **kwargs):
