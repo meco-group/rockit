@@ -56,23 +56,35 @@ ocp.set_der(x6, u6)
 ocp.add_objective(ocp.integral(0.5 * u.T @ u))
 # Mayer objective term: signals evaluated at t_f = t0_+T
 # ocp.add_objective(ocp.at_tf(x1**2))
+offset_left = cs.vertcat(0, 0, 0)
+offset_right = cs.vertcat(1, 0, cs.pi)
+
+# p_L = cs.vertcat(a1*cs.cos(x1) + a2*cs.cos(x1+x2) + a3*cs.cos(x1 + x2 + x3) + offset_left[0],
+#                  a1*cs.sin(x1) + a2*cs.sin(x1+x2) + a3*cs.sin(x1 + x2 + x3) + offset_left[1],
+#                  x1 + x2 + x3 + offset_left[2])
 
 p_L = cs.vertcat(a1*cs.cos(x1) + a2*cs.cos(x1+x2) + a3*cs.cos(x1 + x2 + x3),
-                 a1*cs.sin(x1) + a2*cs.sin(x1+x2) + a3*cs.sin(x1 + x2 + x3),
-                 x1 + x2 + x3)
+                 a1*cs.sin(x1) + a2*cs.sin(x1+x2) + a3*cs.sin(x1 + x2 + x3))
 
-p_R = cs.vertcat(1 + a4*cs.cos(x4) + a5*cs.cos(x4+x5) + a6*cs.cos(x4 + x5 + x6),
-                 a4*cs.sin(x4) + a5*cs.sin(x4+x5) + a6*cs.sin(x4 + x5 + x6),
-                 x4 + x5 + x6)
+# p_R = cs.vertcat(1 + a4*cs.cos(x4) + a5*cs.cos(x4+x5) + a6*cs.cos(x4 + x5 + x6),
+#                  a4*cs.sin(x4) + a5*cs.sin(x4+x5) + a6*cs.sin(x4 + x5 + x6),
+#                  x4 + x5 + x6 + offset_right[2])
 
-g = p_L - p_R - cs.vertcat(0, 0, cs.pi)
+p_R = cs.vertcat(1 - a4*cs.cos(x4) - a5*cs.cos(x4+x5) - a6*cs.cos(x4 + x5 + x6),
+                 -a4*cs.sin(x4) -a5*cs.sin(x4+x5) -a6*cs.sin(x4 + x5 + x6))
+# p_R = cs.vertcat(1 + a4*cs.cos(x4) + a5*cs.cos(x4+x5) + a6*cs.cos(x4 + x5 + x6),
+#                  a4*cs.sin(x4) + a5*cs.sin(x4+x5) + a6*cs.sin(x4 + x5 + x6))
+# p_R = cs.vertcat(1 + a4*cs.cos(-x4) + a5*cs.cos(-x4-x5) + a6*cs.cos(-x4  -x5 -x6),
+#                  a4*cs.sin(-x4) + a5*cs.sin(-x4-x5) + a6*cs.sin(-x4 -x5 -x6))
+
+g = p_L - p_R #- cs.vertcat(0, 0, cs.pi)
 
 u_max = cs.vertcat(1, 1, 1, 1, 1, 1)
 
 # Path constraints
 #  (must be valid on the whole time domain running from `t0` to `tf`,
 #   grid options available such as `grid='inf'`)
-ocp.subject_to(g == 0)
+ocp.subject_to(g == 0, include_first=False, include_last=False)
 ocp.subject_to(-u_max <= (u <= u_max ))
 
 # Boundary constraints
@@ -96,10 +108,11 @@ ocp.subject_to(ocp.at_tf(x6) == 0)
 
 # Pick an NLP solver backend
 #  (CasADi `nlpsol` plugin):
-ocp.solver('ipopt')
+ocp.solver('ipopt', {"error_on_fail":False, 'ipopt':{"max_iter": 1000, 'hessian_approximation':'exact', 'limited_memory_max_history' : 5, 'print_level':5}})
 
 # Pick a solution method
-method = roc.MultipleShooting(N=10, intg='rk')
+N=20
+method = roc.MultipleShooting(N=N, intg='rk')
 # method = external_method('grampc')
 ocp.method(method)
 
@@ -114,6 +127,35 @@ ocp.set_value(a3, 0.2)
 ocp.set_value(a4, 0.5)
 ocp.set_value(a5, 0.3)
 ocp.set_value(a6, 0.2)
+
+dist = np.linspace(0,1, N+1)
+x1_0 = cs.pi/2
+x2_0 = -cs.pi/2
+x3_0 = 0
+x4_0 = -cs.pi/2
+x5_0 = cs.pi/2
+x6_0 = 0
+
+x1_f = -cs.pi/2
+x2_f = cs.pi/2
+x3_f = 0
+x4_f = cs.pi/2
+x5_f = -cs.pi/2
+x6_f = 0
+
+ocp.set_initial(x1, x1_0)
+ocp.set_initial(x2, x2_0)
+ocp.set_initial(x3, x3_0)
+ocp.set_initial(x4, x4_0)
+ocp.set_initial(x5, x5_0)
+ocp.set_initial(x6, x6_0)
+
+# ocp.set_initial(x1, x1_0*(1-dist)+dist*x1_f)
+# ocp.set_initial(x2, x2_0*(1-dist)+dist*x2_f)
+# ocp.set_initial(x3, x3_0*(1-dist)+dist*x3_f)
+# ocp.set_initial(x4, x4_0*(1-dist)+dist*x4_f)
+# ocp.set_initial(x5, x5_0*(1-dist)+dist*x5_f)
+# ocp.set_initial(x6, x6_0*(1-dist)+dist*x6_f)
 
 # Solve
 sol = ocp.solve()
