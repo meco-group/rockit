@@ -10,7 +10,7 @@ import casadi as cs
 #  (free-time problems can be configured with `FreeTime(initial_guess)`)
 ocp = roc.Ocp(t0=0, T=10)
 
-# Define two scalar states (vectors and matrices also supported)
+# Define scalar states (vectors and matrices also supported)
 x1 = ocp.state()
 x2 = ocp.state()
 x3 = ocp.state()
@@ -18,8 +18,7 @@ x4 = ocp.state()
 x5 = ocp.state()
 x6 = ocp.state()
 
-# Define one piecewise constant control input
-#  (use `order=1` for piecewise linear)
+# Define piecewise constant control inputs
 u1 = ocp.control()
 u2 = ocp.control()
 u3 = ocp.control()
@@ -36,11 +35,9 @@ a6 = ocp.parameter()
 
 u = cs.vertcat(u1, u2,u3,u4, u5, u6)
 
+# Define initial and terminal state
 x0 = cs.vertcat(cs.pi/2, -cs.pi/2, 0, -cs.pi/2, cs.pi/2, 0)
 xf = cs.vertcat(-cs.pi/2, cs.pi/2, 0, cs.pi/2, -cs.pi/2, 0)
-# Compose time-dependent expressions a.k.a. signals
-#  (explicit time-dependence is supported with `ocp.t`)
-# e = 1 - x2**2
 
 # Specify differential equations for states
 #  (DAEs also supported with `ocp.algebraic` and `add_alg`)
@@ -52,39 +49,31 @@ ocp.set_der(x5, u5)
 ocp.set_der(x6, u6)
 
 # Lagrange objective term: signals in an integrand
-# ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
 ocp.add_objective(ocp.integral(0.5 * u.T @ u))
-# Mayer objective term: signals evaluated at t_f = t0_+T
-# ocp.add_objective(ocp.at_tf(x1**2))
+
+# Define forward kinematics
 offset_left = cs.vertcat(0, 0, 0)
 offset_right = cs.vertcat(1, 0, cs.pi)
 
-# p_L = cs.vertcat(a1*cs.cos(x1) + a2*cs.cos(x1+x2) + a3*cs.cos(x1 + x2 + x3) + offset_left[0],
-#                  a1*cs.sin(x1) + a2*cs.sin(x1+x2) + a3*cs.sin(x1 + x2 + x3) + offset_left[1],
-#                  x1 + x2 + x3 + offset_left[2])
+p_L = cs.vertcat(a1*cs.cos(x1+ offset_left[2]) + a2*cs.cos(x1+x2+ offset_left[2]) + a3*cs.cos(x1 + x2 + x3+ offset_left[2]) + offset_left[0],
+                 a1*cs.sin(x1+ offset_left[2]) + a2*cs.sin(x1+x2+ offset_left[2]) + a3*cs.sin(x1 + x2 + x3+ offset_left[2]) + offset_left[1],
+                 x1 + x2 + x3 + offset_left[2])
 
-p_L = cs.vertcat(a1*cs.cos(x1) + a2*cs.cos(x1+x2) + a3*cs.cos(x1 + x2 + x3),
-                 a1*cs.sin(x1) + a2*cs.sin(x1+x2) + a3*cs.sin(x1 + x2 + x3))
 
-# p_R = cs.vertcat(1 + a4*cs.cos(x4) + a5*cs.cos(x4+x5) + a6*cs.cos(x4 + x5 + x6),
-#                  a4*cs.sin(x4) + a5*cs.sin(x4+x5) + a6*cs.sin(x4 + x5 + x6),
-#                  x4 + x5 + x6 + offset_right[2])
+p_R = cs.vertcat(offset_right[0] + a4*cs.cos(x4 + offset_right[2]) + a5*cs.cos(x4+x5+offset_right[2]) + a6*cs.cos(x4 + x5 + x6+offset_right[2]),
+                 offset_right[1] + a4*cs.sin(x4+offset_right[2]) + a5*cs.sin(x4+x5+offset_right[2]) + a6*cs.sin(x4 + x5 + x6 +offset_right[2]),
+                 x4 + x5 + x6 + offset_right[2])
 
-p_R = cs.vertcat(1 - a4*cs.cos(x4) - a5*cs.cos(x4+x5) - a6*cs.cos(x4 + x5 + x6),
-                 -a4*cs.sin(x4) -a5*cs.sin(x4+x5) -a6*cs.sin(x4 + x5 + x6))
-# p_R = cs.vertcat(1 + a4*cs.cos(x4) + a5*cs.cos(x4+x5) + a6*cs.cos(x4 + x5 + x6),
-#                  a4*cs.sin(x4) + a5*cs.sin(x4+x5) + a6*cs.sin(x4 + x5 + x6))
-# p_R = cs.vertcat(1 + a4*cs.cos(-x4) + a5*cs.cos(-x4-x5) + a6*cs.cos(-x4  -x5 -x6),
-#                  a4*cs.sin(-x4) + a5*cs.sin(-x4-x5) + a6*cs.sin(-x4 -x5 -x6))
+# Define expression for closed kinematic chain
+g = p_L - p_R + cs.vertcat(0, 0, cs.pi)
 
-g = p_L - p_R #- cs.vertcat(0, 0, cs.pi)
 
+
+# Path constraints on closed kinematic chain
+ocp.subject_to(g == 0)#, include_first=False, include_last=False)
+
+# Box constraints on controls
 u_max = cs.vertcat(1, 1, 1, 1, 1, 1)
-
-# Path constraints
-#  (must be valid on the whole time domain running from `t0` to `tf`,
-#   grid options available such as `grid='inf'`)
-ocp.subject_to(g == 0, include_first=False, include_last=False)
 ocp.subject_to(-u_max <= (u <= u_max ))
 
 # Boundary constraints
@@ -118,9 +107,6 @@ ocp.method(method)
 
 # Set initial guesses for states, controls and variables.
 #  Default: zero
-# ocp.set_initial(x2, 0)                 # Constant
-# ocp.set_initial(x1, ocp.t/10)          # Function of time
-# ocp.set_initial(u, np.linspace(0, 0.1, 6)) # Matrix
 ocp.set_value(a1, 0.5)
 ocp.set_value(a2, 0.3)
 ocp.set_value(a3, 0.2)
@@ -149,13 +135,6 @@ ocp.set_initial(x3, x3_0)
 ocp.set_initial(x4, x4_0)
 ocp.set_initial(x5, x5_0)
 ocp.set_initial(x6, x6_0)
-
-# ocp.set_initial(x1, x1_0*(1-dist)+dist*x1_f)
-# ocp.set_initial(x2, x2_0*(1-dist)+dist*x2_f)
-# ocp.set_initial(x3, x3_0*(1-dist)+dist*x3_f)
-# ocp.set_initial(x4, x4_0*(1-dist)+dist*x4_f)
-# ocp.set_initial(x5, x5_0*(1-dist)+dist*x5_f)
-# ocp.set_initial(x6, x6_0*(1-dist)+dist*x6_f)
 
 # Solve
 sol = ocp.solve()
