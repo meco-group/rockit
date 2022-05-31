@@ -21,11 +21,11 @@
 #
 
 from ...freetime import FreeTime
-from ..method import ExternalMethod, linear_coeffs
+from ..method import ExternalMethod, linear_coeffs, check_Js
 from ...solution import OcpSolution
 
 import numpy as np
-from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
+from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve
 import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
@@ -35,6 +35,7 @@ import os
 from ctypes import *
 
 
+INF = 1e10
 """
 In general, the constraints should be formulated in such a way that there are no conflicts. However,
 numerical difficulties can arise in some problems if constraints are formulated twice for the last point.
@@ -109,44 +110,17 @@ def export_vec(m):
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,
-    	M = 1,
-        MaxGradIter = 1000,   # Maximum number of gradient iterations
-	    MaxMultIter = 1, # Maximum number of augmented Lagrangian iterations */
-	    ShiftControl = "off", 
-        LineSearchMax = 2.0,
-	    LineSearchExpAutoFallback = "off",
-
-        AugLagUpdateGradientRelTol = 1.0, 
-	    ConstraintsAbsTol = 1e-4,
-
-        PenaltyMax = 1e4,
-	    PenaltyMin = 50.0,
-	    PenaltyIncreaseFactor = 1.1,
-	    PenaltyDecreaseFactor = 1.0,
-
-        ConvergenceCheck = "on",
-	    ConvergenceGradientRelTol = 1e-6,
+        M = 1,
+        grampc_options=None,
         **kwargs):
         ExternalMethod.__init__(self, **kwargs)
-        self.M = M
+        self.grampc_options = {} if grampc_options is None else grampc_options
         self.codegen_name = 'casadi_codegen'
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
         self.user_grampc = "((cs_struct*) grampc->userparam)"
+        self.M = M
         self.Nhor = self.N*self.M
-        self.MaxGradIter = MaxGradIter
-        self.MaxMultIter = MaxMultIter
-        self.ShiftControl = ShiftControl
-        self.LineSearchMax = LineSearchMax
-        self.LineSearchExpAutoFallback = LineSearchExpAutoFallback
-        self.AugLagUpdateGradientRelTol = AugLagUpdateGradientRelTol
-        self.ConstraintsAbsTol = ConstraintsAbsTol
-        self.PenaltyMax = PenaltyMax
-        self.PenaltyMin = PenaltyMin
-        self.PenaltyIncreaseFactor = PenaltyIncreaseFactor
-        self.PenaltyDecreaseFactor = PenaltyDecreaseFactor
-        self.ConvergenceCheck = ConvergenceCheck
-        self.ConvergenceGradientRelTol = ConvergenceGradientRelTol
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -161,6 +135,7 @@ class GrampcMethod(ExternalMethod):
 
     def gen_interface(self, f):
         f = f.expand()
+        f.disp(True)
         self.codegen.add(f)
         self.preamble.append(f"{f.name()}_incref();")
         self.preamble.append(f"{f.name()}_work(&sz_arg_local, &sz_res_local, &sz_iw_local, &sz_w_local);")
@@ -193,11 +168,14 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
         self.output_file.write(f"  {f.name()}_release(mem);\n")
+        for k in range(f.n_in()):
+            if "p_fixed" == f.name_in(k): continue
+            self.output_file.write(f"  printf(\"{f.name()[3:]} {f.name_in(k)}: \");\n")
+            self.output_file.write(f"""  for (int i=0;i<{f.numel_in(k)};++i) printf(\"%.18e \", {f.name_in(k)}{"" if scalar(f.name_in(k)) else "[i]"});\n""")
+            self.output_file.write(f"  printf(\"\\n\");\n")
+
         self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
-        if adj_i is not None:
-            self.output_file.write(f"  for (int i=0;i<{f.numel_in(adj_i)};++i) printf(\"%e \", {f.name_in(adj_i)}[i]);\n")
-            self.output_file.write(f"  printf(\" -> \");\n")
-        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%e \", out[i]);\n")
+        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%.18e \", out[i]);\n")
         self.output_file.write(f"  printf(\"\\n\");\n")
         self.output_file.write(f"}}\n")
 
@@ -217,13 +195,15 @@ class GrampcMethod(ExternalMethod):
             casadi_real** res;
             casadi_int* iw;
             casadi_real* w;
-            casadi_int stride;
             casadi_real* p;
             typeGRAMPC* grampc;
             casadi_real* x_opt;
             casadi_real* u_opt;
             casadi_real* v_opt;
             casadi_real* x_current;
+            casadi_real* umin;
+            casadi_real* umax;
+            casadi_real* u0;
         }} cs_struct;
     """)
         self.stage = stage
@@ -308,6 +288,7 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(lfct.factory("cs_dldp",["t","x","u","p","p_fixed", "xdes", "udes"],["grad:out:p"]))
 
         Vfct = Function("cs_Vfct", [stage.T, stage.x, self.v, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "p_fixed", "xdes"], ["out"])
+        print(mayer)
         self.gen_interface(Vfct)
         self.gen_interface(Vfct.factory("cs_dVdx",["T","x","p","p_fixed","xdes"],["grad:out:x"]))
         self.gen_interface(Vfct.factory("cs_dVdp",["T","x","p","p_fixed","xdes"],["grad:out:p"]))
@@ -317,6 +298,12 @@ class GrampcMethod(ExternalMethod):
         ineq = [] # <=0
         eq_term = []
         ineq_term = []
+
+        # helpers to put limits on u
+        ub_expr = []
+        ub_l = []
+        ub_u = []
+
 
 
         # Process path constraints
@@ -339,6 +326,25 @@ class GrampcMethod(ExternalMethod):
                 eq.append(canon-ub)
             else:
                 assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]
+
+                # Catch simple bounds on u
+                if is_linear(canon, stage.u) and not depends_on(canon, vertcat(stage.x, self.v)):
+                    J,c = linear_coeff(canon, stage.u)
+                    try:
+                        check_Js(J)
+                        ub_expr.append(J)
+                        if ub_inf:
+                            ub_u.append(reshape_number(J @ stage.u,-INF))
+                        else:
+                            ub_u.append(ub-c)
+                        if lb_inf:
+                            ub_l.append(reshape_number(J @ stage.u,INF))
+                        else:
+                            ub_l.append(lb-c)
+                        continue
+                    except:
+                        pass
+
                 if not ub_inf:
                     ineq.append(canon-ub)
                 if not lb_inf:
@@ -347,7 +353,31 @@ class GrampcMethod(ExternalMethod):
         eq = vvcat(eq)
         ineq = vvcat(ineq)
 
+        ub_expr = evalf(vvcat(ub_expr))
+        ub_l = evalf(vvcat(ub_l))
+        ub_u = evalf(vvcat(ub_u))
+        # Add missing rows
+        rows = set(sum1(ub_expr).T.row())
+        missing_rows = [i for i in range(stage.nu) if i not in rows]
+        M = DM(len(missing_rows), stage.nu)
+        for i,e in enumerate(missing_rows):
+            print(M.shape, i, e)
+            M[i,e] = 1
+        ub_expr = vertcat(ub_expr,M)
+        ub_l = vertcat(ub_l,-INF*DM.ones(len(missing_rows)))
+        ub_u = vertcat(ub_u,INF*DM.ones(len(missing_rows)))
+       
+        ub_l = solve(ub_expr,ub_l)
+        ub_u = solve(ub_expr,ub_u)
+
+        # No export_num here, let's do things parametrically
+        self.m = m = OrderedDict()
+
+        m["umin"] = export_vec(ub_l)
+        m["umax"] = export_vec(ub_u)
+
         print(ineq)
+        #raise Exception()
 
         gfct = Function("cs_gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
         self.gen_interface(gfct)
@@ -361,8 +391,7 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hfct.factory("cs_dhdu_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:u"]))
         self.gen_interface(hfct.factory("cs_dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
 
-        # No export_num here, let's do things parametrically
-        self.m = m = OrderedDict()
+
 
         x0_eq = []
         x0_b = []
@@ -387,9 +416,13 @@ class GrampcMethod(ExternalMethod):
                 assert check and mc.type == casadi.OPTI_EQUALITY, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
 
                 J,c = linear_coeff(canon, stage.x)
-                J = evalf(J)
-                x0_eq.append(J)
-                x0_b.append(lb-c)
+                try:
+                    J = evalf(J)
+                    x0_eq.append(J)
+                    x0_b.append(lb-c)
+                    continue
+                except:
+                    pass
 
             # Check for infinities
             try:
@@ -433,6 +466,21 @@ class GrampcMethod(ExternalMethod):
 
         args = [v[0] for v in m.values()]
         self.mmap = Function('mmap',[stage.p],args,['p'],list(m.keys()))
+
+        U0 = DM.zeros(stage.nu)
+
+
+        for var, expr in stage._initial.items():
+            assert not depends_on(expr, stage.t)
+            assert not depends_on(expr, stage.x)
+            J, r = linear_coeffs(var,stage.u)
+            J = evalf(J)
+            r = evalf(r)
+            assert r.is_zero()
+            check_Js(J)
+            expr = reshape_number(var, expr)
+            if J.sparsity().get_col():
+                U0[J.sparsity().get_col()] = expr[J.row()]
 
         self.output_file.write("""
 /** Additional functions required for semi-implicit systems 
@@ -490,8 +538,11 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->x_opt = malloc(sizeof(casadi_real)*{stage.nx*self.Nhor});
         {self.user}->u_opt = malloc(sizeof(casadi_real)*{stage.nu*self.Nhor});
         //{self.user}->v_opt = malloc(sizeof(casadi_real)*{self.v.numel()});
-        {self.user}->x_current = malloc(sizeof(casadi_real)*{stage.nx});
-
+        {self.user}->x_current = malloc(sizeof(casadi_real)*{max(stage.nx, 1)});
+        {self.user}->p = malloc(sizeof(casadi_real)*{max(stage.np, 1)});
+        {self.user}->umin = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
+        {self.user}->umax = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
+        {self.user}->u0 = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
         """)
         self.output_file.write("}\n")
 
@@ -506,31 +557,54 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->u_opt);\n")
         #self.output_file.write(f"  free({self.user}->v_opt);\n")
         self.output_file.write(f"  free({self.user}->x_current);\n")
+        self.output_file.write(f"  free({self.user}->p);\n")
+        self.output_file.write(f"  free({self.user}->umin);\n")
+        self.output_file.write(f"  free({self.user}->umax);\n")
+        self.output_file.write(f"  free({self.user}->u0);\n")
         self.output_file.write("}\n")   
 
         nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
         self.output_file.write("typeGRAMPC* setup() {\n")
-        if not isinstance(self.ConstraintsAbsTol,list):
-            self.ConstraintsAbsTol = [self.ConstraintsAbsTol] * nc
+        vector_options = {"ConstraintsAbsTol": nc}
+        for k, L in sorted(vector_options.items()):
+            if k in self.grampc_options:
+                if isinstance(self.grampc_options[k],float):
+                    self.grampc_options[k] = [self.grampc_options[k]]*L
+                self.output_file.write(f"""double {k}[{L}] = {{{strlist(self.grampc_options[k])}}};\n""")
+
+
+        for k,v in stage._param_vals.items():
+            self.set_value(stage, self, k, v)
+
+        res = self.mmap(p=self.P0)
+        p = self.P0.nonzeros()
+        x_current = res["x_current"].nonzeros()
+        umax = res["umax"].nonzeros()
+        umin = res["umin"].nonzeros()
+        u0 = U0.nonzeros()
         self.output_file.write(f"""
             typeGRAMPC *grampc;
+            int i;
             typeUSERPARAM* userparam = malloc(sizeof(cs_struct));
-            double ConstraintsAbsTol[{nc}] = {{{",".join("%.16e" % e for e in self.ConstraintsAbsTol)}}};
-            //double x0[{stage.nx}] = 
-            //double u0[{stage.nu}] = 
-
+            double x0[{stage.nx}] = {{{strlist(x_current)}}};
+            double umax[{stage.nu}] = {{{strlist(umax)}}};
+            double umin[{stage.nu}] = {{{strlist(umin)}}};
+            double u0[{stage.nu}] = {{{strlist(u0)}}};
+            double p[{stage.np}] = {{{strlist(p)}}};
             preamble(userparam);
+
+            for (i=0;i<{stage.np};++i) {self.user}->p[i] = p[i];
 
             /********* grampc init *********/
             grampc_init(&grampc, userparam);
 
-            //grampc_setparam_real_vector(grampc, "x0", x0);
-            //grampc_setparam_real_vector(grampc, "xdes", 0);
+            grampc_setparam_real_vector(grampc, "x0", x0);
+            grampc_setparam_real_vector(grampc, "umax", umax);
+            grampc_setparam_real_vector(grampc, "umin", umin);
+            grampc_setparam_real_vector(grampc, "u0", u0);
 
-            //grampc_setparam_real_vector(grampc, "u0", u0);
+            //grampc_setparam_real_vector(grampc, "xdes", 0);
             //grampc_setparam_real_vector(grampc, "udes", 0);
-            //grampc_setparam_real_vector(grampc, "umax", umax);
-            //grampc_setparam_real_vector(grampc, "umin", umin);
 
             grampc_setparam_real(grampc, "Thor", {self.control_grid_init[-1]-self.control_grid_init[0]});
 
@@ -538,25 +612,19 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             grampc_setparam_real(grampc, "t0", {self.control_grid_init[0]});
 
             /********* Option definition *********/
-            grampc_setopt_int(grampc, "Nhor", {self.Nhor});
-            grampc_setopt_int(grampc, "MaxGradIter", {self.MaxGradIter});
-            grampc_setopt_int(grampc, "MaxMultIter", {self.MaxMultIter});
-            grampc_setopt_string(grampc, "ShiftControl", "{self.ShiftControl}");
+            """)
+        for k,v in sorted(self.grampc_options.items()):
+            if k in vector_options.keys():
+                self.output_file.write(f"grampc_setopt_real_vector(grampc, \"{k}\", {k});\n")
+            if isinstance(v, int):
+                self.output_file.write(f"grampc_setopt_int(grampc, \"{k}\", {v});\n")
+            elif isinstance(v, float):
+                self.output_file.write(f"grampc_setopt_real(grampc, \"{k}\", {v});\n")
+            elif isinstance(v, str):
+                self.output_file.write(f"grampc_setopt_string(grampc, \"{k}\", \"{v}\");\n")
 
-            grampc_setopt_real(grampc, "LineSearchMax", {self.LineSearchMax});
-            grampc_setopt_string(grampc, "LineSearchExpAutoFallback", "{self.LineSearchExpAutoFallback}");
 
-            grampc_setopt_real(grampc, "AugLagUpdateGradientRelTol", {self.AugLagUpdateGradientRelTol});
-            grampc_setopt_real_vector(grampc, "ConstraintsAbsTol", ConstraintsAbsTol);
-
-            grampc_setopt_real(grampc, "PenaltyMax", {self.PenaltyMax});
-            grampc_setopt_real(grampc, "PenaltyMin", {self.PenaltyMin});
-            grampc_setopt_real(grampc, "PenaltyIncreaseFactor", {self.PenaltyIncreaseFactor});
-            grampc_setopt_real(grampc, "PenaltyDecreaseFactor", {self.PenaltyDecreaseFactor});
-
-            grampc_setopt_string(grampc, "ConvergenceCheck", "{self.ConvergenceCheck}");
-            grampc_setopt_real(grampc, "ConvergenceGradientRelTol", {self.ConvergenceGradientRelTol});
-
+        self.output_file.write(f"""
             /********* estimate and set PenaltyMin *********/
             grampc_estim_penmin(grampc, 1);
 
@@ -568,6 +636,12 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write("}\n")
 
         self.output_file.write(f"""
+            void write_umax(typeGRAMPC* grampc, const casadi_real* umax) {{
+                for (int i=0;i<{stage.np};++i) {self.user_grampc}->umax[i] = umax[i];
+            }}
+            void write_umin(typeGRAMPC* grampc, const casadi_real* umin) {{
+                for (int i=0;i<{stage.np};++i) {self.user_grampc}->umin[i] = umin[i];
+            }}
             void write_p(typeGRAMPC* grampc, const casadi_real* p) {{
                 for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = p[i];
             }}
@@ -585,7 +659,12 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"""
             /* run grampc */
             printf("Running GRAMPC!\\n");
+            printf("x0: ");
+            for (int i=0;i<{stage.nx};++i) printf("%.18e ", {self.user_grampc}->x_current[i]);
+            printf("\\n");
             grampc_setparam_real_vector(grampc, "x0", {self.user_grampc}->x_current);
+            grampc_setparam_real_vector(grampc, "umin", {self.user_grampc}->umin);
+            grampc_setparam_real_vector(grampc, "umax", {self.user_grampc}->umax);
 
             grampc_run(grampc);
             grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
@@ -705,6 +784,8 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
         self._register("write_p",[m_type, POINTER(c_double)], m_type)
+        self._register("write_umax",[m_type, POINTER(c_double)], m_type)
+        self._register("write_umin",[m_type, POINTER(c_double)], m_type)
         self._register("write_x_current",[m_type, POINTER(c_double)], m_type)
         self.grampc = self._setup()
 
@@ -716,6 +797,10 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._write_p(self.grampc, P0.ctypes.data_as(POINTER(c_double)))
         x_current = np.array(res["x_current"])
         self._write_x_current(self.grampc, x_current.ctypes.data_as(POINTER(c_double)))
+        umax = np.array(res["umax"])
+        self._write_umax(self.grampc, umax.ctypes.data_as(POINTER(c_double)))
+        umin = np.array(res["umin"])
+        self._write_umin(self.grampc, umin.ctypes.data_as(POINTER(c_double)))
 
     def __del__(self):
         if hasattr(self,'_destroy'):

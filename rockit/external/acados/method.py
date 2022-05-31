@@ -24,7 +24,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver, AcadosM
 from acados_template.utils import J_to_idx
 
 from ...freetime import FreeTime
-from ..method import ExternalMethod
+from ..method import ExternalMethod, legit_J, check_Js
 from ...solution import OcpSolution
 
 import numpy as np
@@ -42,24 +42,6 @@ def linear_coeffs(expr, *args):
     cs = np.cumsum([0]+[e.numel() for e in args])
     return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
 
-def legit_J(J):
-    """
-    Checks if J, a pre-multiplier for states and control, is of legitimate structure
-    J must a slice of a permuted unit matrix.
-    """
-    try:
-        J = evalf(J)
-    except:
-        return False
-    if not np.all(np.array(J.nonzeros())==1): # All nonzeros must be one
-        return False
-    # Each row must contain exactly 1 nonzero
-    if not np.all(np.array(sum2(J))==1):
-        return False
-    # Each column must contain at most 1 nonzero
-    if not np.all(np.array(sum1(J))<=1):
-        return False
-    return True
 
 def legit_Js(J):
     """
@@ -71,20 +53,6 @@ def legit_Js(J):
     except:
         return False
     return True
-
-def check_Js(J):
-    """
-    Checks if J, a pre-multiplier for slacks, is of legitimate structure
-    Empty rows are allowed
-    """
-    try:
-        J = evalf(J)
-    except:
-        raise Exception("Slack error")
-    assert np.all(np.array(J.nonzeros())==1), "All nonzeros must be 1"
-    # Check if slice of permutation of unit matrix
-    assert np.all(np.array(sum2(J))<=1), "Each constraint can only depend on one slack at most"
-    assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
 
 
 class AcadosMethod(ExternalMethod):

@@ -95,6 +95,23 @@ ocp.subject_to(ocp.at_tf(x6) == 0)
 # Solving the problem
 # -------------------
 
+grampc_options = {}
+grampc_options["MaxGradIter"] = 1000
+grampc_options["MaxMultIter"] = 1
+grampc_options["ShiftControl"] = "off"
+grampc_options["LineSearchMax"] =  2.0
+grampc_options["LineSearchExpAutoFallback"] = "off"
+grampc_options["AugLagUpdateGradientRelTol"] = 1
+grampc_options["ConstraintsAbsTol"] = 1e-4
+grampc_options["PenaltyMax"] = 1e4
+grampc_options["PenaltyMin"] = 50.0
+grampc_options["PenaltyIncreaseFactor"] = 1.1
+grampc_options["PenaltyDecreaseFactor"] = 1.0
+grampc_options["ConvergenceCheck"] = "on"
+grampc_options["ConvergenceGradientRelTol"] = 1e-6
+method = roc.external_method('grampc',N=10,M=2,grampc_options=grampc_options)
+
+
 # Pick an NLP solver backend
 #  (CasADi `nlpsol` plugin):
 ocp.solver('ipopt', {"error_on_fail":False, 'ipopt':{"max_iter": 1000, 'hessian_approximation':'exact', 'limited_memory_max_history' : 5, 'print_level':5}})
