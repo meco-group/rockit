@@ -83,7 +83,7 @@ ocp.solver('ipopt')
 
 # Pick a solution method
 method = external_method('grampc',N=20)
-method = MultipleShooting(N=20)
+#method = MultipleShooting(N=20)
 ocp.method(method)
 #ocp.method(MultipleShooting(N=50))
 
