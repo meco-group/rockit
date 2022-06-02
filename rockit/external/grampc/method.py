@@ -25,7 +25,7 @@ from ..method import ExternalMethod, linear_coeffs, check_Js
 from ...solution import OcpSolution
 
 import numpy as np
-from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve
+from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve, fmin, fmax
 import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
@@ -111,9 +111,11 @@ def export_vec(m):
 class GrampcMethod(ExternalMethod):
     def __init__(self,
         M = 1,
+        verbose=True,
         grampc_options=None,
         **kwargs):
-        ExternalMethod.__init__(self, **kwargs)
+        supported = {"free_T"}
+        ExternalMethod.__init__(self, supported=supported, **kwargs)
         self.grampc_options = {} if grampc_options is None else grampc_options
         self.codegen_name = 'casadi_codegen'
         self.grampc_driver = 'grampc_driver'
@@ -121,6 +123,7 @@ class GrampcMethod(ExternalMethod):
         self.user_grampc = "((cs_struct*) grampc->userparam)"
         self.M = M
         self.Nhor = self.N*self.M
+        self.verbose = verbose
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -168,15 +171,16 @@ class GrampcMethod(ExternalMethod):
         self.output_file.write(f"  mem = {f.name()}_checkout();\n")
         self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
         self.output_file.write(f"  {f.name()}_release(mem);\n")
-        for k in range(f.n_in()):
-            if "p_fixed" == f.name_in(k): continue
-            self.output_file.write(f"  printf(\"{f.name()[3:]} {f.name_in(k)}: \");\n")
-            self.output_file.write(f"""  for (int i=0;i<{f.numel_in(k)};++i) printf(\"%.18e \", {f.name_in(k)}{"" if scalar(f.name_in(k)) else "[i]"});\n""")
-            self.output_file.write(f"  printf(\"\\n\");\n")
+        if False:# self.verbose:
+            for k in range(f.n_in()):
+                if "p_fixed" == f.name_in(k): continue
+                self.output_file.write(f"  printf(\"{f.name()[3:]} {f.name_in(k)}: \");\n")
+                self.output_file.write(f"""  for (int i=0;i<{f.numel_in(k)};++i) printf(\"%.18e \", {f.name_in(k)}{"" if scalar(f.name_in(k)) else "[i]"});\n""")
+                self.output_file.write(f"  printf(\"\\n\");\n")
 
-        self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
-        self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%.18e \", out[i]);\n")
-        self.output_file.write(f"  printf(\"\\n\");\n")
+            self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
+            self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%.18e \", out[i]);\n")
+            self.output_file.write(f"  printf(\"\\n\");\n")
         self.output_file.write(f"}}\n")
 
     def transcribe_phase1(self, stage, **kwargs):
@@ -199,11 +203,14 @@ class GrampcMethod(ExternalMethod):
             typeGRAMPC* grampc;
             casadi_real* x_opt;
             casadi_real* u_opt;
+            casadi_real T_opt;
             casadi_real* v_opt;
             casadi_real* x_current;
             casadi_real* umin;
             casadi_real* umax;
             casadi_real* u0;
+            casadi_real Tmin;
+            casadi_real Tmax;
         }} cs_struct;
     """)
         self.stage = stage
@@ -211,6 +218,9 @@ class GrampcMethod(ExternalMethod):
 
         self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
         self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
+        self.Xi_gist = [MX.sym("X", stage.nx) for k in range(self.N*self.M+1)]
+        self.Ui_gist = [MX.sym("U", stage.nu) for k in range(self.N*self.M)]
+        self.T_gist = MX.sym("T")
 
         f = stage._ode()
         options = {}
@@ -233,9 +243,13 @@ class GrampcMethod(ExternalMethod):
         self.U = self.opti.variable(*stage.u.shape)
         self.P = self.opti.parameter(*stage.p.shape)
         self.t = self.opti.parameter()
+        self.T = self.opti.variable()
 
         self.raw = [stage.x,stage.u,stage.p,stage.t]
         self.optivar = [self.X, self.U, self.P, self.t]
+        if self.free_time:
+            self.raw += [stage.T]
+            self.optivar += [self.T]
 
         #self.time_grid = self.grid(stage._t0, stage._T, self.N)
         self.normalized_time_grid = self.grid(0.0, 1.0, self.N)
@@ -353,16 +367,16 @@ class GrampcMethod(ExternalMethod):
         eq = vvcat(eq)
         ineq = vvcat(ineq)
 
-        ub_expr = evalf(vvcat(ub_expr))
-        ub_l = evalf(vvcat(ub_l))
-        ub_u = evalf(vvcat(ub_u))
+        ub_expr = evalf(vcat(ub_expr))
+        ub_l = evalf(vcat(ub_l))
+        ub_u = evalf(vcat(ub_u))
         # Add missing rows
         rows = set(sum1(ub_expr).T.row())
         missing_rows = [i for i in range(stage.nu) if i not in rows]
         M = DM(len(missing_rows), stage.nu)
         for i,e in enumerate(missing_rows):
-            print(M.shape, i, e)
             M[i,e] = 1
+        print(ub_expr,M)
         ub_expr = vertcat(ub_expr,M)
         ub_l = vertcat(ub_l,-INF*DM.ones(len(missing_rows)))
         ub_u = vertcat(ub_u,INF*DM.ones(len(missing_rows)))
@@ -392,9 +406,11 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hfct.factory("cs_dhdp_vec",["t", "x", "u", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
 
 
-
         x0_eq = []
         x0_b = []
+
+        Tmin = -inf
+        Tmax = inf
 
         # Process point constraints
         # Probably should de-duplicate stuff wrt path constraints code
@@ -408,6 +424,8 @@ class GrampcMethod(ExternalMethod):
             c = substitute([placeholders(c,preference='expose')],self.raw,self.optivar)[0]
             mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
             lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
+
+            print(lb,canon,ub)
 
             if has_t0:
                 # t0
@@ -437,11 +455,26 @@ class GrampcMethod(ExternalMethod):
             if mc.type == casadi.OPTI_EQUALITY:
                 eq_term.append(canon-ub)
             else:
+                print(lb,canon,ub)
                 assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]
+                # Catch simple bounds on T
+                if self.free_time:
+                    if is_linear(canon, stage.T) and not depends_on(canon, vertcat(stage.x, stage.u, self.v)):
+                        J,c = linear_coeff(canon, stage.T)
+                        print(J,c)
+                        if not ub_inf:
+                            Tmax = fmin(Tmax, (ub-c)/J)
+                        if not lb_inf:
+                            Tmin = fmax(Tmin, (lb-c)/J)
+                        continue
+
                 if not ub_inf:
                     eq_term.append(canon-ub)
                 if not lb_inf:
                     ineq_term.append(lb-canon)
+
+        m["Tmin"] = export(Tmin)
+        m["Tmax"] = export(Tmax)
 
         x0_eq = vcat(x0_eq)
         x0_b = vcat(x0_b)
@@ -582,6 +615,8 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         umax = res["umax"].nonzeros()
         umin = res["umin"].nonzeros()
         u0 = U0.nonzeros()
+        Tmin = float(res["Tmin"])
+        Tmax = float(res["Tmax"])
         self.output_file.write(f"""
             typeGRAMPC *grampc;
             int i;
@@ -611,8 +646,19 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             grampc_setparam_real(grampc, "dt", {self.control_grid_init[1]-self.control_grid_init[0]});
             grampc_setparam_real(grampc, "t0", {self.control_grid_init[0]});
 
+            grampc_setopt_int(grampc, "Nhor", {self.Nhor});
+
             /********* Option definition *********/
+
+            grampc_setopt_string(grampc, "OptimTime", "{"on" if self.free_time else "off"}");
             """)
+
+        if self.free_time:
+            self.output_file.write(f"""
+                grampc_setparam_real(grampc, "Tmin", {Tmin});
+                grampc_setparam_real(grampc, "Tmax", {Tmax});
+            """)
+
         for k,v in sorted(self.grampc_options.items()):
             if k in vector_options.keys():
                 self.output_file.write(f"grampc_setopt_real_vector(grampc, \"{k}\", {k});\n")
@@ -626,21 +672,30 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
 
         self.output_file.write(f"""
             /********* estimate and set PenaltyMin *********/
-            grampc_estim_penmin(grampc, 1);
-
-            grampc_printopt(grampc);
-            grampc_printparam(grampc);
-
+            //grampc_estim_penmin(grampc, 1);
+        """)
+        if self.verbose:
+            self.output_file.write(f"""
+                grampc_printopt(grampc);
+                grampc_printparam(grampc);
+            """)
+        self.output_file.write(f"""
             return grampc;
         """)
         self.output_file.write("}\n")
 
         self.output_file.write(f"""
+            void write_Tmin(typeGRAMPC* grampc, casadi_real Tmin) {{
+                {self.user_grampc}->Tmin = Tmin;
+            }}
+            void write_Tmax(typeGRAMPC* grampc, casadi_real Tmax) {{
+                {self.user_grampc}->Tmax = Tmax;
+            }}
             void write_umax(typeGRAMPC* grampc, const casadi_real* umax) {{
-                for (int i=0;i<{stage.np};++i) {self.user_grampc}->umax[i] = umax[i];
+                for (int i=0;i<{stage.nu};++i) {self.user_grampc}->umax[i] = umax[i];
             }}
             void write_umin(typeGRAMPC* grampc, const casadi_real* umin) {{
-                for (int i=0;i<{stage.np};++i) {self.user_grampc}->umin[i] = umin[i];
+                for (int i=0;i<{stage.nu};++i) {self.user_grampc}->umin[i] = umin[i];
             }}
             void write_p(typeGRAMPC* grampc, const casadi_real* p) {{
                 for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = p[i];
@@ -653,6 +708,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             }}
             void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
                 for (int i=0;i<{stage.nu*self.Nhor};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
+            }}
+            casadi_real read_T_opt(typeGRAMPC* grampc) {{
+                return {self.user_grampc}->T_opt;
             }}""")
 
         self.output_file.write("void solve(typeGRAMPC* grampc) {\n")
@@ -665,7 +723,13 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             grampc_setparam_real_vector(grampc, "x0", {self.user_grampc}->x_current);
             grampc_setparam_real_vector(grampc, "umin", {self.user_grampc}->umin);
             grampc_setparam_real_vector(grampc, "umax", {self.user_grampc}->umax);
-
+        """)
+        if self.free_time:
+            self.output_file.write(f"""
+                grampc_setparam_real(grampc, "Tmin", {self.user_grampc}->Tmin);
+                grampc_setparam_real(grampc, "Tmax", {self.user_grampc}->Tmax);
+            """)
+        self.output_file.write(f"""
             grampc_run(grampc);
             grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
 
@@ -688,6 +752,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                     {self.user_grampc}->u_opt[i] = grampc->rws->u[i]*grampc->opt->uScale[j]+grampc->opt->uOffset[j];
                 }}
             }}
+            {self.user_grampc}->T_opt = grampc->rws->T;
 
 
 
@@ -783,9 +848,12 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("solve",[m_type], m_type)
         self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
+        self._register("read_T_opt",[m_type], c_double)
         self._register("write_p",[m_type, POINTER(c_double)], m_type)
         self._register("write_umax",[m_type, POINTER(c_double)], m_type)
         self._register("write_umin",[m_type, POINTER(c_double)], m_type)
+        self._register("write_Tmin",[m_type, c_double], m_type)
+        self._register("write_Tmax",[m_type, c_double], m_type)
         self._register("write_x_current",[m_type, POINTER(c_double)], m_type)
         self.grampc = self._setup()
 
@@ -801,6 +869,8 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._write_umax(self.grampc, umax.ctypes.data_as(POINTER(c_double)))
         umin = np.array(res["umin"])
         self._write_umin(self.grampc, umin.ctypes.data_as(POINTER(c_double)))
+        self._write_Tmin(self.grampc, float(res["Tmin"]))
+        self._write_Tmax(self.grampc, float(res["Tmax"]))
 
     def __del__(self):
         if hasattr(self,'_destroy'):
@@ -813,12 +883,28 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
         u_opt = np.zeros((stage.nu, self.Nhor),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
-        return OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt)), stage)
+        T_opt = self._read_T_opt(self.grampc)
+        return OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), T_opt, rT=stage.T), stage)
 
     def eval(self, stage, expr):
         return expr
         
+    @property
+    def gist(self):
+        return vertcat(ExternalMethod.gist.fget(self), self.T_gist)
+
     def eval_at_control(self, stage, expr, k):
+        placeholders = stage.placeholders_transcribed
+        expr = placeholders(expr,max_phase=1)
+        ks = [stage.x,stage.u,stage.T]
+        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)], self.T_gist]
+        if not self.t_state:
+            ks += [stage.t]
+            vs += [self.control_grid[k]]
+        ret = substitute([expr],ks,vs)[0]
+        return ret
+
+    def eval_at_controlo(self, stage, expr, k, i):
         placeholders = stage.placeholders_transcribed
         expr = placeholders(expr,max_phase=1)
         ks = [stage.x,stage.u]
@@ -829,12 +915,15 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         return substitute([expr],ks,vs)[0]
 
 class SolWrapper:
-    def __init__(self, method, x, u):
+    def __init__(self, method, x, u, T, rT=None):
         self.method = method
         self.x = x
         self.u = u
+        self.T = T
+        self.rT = rT
 
     def value(self, expr, *args,**kwargs):
         placeholders = self.method.stage.placeholders_transcribed
-        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[vertcat(self.x, self.u)])[0])
+        expr = substitute(expr,self.rT, self.T)
+        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[vertcat(self.x, self.u, self.T)])[0])
         return ret.toarray(simplify=True)

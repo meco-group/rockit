@@ -74,13 +74,15 @@ def linear_coeffs(expr, *args):
     return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
 
 class ExternalMethod:
-    def __init__(self,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):
+    def __init__(self,supported=None,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):
         self.N = N
         self.args = args
         self.grid = grid
         self.T = None
         self.linesearch = linesearch
         self.expand = expand
+        self.supported = {} if supported is None else supported
+        self.free_time = False
 
     def inherit(self, parent):
         pass
@@ -96,11 +98,16 @@ class ExternalMethod:
     def fill_placeholders_T(self, phase, stage, expr, *args):
         if phase==1:
             if isinstance(stage._T,FreeTime):
-                T = stage.state()
-                stage.set_der(T, 0)
-                self.T = T
-                stage.set_initial(T, stage._T.T_init)
-                return stage.at_tf(T)
+                self.free_time = True
+                if "free_T" in self.supported:
+                    # Keep placeholder symbol
+                    return
+                else:
+                    T = stage.state()
+                    stage.set_der(T, 0)
+                    self.T = T
+                    stage.set_initial(T, stage._T.T_init)
+                    return stage.at_tf(T)
             else:
                 self.T = stage._T
                 return stage._T

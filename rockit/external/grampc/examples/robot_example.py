@@ -8,7 +8,7 @@ import casadi as cs
 # Start an optimal control environment with a time horizon of 10 seconds
 # starting from t0=0s.
 #  (free-time problems can be configured with `FreeTime(initial_guess)`)
-ocp = roc.Ocp(t0=0, T=10)
+ocp = roc.Ocp(t0=0, T=1)
 
 # Define scalar states (vectors and matrices also supported)
 x1 = ocp.state()
@@ -49,7 +49,8 @@ ocp.set_der(x5, u5)
 ocp.set_der(x6, u6)
 
 # Lagrange objective term: signals in an integrand
-ocp.add_objective(ocp.integral(0.5 * u.T @ u))
+ocp.add_objective(ocp.integral(1 * u.T @ u))
+ocp.add_objective(ocp.at_tf(1))
 
 # Define forward kinematics
 offset_left = cs.vertcat(0, 0, 0)
@@ -101,7 +102,7 @@ grampc_options["MaxMultIter"] = 1
 grampc_options["ShiftControl"] = "off"
 grampc_options["LineSearchMax"] =  2.0
 grampc_options["LineSearchExpAutoFallback"] = "off"
-grampc_options["AugLagUpdateGradientRelTol"] = 1
+grampc_options["AugLagUpdateGradientRelTol"] = 1.0
 grampc_options["ConstraintsAbsTol"] = 1e-4
 grampc_options["PenaltyMax"] = 1e4
 grampc_options["PenaltyMin"] = 50.0
@@ -109,17 +110,18 @@ grampc_options["PenaltyIncreaseFactor"] = 1.1
 grampc_options["PenaltyDecreaseFactor"] = 1.0
 grampc_options["ConvergenceCheck"] = "on"
 grampc_options["ConvergenceGradientRelTol"] = 1e-6
-method = roc.external_method('grampc',N=10,M=2,grampc_options=grampc_options)
+method = roc.external_method('grampc',N=10,M=1,grampc_options=grampc_options)
 
 
 # Pick an NLP solver backend
 #  (CasADi `nlpsol` plugin):
 ocp.solver('ipopt', {"error_on_fail":False, 'ipopt':{"max_iter": 1000, 'hessian_approximation':'exact', 'limited_memory_max_history' : 5, 'print_level':5}})
 
+
 # Pick a solution method
-N=20
+N=40
 method = roc.MultipleShooting(N=N, intg='rk')
-# method = external_method('grampc')
+#method = roc.external_method('grampc')
 ocp.method(method)
 
 # Set initial guesses for states, controls and variables.
@@ -146,15 +148,19 @@ x4_f = cs.pi/2
 x5_f = -cs.pi/2
 x6_f = 0
 
+"""
 ocp.set_initial(x1, x1_0)
 ocp.set_initial(x2, x2_0)
 ocp.set_initial(x3, x3_0)
 ocp.set_initial(x4, x4_0)
 ocp.set_initial(x5, x5_0)
 ocp.set_initial(x6, x6_0)
+"""
 
 # Solve
 sol = ocp.solve()
+
+raise Exception()
 
 #%%
 # Post-processing

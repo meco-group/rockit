@@ -80,13 +80,11 @@ ocp.set_initial(u, 0.0)
 ocp.subject_to(-0.0524 <= (u <= 0.0524))
 
 xlim = cs.vertcat(0.2, 0.1)
-#ocp.subject_to(-xlim <= (x <= xlim))
-#ocp.subject_to(-xlim[0] <= (x[0] <= xlim[0]))
-#ocp.subject_to(-xlim[1] <= (x[1] <= xlim[1]))
-ocp.subject_to(-xlim[0]-x[0]<=0)
-ocp.subject_to(-xlim[0]+x[0]<=0)
-ocp.subject_to(-xlim[1]-x[1]<=0)
-ocp.subject_to(-xlim[1]+x[1]<=0)
+ocp.subject_to(-xlim <= (x <= xlim))
+#ocp.subject_to(-xlim[0]-x[0]<=0)
+#ocp.subject_to(-xlim[0]+x[0]<=0)
+#ocp.subject_to(-xlim[1]-x[1]<=0)
+#ocp.subject_to(-xlim[1]+x[1]<=0)
 
 # Solving the problem
 # -------------------
@@ -94,21 +92,30 @@ ocp.subject_to(-xlim[1]+x[1]<=0)
 # Pick an NLP solver backend
 #  (CasADi `nlpsol` plugin):
 ocp.solver('ipopt')
-
 # Pick a solution method
 
 grampc_options={}
-grampc_options["Nhor"] = 30
 grampc_options["MaxMultIter"] = 3
 grampc_options["AugLagUpdateGradientRelTol"] = 1e0
 grampc_options["ConstraintsAbsTol"] = 1e-3
 
 
-method = external_method('grampc',N=30,expand=True,grampc_options=grampc_options)
+method = external_method('grampc',N=50,expand=True,grampc_options=grampc_options)
+#ocp.method(MultipleShooting(N=300))
+
 ocp.method(method)
 
 # Solve
 sol = ocp.solve()
 
+t, usol = sol.sample(u,grid='control')
 
-print(sol.sample(x,grid='control'))
+t, xsol = sol.sample(x,grid='control')
+
+import pylab as plt
+
+plt.figure()
+plt.plot(t,xsol)
+plt.figure()
+plt.plot(t,usol)
+plt.show()

@@ -29,6 +29,7 @@ Some basic example on solving an Optimal Control Problem with rockit.
 
 
 # Make available sin, cos, etc
+from ast import Mult
 from numpy import *
 # Import the project
 from rockit import *
@@ -36,42 +37,35 @@ from rockit import *
 # Problem specification
 # ---------------------
 
-# Start an optimal control environment with a time horizon of 10 seconds
-# starting from t0=0s.
-#  (free-time problems can be configured with `FreeTime(initial_guess)`)
-ocp = Ocp(t0=0, T=10)
+
+T0 = 5.25
+time_opt = True
+ocp = Ocp(t0=0, T=FreeTime(T0) if time_opt else T0)
 
 # Define two scalar states (vectors and matrices also supported)
 x1 = ocp.state()
 x2 = ocp.state()
 
-# Define one piecewise constant control input
-#  (use `order=1` for piecewise linear)
 u = ocp.control()
 
-# Compose time-dependent expressions a.k.a. signals
-#  (explicit time-dependence is supported with `ocp.t`)
-e = 1 - x2**2
-#e = 1
-# Specify differential equations for states
-#  (DAEs also supported with `ocp.algebraic` and `add_alg`)
-ocp.set_der(x1, e * x1 - x2 + u)
-ocp.set_der(x2, x1)
+ocp.set_der(x1, x2)
+ocp.set_der(x2, u)
 
-# Lagrange objective term: signals in an integrand
-ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
-# Mayer objective term: signals evaluated at t_f = t0_+T
-ocp.add_objective(ocp.at_tf(x1**2))
+ocp.add_objective(ocp.integral(0.1*u**2))
+ocp.add_objective(ocp.at_tf(1*ocp.T))
 
-# Path constraints
-#  (must be valid on the whole time domain running from `t0` to `tf`,
-#   grid options available such as `grid='inf'`)
-ocp.subject_to(x1 >= -0.25)
+if time_opt:
+    ocp.subject_to(1.0 <= (ocp.T <= 10 ))
+
+ocp.subject_to(x2 <= 0.5)
 ocp.subject_to(-1 <= (u <= 1 ))
 
 # Boundary constraints
-ocp.subject_to(ocp.at_t0(x1) == 0)
-ocp.subject_to(ocp.at_t0(x2) == 1)
+ocp.subject_to(ocp.at_t0(x1) == -1)
+ocp.subject_to(ocp.at_t0(x2) == -1)
+
+ocp.subject_to(ocp.at_tf(x1) == 0)
+ocp.subject_to(ocp.at_tf(x2) == 0)
 
 #%%
 # Solving the problem
@@ -81,8 +75,26 @@ ocp.subject_to(ocp.at_t0(x2) == 1)
 #  (CasADi `nlpsol` plugin):
 ocp.solver('ipopt')
 
+grampc_options = {}
+grampc_options["MaxGradIter"] = 200
+grampc_options["MaxMultIter"] = 1
+grampc_options["ShiftControl"] = "off"
+grampc_options["Integrator"] = "euler"
+grampc_options["LineSearchMax"] = 1e2
+
+grampc_options["PenaltyMin"] = 1e1
+grampc_options["PenaltyIncreaseFactor"] = 1.25
+grampc_options["PenaltyDecreaseFactor"] = 1.0
+
+grampc_options["ConstraintsAbsTol"] = 1e-6
+grampc_options["ConvergenceCheck"] = "on"
+grampc_options["ConvergenceGradientRelTol"] = 1e-9
+if time_opt:
+    grampc_options["OptimTimeLineSearchFactor"] = 1.75
+
 # Pick a solution method
-method = external_method('grampc',N=200)
+method = external_method('grampc',N=40,grampc_options=grampc_options)
+#method = MultipleShooting(N=40)
 ocp.method(method)
 
 # Solve
