@@ -672,7 +672,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
 
         self.output_file.write(f"""
             /********* estimate and set PenaltyMin *********/
-            //grampc_estim_penmin(grampc, 1);
+            grampc_printopt(grampc);
+            grampc_printparam(grampc);
+            grampc_estim_penmin(grampc, 1);
         """)
         if self.verbose:
             self.output_file.write(f"""
