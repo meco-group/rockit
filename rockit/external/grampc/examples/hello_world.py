@@ -82,11 +82,17 @@ ocp.subject_to(ocp.at_t0(x2) == 1)
 ocp.solver('ipopt')
 
 # Pick a solution method
-method = external_method('grampc',N=200)
+method = external_method('grampc',N=20)
+method = MultipleShooting(N=20)
 ocp.method(method)
+#ocp.method(MultipleShooting(N=50))
 
 # Solve
-sol = ocp.solve()
+try:
+    sol = ocp.solve()
+except Exception as e:
+    print(str(e))
+    sol = ocp.non_converged_solution
 
 #%%
 # Post-processing

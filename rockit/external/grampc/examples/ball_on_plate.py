@@ -101,9 +101,9 @@ grampc_options["ConstraintsAbsTol"] = 1e-3
 
 
 method = external_method('grampc',N=50,expand=True,grampc_options=grampc_options)
-#ocp.method(MultipleShooting(N=300))
-
 ocp.method(method)
+#ocp.method(MultipleShooting(N=50))
+
 
 # Solve
 sol = ocp.solve()

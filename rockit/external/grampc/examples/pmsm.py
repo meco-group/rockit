@@ -94,15 +94,15 @@ ocp.add_objective(ocp.integral( q2*(iq-iq_des)**2 ))
 ocp.add_objective(ocp.integral( quad(R, u-u_des)   ))
 
 grampc_options={}
-grampc_options["MaxGradIter"] = 3
-grampc_options["MaxMultIter"] = 3
-grampc_options["ConstraintsAbsTol"] = 1e-5
-
+grampc_options["MaxGradIter"] = 3000
+grampc_options["MaxMultIter"] = 3000
+grampc_options["ConstraintsAbsTol"] = 1e-3
+grampc_options["ConvergenceCheck"] = "on"
 
 method = external_method('grampc',N=100,expand=True,grampc_options=grampc_options)
 
-ocp.solver("ipopt")
-#ocp.method(MultipleShooting(N=100))
+#ocp.solver("ipopt")
+#ocp.method(DirectCollocation(N=100))
 
 ocp.method(method)
 
@@ -112,6 +112,8 @@ sol = ocp.solve()
 t, usol = sol.sample(u,grid='control')
 
 t, xsol = sol.sample(ocp.x,grid='control')
+
+#print("obj=",sol.value(ocp.objective))
 
 import pylab as plt
 

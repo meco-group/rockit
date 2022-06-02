@@ -120,8 +120,8 @@ ocp.solver('ipopt', {"error_on_fail":False, 'ipopt':{"max_iter": 1000, 'hessian_
 
 # Pick a solution method
 N=40
-method = roc.MultipleShooting(N=N, intg='rk')
-#method = roc.external_method('grampc')
+#method = roc.MultipleShooting(N=N, intg='rk')
+method = roc.external_method('grampc')
 ocp.method(method)
 
 # Set initial guesses for states, controls and variables.
@@ -158,9 +158,11 @@ ocp.set_initial(x6, x6_0)
 """
 
 # Solve
-sol = ocp.solve()
-
-raise Exception()
+try:
+    sol = ocp.solve()
+except Exception as e:
+    print(str(e))
+    sol = ocp.non_converged_solution
 
 #%%
 # Post-processing

@@ -114,9 +114,23 @@ class GrampcMethod(ExternalMethod):
         verbose=True,
         grampc_options=None,
         **kwargs):
+        """
+        dt is post-processing: interplin
+        
+
+        GRAMPC is very much realtime iteration
+        By default, ConvergenceCheck is even off, and you perform MaxMultIter outer iterations with MaxGradIter inner iterations.
+        Default MaxMultIter = 1.
+
+        
+        """
         supported = {"free_T"}
         ExternalMethod.__init__(self, supported=supported, **kwargs)
         self.grampc_options = {} if grampc_options is None else grampc_options
+        our_defaults = {"MaxMultIter": 3000, "ConvergenceCheck": "on", "MaxGradIter": 100}
+        for k,v in our_defaults.items():
+            if k not in self.grampc_options:
+                self.grampc_options[k] = v
         self.codegen_name = 'casadi_codegen'
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
@@ -713,7 +727,19 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             }}
             casadi_real read_T_opt(typeGRAMPC* grampc) {{
                 return {self.user_grampc}->T_opt;
-            }}""")
+            }}
+            void get_stats(typeGRAMPC* grampc, casadi_real* obj, casadi_int* conv_grad, casadi_int* conv_con, casadi_int* Nouter, casadi_int* Ninner) {{
+                *obj = grampc->sol->J[0];
+                for (*Nouter=0,*Ninner=0;*Nouter<grampc->opt->MaxMultIter;++*Nouter) {{
+                    int n = grampc->sol->iter[*Nouter];
+                    *Ninner += n;
+                    if (n==0) break;
+                }}
+
+                *conv_grad = convergence_test_gradient(grampc->opt->ConvergenceGradientRelTol, grampc);
+                *conv_con = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
+            }}
+            """)
 
         self.output_file.write("void solve(typeGRAMPC* grampc) {\n")
         self.output_file.write(f"""
@@ -735,15 +761,6 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             grampc_run(grampc);
             grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
 
-            /* run convergence test */
-            /*if (grampc->opt->ConvergenceCheck == INT_ON) {{
-                converged_grad = convergence_test_gradient(grampc->opt->ConvergenceGradientRelTol, grampc);
-                if (converged_grad) {{
-                    converged_const = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
-                }}
-            }}*/
-
-
             for(int k=0;k<grampc->opt->Nhor;++k) {{
                 for (int j=0;j<{stage.nx};++j) {{
                     int i = k*{stage.nx}+j;
@@ -755,8 +772,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                 }}
             }}
             {self.user_grampc}->T_opt = grampc->rws->T;
-
-
+            printf("J %f %f\\n",grampc->sol->J[0],grampc->sol->J[1]);
 
 
         """)
@@ -851,6 +867,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_T_opt",[m_type], c_double)
+        self._register("get_stats",[m_type, POINTER(c_double), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong)], m_type)
         self._register("write_p",[m_type, POINTER(c_double)], m_type)
         self._register("write_umax",[m_type, POINTER(c_double)], m_type)
         self._register("write_umin",[m_type, POINTER(c_double)], m_type)
@@ -878,7 +895,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         if hasattr(self,'_destroy'):
             self._destroy(self.grampc)
 
-    def solve(self, stage):
+    def solve(self, stage,limited=False):
         self.set_matrices()
         self._solve(self.grampc)
         x_opt = np.zeros((stage.nx, self.Nhor+1),dtype=np.float64,order='F')
@@ -886,7 +903,33 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         u_opt = np.zeros((stage.nu, self.Nhor),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
         T_opt = self._read_T_opt(self.grampc)
-        return OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), T_opt, rT=stage.T), stage)
+        obj = np.zeros((1),dtype=np.float64)
+        Nouter = np.zeros((1),dtype=np.int64)
+        Ninner = np.zeros((1),dtype=np.int64)
+        conv_grad = np.zeros((1),dtype=np.int64)
+        conv_con = np.zeros((1),dtype=np.int64)
+
+        self._get_stats(self.grampc, obj.ctypes.data_as(POINTER(c_double)), conv_grad.ctypes.data_as(POINTER(c_longlong)), conv_con.ctypes.data_as(POINTER(c_longlong)), Nouter.ctypes.data_as(POINTER(c_longlong)), Ninner.ctypes.data_as(POINTER(c_longlong)))
+        conv_grad = bool(conv_grad[0])
+        conv_con = bool(conv_con[0])
+        Ninner = Ninner[0]
+        Nouter = Nouter[0]
+        conv = conv_grad and conv_con
+        print(obj,conv_grad,conv_con,conv,Ninner,Nouter)
+        self.last_solution = OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), T_opt, rT=stage.T), stage)
+        if not conv:
+            if Nouter==self.grampc_options["MaxMultIter"]:
+                if not limited:
+                    raise Exception("MaxMultIter exhausted without meeting convergence criteria")
+            else:
+                raise Exception("Problem not converged")
+        return self.last_solution
+
+    def non_converged_solution(self, stage):
+        return self.last_solution
+
+    def solve_limited(self, stage):
+        return self.solve(stage,limited=True)
 
     def eval(self, stage, expr):
         return expr

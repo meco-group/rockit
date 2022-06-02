@@ -39,7 +39,7 @@ from rockit import *
 
 
 T0 = 5.25
-time_opt = True
+time_opt = False
 ocp = Ocp(t0=0, T=FreeTime(T0) if time_opt else T0)
 
 # Define two scalar states (vectors and matrices also supported)
@@ -76,8 +76,8 @@ ocp.subject_to(ocp.at_tf(x2) == 0)
 ocp.solver('ipopt')
 
 grampc_options = {}
-grampc_options["MaxGradIter"] = 200
-grampc_options["MaxMultIter"] = 1
+grampc_options["MaxGradIter"] = 20
+grampc_options["MaxMultIter"] = 30
 grampc_options["ShiftControl"] = "off"
 grampc_options["Integrator"] = "euler"
 grampc_options["LineSearchMax"] = 1e2
@@ -86,9 +86,9 @@ grampc_options["PenaltyMin"] = 1e1
 grampc_options["PenaltyIncreaseFactor"] = 1.25
 grampc_options["PenaltyDecreaseFactor"] = 1.0
 
-grampc_options["ConstraintsAbsTol"] = 1e-6
+grampc_options["ConstraintsAbsTol"] = 1e-3
 grampc_options["ConvergenceCheck"] = "on"
-grampc_options["ConvergenceGradientRelTol"] = 1e-9
+grampc_options["ConvergenceGradientRelTol"] = 1e-3
 if time_opt:
     grampc_options["OptimTimeLineSearchFactor"] = 1.75
 
@@ -98,8 +98,10 @@ method = external_method('grampc',N=40,grampc_options=grampc_options)
 ocp.method(method)
 
 # Solve
-sol = ocp.solve()
-
+try:
+    sol = ocp.solve()
+except:
+    sol = ocp.non_converged_solution
 #%%
 # Post-processing
 # ---------------
