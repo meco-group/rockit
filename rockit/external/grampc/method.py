@@ -230,20 +230,22 @@ class GrampcMethod(ExternalMethod):
         self.stage = stage
         self.opti = Opti()
 
-        self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
-        self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
-        self.Xi_gist = [MX.sym("X", stage.nx) for k in range(self.N*self.M+1)]
-        self.Ui_gist = [MX.sym("U", stage.nu) for k in range(self.N*self.M)]
-        self.T_gist = MX.sym("T")
+
 
         f = stage._ode()
         options = {}
         options["with_header"] = True
         self.codegen = CodeGenerator(f"{self.codegen_name}.c", options)
 
+        assert len(stage.variables['control'])==0, "variables defined on control grid not supported. Use controls instead."
 
         self.v = vvcat(stage.variables[''])
-
+        self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
+        self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
+        self.V_gist = MX.sym("V", *self.v.shape)
+        self.Xi_gist = [MX.sym("X", stage.nx) for k in range(self.N*self.M+1)]
+        self.Ui_gist = [MX.sym("U", stage.nu) for k in range(self.N*self.M)]
+        self.T_gist = MX.sym("T")
 
         assert f.numel_out("alg")==0
         assert f.numel_out("quad")==0
@@ -255,12 +257,13 @@ class GrampcMethod(ExternalMethod):
 
         self.X = self.opti.variable(*stage.x.shape)
         self.U = self.opti.variable(*stage.u.shape)
+        self.V = self.opti.variable(*self.v.shape)
         self.P = self.opti.parameter(*stage.p.shape)
         self.t = self.opti.parameter()
         self.T = self.opti.variable()
 
-        self.raw = [stage.x,stage.u,stage.p,stage.t]
-        self.optivar = [self.X, self.U, self.P, self.t]
+        self.raw = [stage.x,stage.u,stage.p,stage.t, self.v]
+        self.optivar = [self.X, self.U, self.P, self.t, self.V]
         if self.free_time:
             self.raw += [stage.T]
             self.optivar += [self.T]
@@ -902,6 +905,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
         u_opt = np.zeros((stage.nu, self.Nhor),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
+        v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
         T_opt = self._read_T_opt(self.grampc)
         obj = np.zeros((1),dtype=np.float64)
         Nouter = np.zeros((1),dtype=np.int64)
@@ -916,7 +920,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         Nouter = Nouter[0]
         conv = conv_grad and conv_con
         print(obj,conv_grad,conv_con,conv,Ninner,Nouter)
-        self.last_solution = OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), T_opt, rT=stage.T), stage)
+        self.last_solution = OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), v_opt, T_opt, rT=stage.T), stage)
         if not conv:
             if Nouter==self.grampc_options["MaxMultIter"]:
                 if not limited:
@@ -932,43 +936,40 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         return self.solve(stage,limited=True)
 
     def eval(self, stage, expr):
-        return expr
+        placeholders = stage.placeholders_transcribed
+        expr = placeholders(expr,max_phase=1)
+        ks = [self.v,stage.T]
+        vs = [self.V_gist, self.T_gist]
+        ret = substitute([expr],ks,vs)[0]
+        return ret
         
     @property
     def gist(self):
-        return vertcat(ExternalMethod.gist.fget(self), self.T_gist)
+        return vertcat(ExternalMethod.gist.fget(self), self.V_gist, self.T_gist)
 
     def eval_at_control(self, stage, expr, k):
         placeholders = stage.placeholders_transcribed
         expr = placeholders(expr,max_phase=1)
-        ks = [stage.x,stage.u,stage.T]
-        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)], self.T_gist]
+        ks = [stage.x,stage.u,self.v,stage.T]
+        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)], self.V_gist, self.T_gist]
         if not self.t_state:
             ks += [stage.t]
             vs += [self.control_grid[k]]
         ret = substitute([expr],ks,vs)[0]
         return ret
 
-    def eval_at_controlo(self, stage, expr, k, i):
-        placeholders = stage.placeholders_transcribed
-        expr = placeholders(expr,max_phase=1)
-        ks = [stage.x,stage.u]
-        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)]]
-        if not self.t_state:
-            ks += [stage.t]
-            vs += [self.control_grid[k]]
-        return substitute([expr],ks,vs)[0]
 
 class SolWrapper:
-    def __init__(self, method, x, u, T, rT=None):
+    def __init__(self, method, x, u, v, T, rT=None):
         self.method = method
         self.x = x
         self.u = u
         self.T = T
+        self.v = v
         self.rT = rT
 
     def value(self, expr, *args,**kwargs):
         placeholders = self.method.stage.placeholders_transcribed
         expr = substitute(expr,self.rT, self.T)
-        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[vertcat(self.x, self.u, self.T)])[0])
+        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[vertcat(self.x, self.u, self.v, self.T)])[0])
         return ret.toarray(simplify=True)
