@@ -56,8 +56,6 @@ print("v",sol.value(ocp.at_tf(v)))
 
 print("obj",sol.value(ocp.T+ocp.at_tf((v-1)**2)))
 
-raise Exception()
-
 from pylab import *
 
 plot(t,p_sol,'ro-')

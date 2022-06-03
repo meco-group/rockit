@@ -64,8 +64,75 @@ print("v",sol.value(ocp.at_tf(v)))
 
 print("obj",sol.value(ocp.T+ocp.at_tf((v-1)**2)))
 
+from casadi import Opti
 
+opti = Opti()
 
+T = opti.variable()
+u1 = opti.variable()
+u2 = opti.variable()
+
+ut = u1+u2
+
+opti.minimize(ut**2*T**2+(1-2*ut)*T+1)
+opti.subject_to(0<= (T<= 100))
+opti.subject_to(-1<= (u1<= 1))
+opti.subject_to(-1<= (u2<= 1))
+opti.subject_to(T/2*u1*T==1)
+
+opti.solver('ipopt')
+
+sol = opti.solve()
+
+print("T:",sol.value(T))
+print("u:",sol.value(u1),sol.value(u2))
+
+ocp = Ocp()
+
+T = ocp.variable()
+u1 = ocp.variable()
+u2 = ocp.variable()
+
+ut = u1+u2
+
+ocp.add_objective(ut**2*T**2+(1-2*ut)*T+1)
+ocp.subject_to(0<= (T<= 100))
+ocp.subject_to(-1<= (u1<= 1))
+ocp.subject_to(-1<= (u2<= 1))
+ocp.subject_to(u1*T**2==2)
+
+N = 2
+ocp.method(MultipleShooting(N=N,M=1,intg="expl_euler"))
+ocp.solver('ipopt')
+
+sol = ocp.solve()
+
+print("T:",sol.value(T))
+print("u:",sol.value(u1),sol.value(u2))
+
+ocp = Ocp()
+
+d = ocp.state()
+ocp.set_der(d, 0)
+
+T = ocp.variable()
+u = ocp.variable()
+ut = 1+u
+ocp.add_objective((1+u)**2*T**2-2*u*T+1)
+ocp.subject_to(0<= (T<= 100))
+ocp.subject_to(-1<= (u<= 1))
+ocp.subject_to(T**2==2)
+
+N = 2
+ocp.method(MultipleShooting(N=N,M=1,intg="expl_euler"))
+ocp.solver('ipopt')
+
+sol = ocp.solve()
+
+print("T:",sol.value(T))
+print("u:",sol.value(u))
+
+raise Exception()
 from pylab import *
 
 plot(t,p_sol,'ro')
