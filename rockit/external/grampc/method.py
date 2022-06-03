@@ -134,7 +134,7 @@ class GrampcMethod(ExternalMethod):
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
         self.user_grampc = "((cs_struct*) grampc->userparam)"
-        self.Nhor = self.N*self.M
+        self.Nhor = self.N
         self.verbose = verbose
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
