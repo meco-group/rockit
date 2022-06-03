@@ -35,7 +35,7 @@ import os
 from ctypes import *
 
 
-INF = 1e10
+INF = 1e20
 """
 In general, the constraints should be formulated in such a way that there are no conflicts. However,
 numerical difficulties can arise in some problems if constraints are formulated twice for the last point.
@@ -426,8 +426,8 @@ class GrampcMethod(ExternalMethod):
         x0_eq = []
         x0_b = []
 
-        Tmin = -inf
-        Tmax = inf
+        Tmin = 0
+        Tmax = INF
 
         # Process point constraints
         # Probably should de-duplicate stuff wrt path constraints code
@@ -490,6 +490,7 @@ class GrampcMethod(ExternalMethod):
                 if not lb_inf:
                     ineq_term.append(lb-canon)
 
+        Tmin = fmax(Tmin, 1/INF)
         m["Tmin"] = export(Tmin)
         m["Tmax"] = export(Tmax)
 
