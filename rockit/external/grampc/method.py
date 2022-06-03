@@ -110,7 +110,6 @@ def export_vec(m):
 
 class GrampcMethod(ExternalMethod):
     def __init__(self,
-        M = 1,
         verbose=True,
         grampc_options=None,
         **kwargs):
@@ -135,7 +134,6 @@ class GrampcMethod(ExternalMethod):
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
         self.user_grampc = "((cs_struct*) grampc->userparam)"
-        self.M = M
         self.Nhor = self.N*self.M
         self.verbose = verbose
 
@@ -243,8 +241,6 @@ class GrampcMethod(ExternalMethod):
         self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
         self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
         self.V_gist = MX.sym("V", *self.v.shape)
-        self.Xi_gist = [MX.sym("X", stage.nx) for k in range(self.N*self.M+1)]
-        self.Ui_gist = [MX.sym("U", stage.nu) for k in range(self.N*self.M)]
         self.T_gist = MX.sym("T")
 
         assert f.numel_out("alg")==0
