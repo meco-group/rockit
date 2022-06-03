@@ -598,7 +598,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->w = sz_w>0 ? malloc(sizeof(casadi_real)*sz_w) : 0;
         {self.user}->x_opt = malloc(sizeof(casadi_real)*{stage.nx*self.Nhor});
         {self.user}->u_opt = malloc(sizeof(casadi_real)*{stage.nu*self.Nhor});
-        //{self.user}->v_opt = malloc(sizeof(casadi_real)*{self.v.numel()});
+        {self.user}->v_opt = malloc(sizeof(casadi_real)*{self.v.numel()});
         {self.user}->x_current = malloc(sizeof(casadi_real)*{max(stage.nx, 1)});
         {self.user}->p = malloc(sizeof(casadi_real)*{max(stage.np, 1)});
         {self.user}->umin = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
@@ -617,7 +617,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->w);\n")
         self.output_file.write(f"  free({self.user}->x_opt);\n")
         self.output_file.write(f"  free({self.user}->u_opt);\n")
-        #self.output_file.write(f"  free({self.user}->v_opt);\n")
+        self.output_file.write(f"  free({self.user}->v_opt);\n")
         self.output_file.write(f"  free({self.user}->x_current);\n")
         self.output_file.write(f"  free({self.user}->p);\n")
         self.output_file.write(f"  free({self.user}->umin);\n")
@@ -744,6 +744,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
                 for (int i=0;i<{stage.nu*self.N};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
             }}
+            void read_v_opt(typeGRAMPC* grampc, casadi_real* v_opt) {{
+                for (int i=0;i<{self.v.numel()};++i) v_opt[i] = {self.user_grampc}->v_opt[i];
+            }}
             casadi_real read_T_opt(typeGRAMPC* grampc) {{
                 return {self.user_grampc}->T_opt;
             }}
@@ -789,6 +792,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                     int i = k*{stage.nu}+j;
                     {self.user_grampc}->u_opt[i] = grampc->rws->u[i]*grampc->opt->uScale[j]+grampc->opt->uOffset[j];
                 }}
+            }}
+            for (int i=0;i<{self.v.numel()};++i) {{
+                {self.user_grampc}->v_opt[i] = grampc->rws->p[i]*grampc->opt->pScale[i]+grampc->opt->pOffset[i];
             }}
             {self.user_grampc}->T_opt = grampc->rws->T;
             printf("J %f %f\\n",grampc->sol->J[0],grampc->sol->J[1]);
@@ -885,6 +891,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._register("solve",[m_type], m_type)
         self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
+        self._register("read_v_opt",[m_type, POINTER(c_double)], m_type)
         self._register("read_T_opt",[m_type], c_double)
         self._register("get_stats",[m_type, POINTER(c_double), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong)], m_type)
         self._register("write_p",[m_type, POINTER(c_double)], m_type)
@@ -922,6 +929,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         u_opt = np.zeros((stage.nu, self.N),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
         v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
+        self._read_v_opt(self.grampc, v_opt.ctypes.data_as(POINTER(c_double)))
         T_opt = self._read_T_opt(self.grampc)
         obj = np.zeros((1),dtype=np.float64)
         Nouter = np.zeros((1),dtype=np.int64)
