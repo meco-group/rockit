@@ -221,6 +221,7 @@ class GrampcMethod(ExternalMethod):
             casadi_real* umin;
             casadi_real* umax;
             casadi_real* u0;
+            casadi_real* v0;
             casadi_real Tmin;
             casadi_real Tmax;
         }} cs_struct;
@@ -515,19 +516,32 @@ class GrampcMethod(ExternalMethod):
         self.mmap = Function('mmap',[stage.p],args,['p'],list(m.keys()))
 
         U0 = DM.zeros(stage.nu)
+        V0 = DM.zeros(self.v.numel())
 
 
         for var, expr in stage._initial.items():
             assert not depends_on(expr, stage.t)
             assert not depends_on(expr, stage.x)
-            J, r = linear_coeffs(var,stage.u)
-            J = evalf(J)
-            r = evalf(r)
-            assert r.is_zero()
-            check_Js(J)
-            expr = reshape_number(var, expr)
-            if J.sparsity().get_col():
-                U0[J.sparsity().get_col()] = expr[J.row()]
+            if depends_on(var,stage.u):
+                assert not depends_on(var, self.v)
+                J, r = linear_coeffs(var,stage.u)
+                J = evalf(J)
+                r = evalf(r)
+                assert r.is_zero()
+                check_Js(J)
+                expr = reshape_number(var, expr)
+                if J.sparsity().get_col():
+                    U0[J.sparsity().get_col()] = expr[J.row()]
+            else:
+                assert not depends_on(var, stage.u)
+                J, r = linear_coeffs(var,self.v)
+                J = evalf(J)
+                r = evalf(r)
+                assert r.is_zero()
+                check_Js(J)
+                expr = reshape_number(var, expr)
+                if J.sparsity().get_col():
+                    V0[J.sparsity().get_col()] = expr[J.row()]
 
         self.output_file.write("""
 /** Additional functions required for semi-implicit systems 
@@ -590,6 +604,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->umin = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
         {self.user}->umax = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
         {self.user}->u0 = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
+        {self.user}->v0 = malloc(sizeof(casadi_real)*{max(self.v.numel(), 1)});
         """)
         self.output_file.write("}\n")
 
@@ -608,6 +623,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self.output_file.write(f"  free({self.user}->umin);\n")
         self.output_file.write(f"  free({self.user}->umax);\n")
         self.output_file.write(f"  free({self.user}->u0);\n")
+        self.output_file.write(f"  free({self.user}->v0);\n")
         self.output_file.write("}\n")   
 
         nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
@@ -629,6 +645,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         umax = res["umax"].nonzeros()
         umin = res["umin"].nonzeros()
         u0 = U0.nonzeros()
+        v0 = V0.nonzeros()
         Tmin = float(res["Tmin"])
         Tmax = float(res["Tmax"])
         self.output_file.write(f"""
@@ -640,6 +657,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             double umin[{stage.nu}] = {{{strlist(umin)}}};
             double u0[{stage.nu}] = {{{strlist(u0)}}};
             double p[{stage.np}] = {{{strlist(p)}}};
+            double v0[{self.v.numel()}] = {{{strlist(v0)}}};
             preamble(userparam);
 
             for (i=0;i<{stage.np};++i) {self.user}->p[i] = p[i];
@@ -651,6 +669,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             grampc_setparam_real_vector(grampc, "umax", umax);
             grampc_setparam_real_vector(grampc, "umin", umin);
             grampc_setparam_real_vector(grampc, "u0", u0);
+            grampc_setparam_real_vector(grampc, "p0", v0);
 
             //grampc_setparam_real_vector(grampc, "xdes", 0);
             //grampc_setparam_real_vector(grampc, "udes", 0);
