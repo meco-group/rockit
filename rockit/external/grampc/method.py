@@ -134,7 +134,7 @@ class GrampcMethod(ExternalMethod):
         self.grampc_driver = 'grampc_driver'
         self.user = "((cs_struct*) userparam)"
         self.user_grampc = "((cs_struct*) grampc->userparam)"
-        self.Nhor = self.N
+        self.Nhor = self.N+1
         self.verbose = verbose
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
@@ -723,7 +723,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                 for (int i=0;i<{stage.nx*self.Nhor};++i) x_opt[i] = {self.user_grampc}->x_opt[i];
             }}
             void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
-                for (int i=0;i<{stage.nu*self.Nhor};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
+                for (int i=0;i<{stage.nu*self.N};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
             }}
             casadi_real read_T_opt(typeGRAMPC* grampc) {{
                 return {self.user_grampc}->T_opt;
@@ -898,9 +898,9 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
     def solve(self, stage,limited=False):
         self.set_matrices()
         self._solve(self.grampc)
-        x_opt = np.zeros((stage.nx, self.Nhor+1),dtype=np.float64,order='F')
+        x_opt = np.zeros((stage.nx, self.N+1),dtype=np.float64,order='F')
         self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
-        u_opt = np.zeros((stage.nu, self.Nhor),dtype=np.float64,order='F')
+        u_opt = np.zeros((stage.nu, self.N),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
         v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
         T_opt = self._read_T_opt(self.grampc)
