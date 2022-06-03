@@ -482,7 +482,7 @@ class GrampcMethod(ExternalMethod):
                         continue
 
                 if not ub_inf:
-                    eq_term.append(canon-ub)
+                    ineq_term.append(canon-ub)
                 if not lb_inf:
                     ineq_term.append(lb-canon)
 
