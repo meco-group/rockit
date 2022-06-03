@@ -24,6 +24,8 @@ from .sampling_method import SamplingMethod
 from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat
 import numpy as np
 
+from .casadi_helpers import vcat
+
 class MultipleShooting(SamplingMethod):
     def __init__(self, **kwargs):
         SamplingMethod.__init__(self, **kwargs)

@@ -19,9 +19,8 @@
 #     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 #
-
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat,\
-                   linspace, DM, constpow, mtimes, vvcat, low, floor, hcat, horzcat, DM, is_equal, \
+                   linspace, DM, constpow, mtimes, low, floor, hcat, horzcat, DM, is_equal, \
                    Sparsity
 from .freetime import FreeTime
 from .direct_method import DirectMethod
@@ -31,6 +30,7 @@ from collections import defaultdict
 from .casadi_helpers import DM2numpy, get_meta, merge_meta, HashDict, HashDefaultDict, HashOrderedDict, HashList, for_all_primitives
 from contextlib import contextmanager
 from collections import OrderedDict
+from .casadi_helpers import vvcat
 
 import numpy as np
 from numpy import nan

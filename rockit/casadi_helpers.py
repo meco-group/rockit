@@ -20,6 +20,7 @@
 #
 #
 
+import casadi as cs
 from casadi import *
 from collections import defaultdict, OrderedDict
 
@@ -283,3 +284,14 @@ def for_all_primitives(expr, rhs, callback, msg, rhs_type=MX):
     else:
         raise Exception(msg)
         
+def vvcat(arg):
+    if len(arg)==0:
+        return cs.MX(0,1)
+    else:
+        return cs.vvcat(arg)
+
+def vcat(arg):
+    if len(arg)==0:
+        return cs.MX(0,1)
+    else:
+        return cs.vcat(arg)
