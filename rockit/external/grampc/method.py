@@ -684,6 +684,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             /********* Option definition *********/
 
             grampc_setopt_string(grampc, "OptimTime", "{"on" if self.free_time else "off"}");
+            grampc_setopt_string(grampc, "OptimParam", "{"on" if self.v.numel()>0 else "off"}");
             """)
 
         if self.free_time:
