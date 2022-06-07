@@ -10,35 +10,36 @@ method = external_method('grampc',N=N,grampc_options={"Integrator": "euler","Int
 ocp = Ocp()
 
 d = ocp.state()
-e = ocp.control()
-ocp.subject_to(-1<= (e<= 1))
-ocp.set_der(d, e)
+ocp.set_der(d, 0)
 ocp.subject_to(ocp.at_t0(d)==0)
 
-ocp.add_objective(ocp.at_tf(d**2))
-
-"""
 T = ocp.variable()
-u = ocp.variable()
-ut = 1+u
-ocp.add_objective((1+u)**2*T**2-2*u*T+1)
+u1 = ocp.variable()
+u2 = ocp.variable()
+
+ut = u1+u2
+
+ocp.add_objective(ocp.at_tf(ut**2*T**2+(1-2*ut)*T+1))
 ocp.subject_to(0<= (T<= 100))
-ocp.subject_to(-1<= (u<= 1))
-ocp.subject_to(T**2==2)
+ocp.subject_to(-1<= (u1<= 1))
+ocp.subject_to(-1<= (u2<= 1))
+ocp.subject_to(u1*T**2==2)
 
-ocp.set_initial(T,1)
-ocp.set_initial(u,-0.3)
-
-"""
+ocp.set_initial(T,1.4142135689078894)
+ocp.set_initial(u1,1)
+ocp.set_initial(u2,-0.19617223)
 
 
 ocp.method(method)
 
 
-sol = ocp.solve()
-
+try:
+    sol = ocp.solve()
+except Exception as e:
+    print(str(e))
+    sol = ocp.non_converged_solution
 print("T:",sol.value(T))
-print("u:",sol.value(u))
+print("u:",sol.value(u2))
 
 raise Exception()
 

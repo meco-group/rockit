@@ -24,6 +24,8 @@ from ...freetime import FreeTime
 from ..method import ExternalMethod, linear_coeffs, check_Js
 from ...solution import OcpSolution
 
+from .code_generator import GrampcCodeGenerator
+
 import numpy as np
 from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve, fmin, fmax
 import casadi
@@ -46,6 +48,17 @@ by including g and h in the terminal constraints gT and hT .
 
 
 TODO: debug with example from repo, make callbacks print
+
+The convergence checks are a bit wird. The gradient of the Lagrangian is not checked; a small step size in decision space is enough
+
+GRAMPC is an indirect approach (first optimize then discretize).
+The boundary value problem is discretised using single shooting (we integrate over the entire time horizon).
+The inner part of the min-max problem is solved using a projected gradient method (first order).lsAdapt
+
+
+Debugging test1.py
+Suspected that convergence ends prematurely due to poorly implemented linesearch.
+Played around with linesearch options, also experimented with resetting the adaptive strategy after alpha shrinks a lot -> no difference
 
 """
 
@@ -126,7 +139,7 @@ class GrampcMethod(ExternalMethod):
         supported = {"free_T"}
         ExternalMethod.__init__(self, supported=supported, **kwargs)
         self.grampc_options = {} if grampc_options is None else grampc_options
-        our_defaults = {"MaxMultIter": 3000, "ConvergenceCheck": "on", "MaxGradIter": 100}
+        our_defaults = {"MaxMultIter": 3000, "ConvergenceCheck": "on", "MaxGradIter": 100, "ConstraintsAbsTol": 1e-8, "ConvergenceGradientRelTol": 1e-8,"LineSearchType": "adaptive"}
         for k,v in our_defaults.items():
             if k not in self.grampc_options:
                 self.grampc_options[k] = v
@@ -150,7 +163,6 @@ class GrampcMethod(ExternalMethod):
 
     def gen_interface(self, f):
         f = f.expand()
-        f.disp(True)
         self.codegen.add(f)
         self.preamble.append(f"{f.name()}_incref();")
         self.preamble.append(f"{f.name()}_work(&sz_arg_local, &sz_res_local, &sz_iw_local, &sz_w_local);")
@@ -286,10 +298,10 @@ class GrampcMethod(ExternalMethod):
         for e in symvar(obj):
             if "integral" in e.name():
                 var_lagrange.append(e)
-            else:#elif "at_tf" in e.name():
+            elif "at_tf" in e.name():
                 var_mayer.append(e)
-            #else:
-            #    raise Exception("Unknown element in objective: %s" % str(e))
+            else:
+                raise Exception("Unknown element in objective: %s" % str(e))
 
         self.lagrange = substitute([obj], var_mayer, [DM.zeros(e.shape) for e in var_mayer])[0]
         self.mayer = substitute([obj], var_lagrange, [DM.zeros(e.shape) for e in var_lagrange])[0]
@@ -316,7 +328,7 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(lfct.factory("cs_dldp",["t","x","u","p","p_fixed", "xdes", "udes"],["grad:out:p"]))
 
         Vfct = Function("cs_Vfct", [stage.T, stage.x, self.v, stage.p, xdes], [densify(mayer)], ["T", "x", "p", "p_fixed", "xdes"], ["out"])
-        print(mayer)
+
         self.gen_interface(Vfct)
         self.gen_interface(Vfct.factory("cs_dVdx",["T","x","p","p_fixed","xdes"],["grad:out:x"]))
         self.gen_interface(Vfct.factory("cs_dVdp",["T","x","p","p_fixed","xdes"],["grad:out:p"]))
@@ -403,9 +415,6 @@ class GrampcMethod(ExternalMethod):
 
         m["umin"] = export_vec(ub_l)
         m["umax"] = export_vec(ub_u)
-
-        print(ineq)
-        #raise Exception()
 
         gfct = Function("cs_gfct", [stage.t, stage.x, stage.u, self.v, stage.p], [densify(eq)], ["t", "x", "u", "p", "p_fixed"], ["out"])
         self.gen_interface(gfct)
@@ -499,7 +508,14 @@ class GrampcMethod(ExternalMethod):
         eq_term = vvcat(eq_term)
         ineq_term = vvcat(ineq_term)
 
+        print(ineq)
+        #raise Exception()
+        print("eq",eq_term)
+        print("ineq",ineq_term)
+
+
         gTfct = Function("cs_gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        gTfct.disp(True)
         self.gen_interface(gTfct)
         self.gen_interface(gTfct.factory("cs_dgTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
         self.gen_interface(gTfct.factory("cs_dgTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
@@ -507,10 +523,12 @@ class GrampcMethod(ExternalMethod):
 
         print(ineq_term)
         hTfct = Function("cs_hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
+        hTfct.disp(True)
         self.gen_interface(hTfct)
         self.gen_interface(hTfct.factory("cs_dhTdx_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:x"]))
         self.gen_interface(hTfct.factory("cs_dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
         self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
+
 
         args = [v[0] for v in m.values()]
         self.mmap = Function('mmap',[stage.p],args,['p'],list(m.keys()))
@@ -743,7 +761,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                 for (int i=0;i<{stage.nx*self.Nhor};++i) x_opt[i] = {self.user_grampc}->x_opt[i];
             }}
             void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
-                for (int i=0;i<{stage.nu*self.N};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
+                for (int i=0;i<{stage.nu*self.Nhor};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
             }}
             void read_v_opt(typeGRAMPC* grampc, casadi_real* v_opt) {{
                 for (int i=0;i<{self.v.numel()};++i) v_opt[i] = {self.user_grampc}->v_opt[i];
@@ -927,8 +945,10 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         self._solve(self.grampc)
         x_opt = np.zeros((stage.nx, self.N+1),dtype=np.float64,order='F')
         self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
-        u_opt = np.zeros((stage.nu, self.N),dtype=np.float64,order='F')
+        u_opt = np.zeros((stage.nu, self.N+1),dtype=np.float64,order='F')
         self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
+        print("u_opt",u_opt)
+        u_opt = u_opt[:,:-1]
         v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
         self._read_v_opt(self.grampc, v_opt.ctypes.data_as(POINTER(c_double)))
         T_opt = self._read_T_opt(self.grampc)
@@ -982,6 +1002,11 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             vs += [self.control_grid[k]]
         ret = substitute([expr],ks,vs)[0]
         return ret
+
+
+    @property
+    def code_generator_class(self):
+        return GrampcCodeGenerator
 
 
 class SolWrapper:

@@ -16,8 +16,7 @@ u = ocp.control()
 ocp.set_der(p,v)
 ocp.set_der(v,2*u) # here
 
-ocp.add_objective(ocp.T)
-ocp.add_objective(ocp.at_tf(v-1)**2)
+ocp.add_objective(ocp.at_tf(ocp.T+(v-1)**2))
 
 ocp.subject_to(-1<= (u <= 1))
 
