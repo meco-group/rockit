@@ -2,7 +2,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
 import numpy as np
-from casadi import kron, DM
+from casadi import kron, DM, vertcat
 
 from problems import bang_bang_problem
 
@@ -29,6 +29,19 @@ class StageTests(unittest.TestCase):
 
       vsol = sol.sample(v,grid='control')[1]
       self.assertAlmostEqual(np.linalg.norm(vsol,np.inf),0.3, places=5)
+
+    def test_next(self):
+      (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
+
+      p_ref = ocp.parameter(2, grid='control')
+      ocp.set_value(p_ref, 1)
+      
+      x = vertcat(p,v)
+      dx = ocp.next(x)-x
+      ocp.add_objective(ocp.sum(dx.T @ dx))
+
+      sol = ocp.solve()
+
 
     def test_set_next(self):
       ocp = Ocp(T=10)

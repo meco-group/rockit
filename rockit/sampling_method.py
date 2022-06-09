@@ -578,8 +578,8 @@ class SamplingMethod(DirectMethod):
         x = self.X[k]
         z = self.Z[k] if self.Z else nan
         u = self.U[-1] if k==len(self.U) else self.U[k] # Would be fixed if we remove the (k=-1 case)
-        p_control = self.get_p_control_at(stage, k)
-        v_control = self.get_v_control_at(stage, k)
+        p_control = self.get_p_control_at(stage, k) if k!=len(self.U) else self.get_p_control_at(stage, k-1)
+        v_control = self.get_v_control_at(stage, k) if k!=len(self.U) else self.get_v_control_at(stage, k-1)
         v_states = self.get_v_states_at(stage, k)
         t = self.control_grid[k]
         return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=self.q if k==-1 else nan, u=u, p_control=p_control, v=self.V, p=veccat(*self.P), v_control=v_control,  v_states=v_states, t=t)
