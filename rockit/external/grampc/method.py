@@ -21,21 +21,23 @@
 #
 
 from ...freetime import FreeTime
+from ...casadi_helpers import prepare_build_dir
 from ..method import ExternalMethod, linear_coeffs, check_Js
 from ...solution import OcpSolution
 
 from .code_generator import GrampcCodeGenerator
 
 import numpy as np
-from casadi import vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve, fmin, fmax
+from casadi import external, vec, CodeGenerator, SX, Sparsity, MX, vcat, veccat, symvar, substitute, densify, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag, solve, fmin, fmax
 import casadi
+import casadi as cs
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 
 import subprocess
 import os
 from ctypes import *
-
+import glob
 
 INF = 1e20
 """
@@ -121,6 +123,339 @@ def export(m):
 def export_vec(m):
     return (export_expr(m),True)
 
+class MyCodeGenerator:
+    def __init__(self,name):
+        self.added_shorthands = set()
+        self.add_includes = []
+        self.prefix = ""
+        self.auxiliaries = ""
+        self.body = ""
+        self.name = name
+
+    def add_include(self,h):
+        self.add_includes.append(h)
+
+    def shorthand(self,name):
+        self.added_shorthands.add(name)
+        return self.prefix + name
+
+    def add_dependency(self, f):
+        name = f.codegen_name(self, False)
+        fname = self.prefix + name
+        stack_counter = self.shorthand(name + "_unused_stack_counter")
+        stack = self.shorthand(name + "_unused_stack")
+        mem_counter = self.shorthand(name + "_mem_counter")
+        mem_array = self.shorthand(name + "_mem")
+        alloc_mem = self.shorthand(name + "_alloc_mem")
+        init_mem = self.shorthand(name + "_init_mem")
+        work = self.shorthand(name+"_work")
+
+        self.auxiliaries += f"static int {mem_counter} = 0;\n"
+        self.auxiliaries += f"static int {stack_counter } = -1;\n"
+        self.auxiliaries += f"static int {stack}[CASADI_MAX_NUM_THREADS];\n"
+        self.auxiliaries += f"static {f.codegen_mem_type()} *{mem_array}[CASADI_MAX_NUM_THREADS];\n\n"
+
+        f.codegen_declarations(self)
+
+        f.codegen(self, fname)
+
+        def encode_sp(sp,i):
+            r = f"case {i}:\n"
+            r+= "{"
+            spc = sp.compress()
+            r+= f"static casadi_int sp[{len(spc)}] = {{{strlist(spc)}}}; return sp;"
+            r+= "}"
+            return r
+
+        def encode_name(n,i):
+            return f"case {i}: return \"{n}\";\n"
+
+        newline = "\n"
+
+        self.body += f"""
+
+            casadi_int {fname}_n_in(void) {{
+                return {f.n_in()};
+            }}
+
+            casadi_int {fname}_n_out(void) {{
+                return {f.n_out()};
+            }}
+
+            const casadi_int* {fname}_sparsity_in(casadi_int i) {{
+                switch (i) {{
+                {newline.join(encode_sp(f.sparsity_in(i), i) for i in range(f.n_in()))}
+                default: return 0;
+                }}
+            }}
+
+            const casadi_int* {fname}_sparsity_out(casadi_int i) {{
+                switch (i) {{
+                {newline.join(encode_sp(f.sparsity_out(i), i) for i in range(f.n_out()))}
+                default: return 0;
+                }}
+            }}
+
+            const char* {fname}_name_in(casadi_int i) {{
+                switch (i) {{
+                {newline.join(encode_name(f.name_in(i), i) for i in range(f.n_in()))}
+                default: return 0;
+                }}
+            }}
+
+            const char* {fname}_name_out(casadi_int i) {{
+                switch (i) {{
+                {newline.join(encode_name(f.name_out(i), i) for i in range(f.n_out()))}
+                default: return 0;
+                }}
+            }}
+
+            int {fname}_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {{
+            {f.codegen_work(self)}
+              return 0;
+            }}
+
+            // Alloc memory
+            int {fname}_alloc_mem(void) {{
+            {f.codegen_alloc_mem(self)}
+            }}
+
+            // Initialize memory
+            int {fname}_init_mem(int mem) {{
+            {f.codegen_init_mem(self)}
+            }}
+
+            // Clear memory
+            int {fname}_free_mem(int mem) {{
+            {f.codegen_free_mem(self)}
+            }}
+
+            int {self.shorthand(name + "_checkout")}(void) {{
+            int mid;
+            if ({stack_counter}>=0) {{
+              return {stack}[{stack_counter}--];
+            }} else {{
+              if ({mem_counter}==CASADI_MAX_NUM_THREADS) return -1;
+              mid = {alloc_mem}();
+              if (mid<0) return -1;
+              if({init_mem}(mid)) return -1;
+              return mid;
+            }}
+
+            return {stack}[{stack_counter}--];
+        }}
+
+        void {self.shorthand(name+"_release")}(int mem) {{
+            {stack}[++{stack_counter}] = mem;
+        }}
+
+
+        """
+
+    def generate(self,dir="."):
+        with open(os.path.join(dir,self.name+".c"),"w") as out:
+            out.write("#define CASADI_MAX_NUM_THREADS 1\n")
+            for e in self.add_includes:
+                out.write(f"#include \"{e}\"\n")
+            out.write(self.auxiliaries)
+            out.write(self.body)
+
+class Wrapper:
+    def __init__(self,userparam):
+        self.added_declarations = ""
+        self.added_init_mem = ""
+        self.added_body = ""
+        self.sp_in = []
+        self.sp_out = []
+        self._name_in = []
+        self._name_out = []
+        self.userparam = userparam
+
+    def set_sp_in(self, sp):
+        self.sp_in = sp
+
+    def set_sp_out(self, sp):
+        self.sp_out = sp
+
+    def set_name_in(self, name):
+        self._name_in = name
+
+    def set_name_out(self, name):
+        self._name_out = name
+
+    def add_declarations(self, decl):
+        self.added_declarations += decl
+    
+    def add_init_mem(self, init_mem):
+        self.added_init_mem += init_mem
+
+    def add_body(self, body):
+        self.added_body += body
+
+    def signature(self, fname):
+        return "int " + fname + "(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem)"
+
+    def codegen(self, g, fname):
+        g.body += f"{self.signature(fname)} {{\n"
+        self.codegen_body(g)
+        g.body += f"return 0;}}\n"
+
+    def codegen_name(self, g, ns):
+        return "grampc_driver"
+    def codegen_mem_type(self):
+        return "typeGRAMPC"
+    def codegen_alloc_mem(self, g):
+        name = self.codegen_name(g, False)
+        mem_counter = g.shorthand(name + "_mem_counter")
+        return f"return {mem_counter}++;"
+
+    def codegen_init_mem(self, g):
+        grampc = self.codegen_mem(g, "mem")
+        userparam = grampc+"->userparam"
+        return f"""
+        typeGRAMPC *grampc = {grampc};
+        {self.added_init_mem}
+        {grampc} = grampc;
+        return 0;
+        
+        """
+
+    def codegen_free_mem(self, g):
+        grampc = self.codegen_mem(g)
+        userparam = grampc+"->userparam"
+        return f"postamble({userparam});\nfree({userparam});"
+
+    def codegen_mem(self, g, index=0):
+        name = self.codegen_name(g, False)
+        mem_array = g.shorthand(name + "_mem")
+        return mem_array+"[" + str(index) + "]"
+
+    def codegen_body(self, g):
+        grampc = self.codegen_mem(g, "mem")
+        g.add_include("grampc.h")
+        g.body += f"typeGRAMPC *grampc = {grampc};"
+        stats = f"{self.userparam}->stats"
+        g.body += f"{stats}.stop_crit=0;"
+        g.body += f"{stats}.n_outer_iter=0;"
+        g.body += f"{stats}.n_inner_iter=0;"
+        g.body += f"{stats}.runtime=0;"
+        g.body += self.added_body
+
+    def n_in(self):
+        return len(self.sp_in)
+
+    def n_out(self):
+        return len(self.sp_out)
+
+    def sparsity_in(self, i):
+        return self.sp_in[i]
+
+    def sparsity_out(self, i):
+        return self.sp_out[i]
+
+    def name_in(self, i):
+        return self._name_in[i]
+
+    def name_out(self, i):
+        return self._name_out[i]
+
+
+    def codegen_work(self, g):
+        r = f"""
+            casadi_int sz_arg_local, sz_res_local, sz_iw_local, sz_w_local;
+            *sz_arg=0, *sz_res=0, *sz_iw=0, *sz_w=0;
+            pmap_work(&sz_arg_local, &sz_res_local, &sz_iw_local, &sz_w_local);
+            if (sz_arg_local>*sz_arg) *sz_arg=sz_arg_local;
+            if (sz_res_local>*sz_res) *sz_res=sz_res_local;
+            if (sz_iw_local>*sz_iw) *sz_iw=sz_iw_local;
+            if (sz_w_local>*sz_iw) *sz_w=sz_w_local;
+
+            *sz_arg += {self.n_in()};
+            *sz_res += {self.n_out()};
+        """
+        return r
+
+
+    def codegen_declarations(self, g):
+        g.auxiliaries += """
+
+
+        typedef struct {
+            int stop_crit;
+            int conv_grad;
+            int conv_con;
+            int n_outer_iter;
+            int n_inner_iter;
+            double runtime;
+        } grampc_solver_stats;
+
+        typedef struct {
+            int sqp_stop_crit;
+            int n_sqp_iter;
+            int n_ls;
+            int n_max_ls;
+            int n_qp_iter;
+            int n_max_qp_iter;
+            double runtime;
+        } compat_solver_stats;
+
+        typedef struct cs_struct_def {
+            const casadi_real** arg;
+            casadi_real** res;
+            casadi_int* iw;
+            casadi_real* w;
+            casadi_real* p;
+            typeGRAMPC* grampc;
+            casadi_real* x_opt;
+            casadi_real* u_opt;
+            casadi_real T_opt;
+            casadi_real* v_opt;
+            casadi_real* x_current;
+            casadi_real* umin;
+            casadi_real* umax;
+            casadi_real* u0;
+            casadi_real* v0;
+            casadi_real Tmin;
+            casadi_real Tmax;
+            grampc_solver_stats stats;
+        } cs_struct;
+
+        /** Additional functions required for semi-implicit systems 
+            M*dx/dt(t) = f(t0+t,x(t),u(t),p) using the solver RODAS 
+            ------------------------------------------------------- **/
+        /** Jacobian df/dx in vector form (column-wise) **/
+        void dfdx(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+        {
+        }
+        /** Jacobian df/dx in vector form (column-wise) **/
+        void dfdxtrans(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+        {
+        }
+        /** Jacobian df/dt **/
+        void dfdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
+        {
+        }
+        /** Jacobian d(dH/dx)/dt  **/
+        void dHdxdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *vec, ctypeRNum *p, typeUSERPARAM *userparam)
+        {
+        }
+        /** Mass matrix in vector form (column-wise, either banded or full matrix) **/
+        void Mfct(typeRNum *out, typeUSERPARAM *userparam)
+        {
+        }
+        /** Transposed mass matrix in vector form (column-wise, either banded or full matrix) **/
+        void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
+        {
+        }
+
+        """
+        g.auxiliaries += self.added_declarations
+
+
+class SourceArtifact:
+    def __init__(self, name):
+        self.name = name
+
 class GrampcMethod(ExternalMethod):
     def __init__(self,
         verbose=True,
@@ -149,6 +484,7 @@ class GrampcMethod(ExternalMethod):
         self.user_grampc = "((cs_struct*) grampc->userparam)"
         self.Nhor = self.N+1
         self.verbose = verbose
+        self.artifacts = []
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -178,34 +514,24 @@ class GrampcMethod(ExternalMethod):
                 f"ctypeRNum {'' if scalar(f.name_in(i)) else '*'}{f.name_in(i)}"
                     for i in range(f.n_in())
                     if "p_fixed" not in f.name_in(i)]
-        self.output_file.write(f"void {f.name()[3:]}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
-        self.output_file.write("  int mem;\n")
+        self.wrapper.add_declarations(f"void {f.name()[3:]}(typeRNum *out, {', '.join(args)}, typeUSERPARAM *userparam) {{\n")
+        self.wrapper.add_declarations("  int mem;\n")
         adj_i = None
         for i in range(f.n_in()):
             e = f.name_in(i)
             if "adj" in e:
                 adj_i = i
             if scalar(e):
-                self.output_file.write(f"  {self.user}->arg[{i}] = &{e};\n")
+                self.wrapper.add_declarations(f"  {self.user}->arg[{i}] = &{e};\n")
             elif e=="p_fixed":
-                self.output_file.write(f"  {self.user}->arg[{i}] = {self.user}->p;\n")
+                self.wrapper.add_declarations(f"  {self.user}->arg[{i}] = {self.user}->p;\n")
             else:
-                self.output_file.write(f"  {self.user}->arg[{i}] = {e};\n")
-        self.output_file.write(f"  {self.user}->res[0] = out;\n")
-        self.output_file.write(f"  mem = {f.name()}_checkout();\n")
-        self.output_file.write(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
-        self.output_file.write(f"  {f.name()}_release(mem);\n")
-        if False:# self.verbose:
-            for k in range(f.n_in()):
-                if "p_fixed" == f.name_in(k): continue
-                self.output_file.write(f"  printf(\"{f.name()[3:]} {f.name_in(k)}: \");\n")
-                self.output_file.write(f"""  for (int i=0;i<{f.numel_in(k)};++i) printf(\"%.18e \", {f.name_in(k)}{"" if scalar(f.name_in(k)) else "[i]"});\n""")
-                self.output_file.write(f"  printf(\"\\n\");\n")
-
-            self.output_file.write(f"  printf(\"{f.name()[3:]}: \");\n")
-            self.output_file.write(f"  for (int i=0;i<{f.numel_out(0)};++i) printf(\"%.18e \", out[i]);\n")
-            self.output_file.write(f"  printf(\"\\n\");\n")
-        self.output_file.write(f"}}\n")
+                self.wrapper.add_declarations(f"  {self.user}->arg[{i}] = {e};\n")
+        self.wrapper.add_declarations(f"  {self.user}->res[0] = out;\n")
+        self.wrapper.add_declarations(f"  mem = {f.name()}_checkout();\n")
+        self.wrapper.add_declarations(f"  {f.name()}({self.user}->arg, {self.user}->res, {self.user}->iw, {self.user}->w, mem);\n")
+        self.wrapper.add_declarations(f"  {f.name()}_release(mem);\n")
+        self.wrapper.add_declarations("}\n")
 
     def transcribe_phase1(self, stage, **kwargs):
 
@@ -213,31 +539,7 @@ class GrampcMethod(ExternalMethod):
                          "casadi_int sz_arg_local, sz_res_local, sz_iw_local, sz_w_local;",
                         ]
         self.postamble = []
-        self.output_file = open(f"{self.grampc_driver}.c", "w")
-        self.output_file.write(f"""
-        #include "{self.codegen_name}.h"
-        #include "grampc.h"
 
-        typedef struct cs_struct_def {{
-            const casadi_real** arg;
-            casadi_real** res;
-            casadi_int* iw;
-            casadi_real* w;
-            casadi_real* p;
-            typeGRAMPC* grampc;
-            casadi_real* x_opt;
-            casadi_real* u_opt;
-            casadi_real T_opt;
-            casadi_real* v_opt;
-            casadi_real* x_current;
-            casadi_real* umin;
-            casadi_real* umax;
-            casadi_real* u0;
-            casadi_real* v0;
-            casadi_real Tmin;
-            casadi_real Tmax;
-        }} cs_struct;
-    """)
         self.stage = stage
         self.opti = Opti()
 
@@ -248,13 +550,21 @@ class GrampcMethod(ExternalMethod):
         options["with_header"] = True
         self.codegen = CodeGenerator(f"{self.codegen_name}.c", options)
 
+        self.artifacts.append(SourceArtifact(f"{self.codegen_name}.c"))
+        self.artifacts.append(SourceArtifact(f"{self.codegen_name}.h"))
+
+        self.wrapper_codegen = MyCodeGenerator(self.grampc_driver)
+        self.wrapper_codegen.add_include(f"{self.codegen_name}.h")
+        self.artifacts.append(SourceArtifact(f"{self.grampc_driver}.c"))
+        self.wrapper = Wrapper(userparam=self.user_grampc)
+
         assert len(stage.variables['control'])==0, "variables defined on control grid not supported. Use controls instead."
 
         self.v = vvcat(stage.variables[''])
-        self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
-        self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
-        self.V_gist = MX.sym("V", *self.v.shape)
-        self.T_gist = MX.sym("T")
+        self.X_gist = [MX.sym("Xg", stage.nx) for k in range(self.N+1)]
+        self.U_gist = [MX.sym("Ug", stage.nu) for k in range(self.N)]
+        self.V_gist = MX.sym("Vg", *self.v.shape)
+        self.T_gist = MX.sym("Tg")
 
         assert f.numel_out("alg")==0
         assert f.numel_out("quad")==0
@@ -402,7 +712,7 @@ class GrampcMethod(ExternalMethod):
         M = DM(len(missing_rows), stage.nu)
         for i,e in enumerate(missing_rows):
             M[i,e] = 1
-        print(ub_expr,M)
+
         ub_expr = vertcat(ub_expr,M)
         ub_l = vertcat(ub_l,-INF*DM.ones(len(missing_rows)))
         ub_u = vertcat(ub_u,INF*DM.ones(len(missing_rows)))
@@ -448,8 +758,6 @@ class GrampcMethod(ExternalMethod):
             mc = opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
             lb,canon,ub = substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw)
 
-            print(lb,canon,ub)
-
             if has_t0:
                 # t0
                 check = is_linear(canon, stage.x)
@@ -478,13 +786,11 @@ class GrampcMethod(ExternalMethod):
             if mc.type == casadi.OPTI_EQUALITY:
                 eq_term.append(canon-ub)
             else:
-                print(lb,canon,ub)
                 assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY, casadi.OPTI_DOUBLE_INEQUALITY]
                 # Catch simple bounds on T
                 if self.free_time:
                     if is_linear(canon, stage.T) and not depends_on(canon, vertcat(stage.x, stage.u, self.v)):
                         J,c = linear_coeff(canon, stage.T)
-                        print(J,c)
                         if not ub_inf:
                             Tmax = fmin(Tmax, (ub-c)/J)
                         if not lb_inf:
@@ -502,17 +808,11 @@ class GrampcMethod(ExternalMethod):
 
         x0_eq = vcat(x0_eq)
         x0_b = vcat(x0_b)
-        x0_expr = casadi.solve(x0_eq, x0_b)
+        x0_expr = casadi.inv(evalf(x0_eq)) @ x0_b # casadi.solve(x0_eq, x0_b)
         m["x_current"] = export_vec(x0_expr)
 
         eq_term = vvcat(eq_term)
         ineq_term = vvcat(ineq_term)
-
-        print(ineq)
-        #raise Exception()
-        print("eq",eq_term)
-        print("ineq",ineq_term)
-
 
         gTfct = Function("cs_gTfct", [stage.T, stage.x, self.v, stage.p], [densify(eq_term)], ["T", "x", "p", "p_fixed"], ["out"])
         gTfct.disp(True)
@@ -521,7 +821,6 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(gTfct.factory("cs_dgTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
         self.gen_interface(gTfct.factory("cs_dgTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
-        print(ineq_term)
         hTfct = Function("cs_hTfct", [stage.T, stage.x, self.v, stage.p], [densify(ineq_term)], ["T", "x", "p", "p_fixed"], ["out"])
         hTfct.disp(True)
         self.gen_interface(hTfct)
@@ -529,12 +828,12 @@ class GrampcMethod(ExternalMethod):
         self.gen_interface(hTfct.factory("cs_dhTdp_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:p"]))
         self.gen_interface(hTfct.factory("cs_dhTdT_vec",["T", "x", "p", "adj:out", "p_fixed"],["densify:adj:T"]))
 
-
         args = [v[0] for v in m.values()]
-        self.mmap = Function('mmap',[stage.p],args,['p'],list(m.keys()))
+        self.pmap = Function('pmap',[stage.p],args,['p'],list(m.keys()))
+        self.codegen.add(self.pmap)
 
-        U0 = DM.zeros(stage.nu)
-        V0 = DM.zeros(self.v.numel())
+        self.U0 = U0 = DM.zeros(stage.nu)
+        self.V0 = V0 = DM.zeros(self.v.numel())
 
 
         for var, expr in stage._initial.items():
@@ -560,37 +859,8 @@ class GrampcMethod(ExternalMethod):
                 expr = reshape_number(var, expr)
                 if J.sparsity().get_col():
                     V0[J.sparsity().get_col()] = expr[J.row()]
-
-        self.output_file.write("""
-/** Additional functions required for semi-implicit systems 
-    M*dx/dt(t) = f(t0+t,x(t),u(t),p) using the solver RODAS 
-    ------------------------------------------------------- **/
-/** Jacobian df/dx in vector form (column-wise) **/
-void dfdx(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
-{
-}
-/** Jacobian df/dx in vector form (column-wise) **/
-void dfdxtrans(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
-{
-}
-/** Jacobian df/dt **/
-void dfdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *p, typeUSERPARAM *userparam)
-{
-}
-/** Jacobian d(dH/dx)/dt  **/
-void dHdxdt(typeRNum *out, ctypeRNum t, ctypeRNum *x, ctypeRNum *u, ctypeRNum *vec, ctypeRNum *p, typeUSERPARAM *userparam)
-{
-}
-/** Mass matrix in vector form (column-wise, either banded or full matrix) **/
-void Mfct(typeRNum *out, typeUSERPARAM *userparam)
-{
-}
-/** Transposed mass matrix in vector form (column-wise, either banded or full matrix) **/
-void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
-{
-}
-        """)
-        self.output_file.write(f"""
+        self.wrapper.add_declarations(
+        f"""
             /** OCP dimensions: states (Nx), controls (Nu), parameters (Np), equalities (Ng), 
             inequalities (Nh), terminal equalities (NgT), terminal inequalities (NhT) **/
             void ocp_dim(typeInt *Nx, typeInt *Nu, typeInt *Np, typeInt *Ng, typeInt *Nh, typeInt *NgT, typeInt *NhT, typeUSERPARAM *userparam)
@@ -606,10 +876,10 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         """)
 
 
-        self.output_file.write("void preamble(typeUSERPARAM* userparam) {\n")
+        self.wrapper.add_declarations("void preamble(typeUSERPARAM* userparam) {\n")
         for l in self.preamble:
-            self.output_file.write("  " + l + "\n")
-        self.output_file.write(f"""
+            self.wrapper.add_declarations("  " + l + "\n")
+        self.wrapper.add_declarations(f"""
         {self.user}->arg = malloc(sizeof(const casadi_real*)*sz_arg);
         {self.user}->res = malloc(sizeof(casadi_real*)*sz_res);
         {self.user}->iw = sz_iw>0 ? malloc(sizeof(casadi_int)*sz_iw) : 0;
@@ -624,40 +894,42 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         {self.user}->u0 = malloc(sizeof(casadi_real)*{max(stage.nu, 1)});
         {self.user}->v0 = malloc(sizeof(casadi_real)*{max(self.v.numel(), 1)});
         """)
-        self.output_file.write("}\n")
+        self.wrapper.add_declarations("}\n")
 
-        self.output_file.write("void postamble(typeUSERPARAM* userparam) {\n")
+        self.wrapper.add_declarations("void postamble(typeUSERPARAM* userparam) {\n")
         for l in self.postamble:
-            self.output_file.write("  " + l + "\n")
-        self.output_file.write(f"  free({self.user}->arg);\n")
-        self.output_file.write(f"  free({self.user}->res);\n")
-        self.output_file.write(f"  free({self.user}->iw);\n")
-        self.output_file.write(f"  free({self.user}->w);\n")
-        self.output_file.write(f"  free({self.user}->x_opt);\n")
-        self.output_file.write(f"  free({self.user}->u_opt);\n")
-        self.output_file.write(f"  free({self.user}->v_opt);\n")
-        self.output_file.write(f"  free({self.user}->x_current);\n")
-        self.output_file.write(f"  free({self.user}->p);\n")
-        self.output_file.write(f"  free({self.user}->umin);\n")
-        self.output_file.write(f"  free({self.user}->umax);\n")
-        self.output_file.write(f"  free({self.user}->u0);\n")
-        self.output_file.write(f"  free({self.user}->v0);\n")
-        self.output_file.write("}\n")   
+            self.wrapper.add_declarations("  " + l + "\n")
+        self.wrapper.add_declarations(f"""
+        free({self.user}->arg);
+        free({self.user}->res);
+        free({self.user}->iw);
+        free({self.user}->w);
+        free({self.user}->x_opt);
+        free({self.user}->u_opt);
+        free({self.user}->v_opt);
+        free({self.user}->x_current);
+        free({self.user}->p);
+        free({self.user}->umin);
+        free({self.user}->umax);
+        free({self.user}->u0);
+        free({self.user}->v0);
+        }}
+        """)
 
         nc = vertcat(eq,ineq,eq_term,ineq_term).numel()
-        self.output_file.write("typeGRAMPC* setup() {\n")
         vector_options = {"ConstraintsAbsTol": nc}
         for k, L in sorted(vector_options.items()):
             if k in self.grampc_options:
                 if isinstance(self.grampc_options[k],float):
                     self.grampc_options[k] = [self.grampc_options[k]]*L
-                self.output_file.write(f"""double {k}[{L}] = {{{strlist(self.grampc_options[k])}}};\n""")
+                self.wrapper.add_init_mem(f"""double {k}[{L}] = {{{strlist(self.grampc_options[k])}}};\n""")
 
 
         for k,v in stage._param_vals.items():
             self.set_value(stage, self, k, v)
 
-        res = self.mmap(p=self.P0)
+        res = self.pmap(p=self.P0)
+
         p = self.P0.nonzeros()
         x_current = res["x_current"].nonzeros()
         umax = res["umax"].nonzeros()
@@ -666,8 +938,7 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
         v0 = V0.nonzeros()
         Tmin = float(res["Tmin"])
         Tmax = float(res["Tmax"])
-        self.output_file.write(f"""
-            typeGRAMPC *grampc;
+        self.wrapper.add_init_mem(f"""
             int i;
             typeUSERPARAM* userparam = malloc(sizeof(cs_struct));
             double x0[{stage.nx}] = {{{strlist(x_current)}}};
@@ -706,99 +977,105 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             """)
 
         if self.free_time:
-            self.output_file.write(f"""
+            self.wrapper.add_init_mem(f"""
                 grampc_setparam_real(grampc, "Tmin", {Tmin});
                 grampc_setparam_real(grampc, "Tmax", {Tmax});
             """)
 
         for k,v in sorted(self.grampc_options.items()):
             if k in vector_options.keys():
-                self.output_file.write(f"grampc_setopt_real_vector(grampc, \"{k}\", {k});\n")
+                self.wrapper.add_init_mem(f"grampc_setopt_real_vector(grampc, \"{k}\", {k});\n")
             if isinstance(v, int):
-                self.output_file.write(f"grampc_setopt_int(grampc, \"{k}\", {v});\n")
+                self.wrapper.add_init_mem(f"grampc_setopt_int(grampc, \"{k}\", {v});\n")
             elif isinstance(v, float):
-                self.output_file.write(f"grampc_setopt_real(grampc, \"{k}\", {v});\n")
+                self.wrapper.add_init_mem(f"grampc_setopt_real(grampc, \"{k}\", {v});\n")
             elif isinstance(v, str):
-                self.output_file.write(f"grampc_setopt_string(grampc, \"{k}\", \"{v}\");\n")
+                self.wrapper.add_init_mem(f"grampc_setopt_string(grampc, \"{k}\", \"{v}\");\n")
 
 
-        self.output_file.write(f"""
+        self.wrapper.add_init_mem(f"""
             /********* estimate and set PenaltyMin *********/
             grampc_printopt(grampc);
             grampc_printparam(grampc);
             grampc_estim_penmin(grampc, 1);
         """)
         if self.verbose:
-            self.output_file.write(f"""
+            self.wrapper.add_init_mem(f"""
                 grampc_printopt(grampc);
                 grampc_printparam(grampc);
             """)
-        self.output_file.write(f"""
-            return grampc;
-        """)
-        self.output_file.write("}\n")
 
-        self.output_file.write(f"""
-            void write_Tmin(typeGRAMPC* grampc, casadi_real Tmin) {{
-                {self.user_grampc}->Tmin = Tmin;
-            }}
-            void write_Tmax(typeGRAMPC* grampc, casadi_real Tmax) {{
-                {self.user_grampc}->Tmax = Tmax;
-            }}
-            void write_umax(typeGRAMPC* grampc, const casadi_real* umax) {{
-                for (int i=0;i<{stage.nu};++i) {self.user_grampc}->umax[i] = umax[i];
-            }}
-            void write_umin(typeGRAMPC* grampc, const casadi_real* umin) {{
-                for (int i=0;i<{stage.nu};++i) {self.user_grampc}->umin[i] = umin[i];
-            }}
-            void write_p(typeGRAMPC* grampc, const casadi_real* p) {{
-                for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = p[i];
-            }}
-            void write_x_current(typeGRAMPC* grampc, const casadi_real* x_current) {{
-                for (int i=0;i<{stage.nx};++i) {self.user_grampc}->x_current[i] = x_current[i];
-            }}
-            void read_x_opt(typeGRAMPC* grampc, casadi_real* x_opt) {{
-                for (int i=0;i<{stage.nx*self.Nhor};++i) x_opt[i] = {self.user_grampc}->x_opt[i];
-            }}
-            void read_u_opt(typeGRAMPC* grampc, casadi_real* u_opt) {{
-                for (int i=0;i<{stage.nu*self.Nhor};++i) u_opt[i] = {self.user_grampc}->u_opt[i];
-            }}
-            void read_v_opt(typeGRAMPC* grampc, casadi_real* v_opt) {{
-                for (int i=0;i<{self.v.numel()};++i) v_opt[i] = {self.user_grampc}->v_opt[i];
-            }}
-            casadi_real read_T_opt(typeGRAMPC* grampc) {{
-                return {self.user_grampc}->T_opt;
-            }}
-            void get_stats(typeGRAMPC* grampc, casadi_real* obj, casadi_int* conv_grad, casadi_int* conv_con, casadi_int* Nouter, casadi_int* Ninner) {{
-                *obj = grampc->sol->J[0];
-                for (*Nouter=0,*Ninner=0;*Nouter<grampc->opt->MaxMultIter;++*Nouter) {{
-                    int n = grampc->sol->iter[*Nouter];
-                    *Ninner += n;
-                    if (n==0) break;
+        grampc = self.wrapper.codegen_mem(self.wrapper_codegen)
+        stats = self.user_grampc+"->stats"
+        self.wrapper.add_declarations(f"""
+            int grampc_driver_get_stats2(void) {{
+
                 }}
-
-                *conv_grad = convergence_test_gradient(grampc->opt->ConvergenceGradientRelTol, grampc);
-                *conv_con = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
+            const compat_solver_stats* grampc_driver_get_stats(void) {{
+                typeGRAMPC *grampc = {grampc};
+                static compat_solver_stats ret;
+                ret.n_sqp_iter = {stats}.n_outer_iter;
+                ret.n_qp_iter = {stats}.n_inner_iter;
+                ret.sqp_stop_crit = {stats}.conv_grad + 2*{stats}.conv_con;
+                return &ret;
             }}
-            """)
+        
+        """)
 
-        self.output_file.write("void solve(typeGRAMPC* grampc) {\n")
-        self.output_file.write(f"""
-            /* run grampc */
-            printf("Running GRAMPC!\\n");
-            printf("x0: ");
-            for (int i=0;i<{stage.nx};++i) printf("%.18e ", {self.user_grampc}->x_current[i]);
-            printf("\\n");
+
+        self.wrapper.set_sp_in([Sparsity.dense(stage.np)])
+        self.wrapper.set_name_in(["p"])
+
+        """
+        self.set_matrices()
+        self._solve(self.grampc)
+        x_opt = np.zeros((stage.nx, self.N+1),dtype=np.float64,order='F')
+        self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
+        u_opt = np.zeros((stage.nu, self.N+1),dtype=np.float64,order='F')
+        self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
+        print("u_opt",u_opt)
+        u_opt = u_opt[:,:-1]
+        v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
+        self._read_v_opt(self.grampc, v_opt.ctypes.data_as(POINTER(c_double)))
+        T_opt = self._read_T_opt(self.grampc)
+        obj = np.zeros((1),dtype=np.float64)
+        Nouter = np.zeros((1),dtype=np.int64)
+        Ninner = np.zeros((1),dtype=np.int64)
+        conv_grad = np.zeros((1),dtype=np.int64)
+        conv_con = np.zeros((1),dtype=np.int64)
+        """
+
+
+        self.wrapper.set_sp_out([Sparsity.dense(stage.nx, self.N+1), Sparsity.dense(stage.nu, self.N), Sparsity.dense(self.v.numel()), Sparsity.dense(1,1)])
+        self.wrapper.set_name_out(["x_opt","u_opt","v_opt","T_opt"])
+
+ 
+        self.wrapper.add_body(f"""
+            int mm;
+            const casadi_real ** pmap_arg = arg+{self.wrapper.n_in()};
+            casadi_real ** pmap_res = res+{self.wrapper.n_out()};
+            pmap_arg[0] = arg[0];
+
+            for (int i=0;i<{stage.np};++i) {self.user_grampc}->p[i] = pmap_arg[0][i];
+            """)
+        for i in range(self.pmap.n_out()):
+            n = self.pmap.name_out(i)
+            self.wrapper.add_body(f"""pmap_res[{i}] = {"&" if n.startswith("T") else ""}{self.user_grampc}->{n};\n""")
+
+        def lookup_out(name):
+            return "res[" + str(["x_opt","u_opt","v_opt","T_opt"].index(name))+"]"
+
+        self.wrapper.add_body(f"""
+            mm = pmap_checkout();
+            pmap(pmap_arg, pmap_res, iw, w, 0);
+            pmap_release(mm);
+
             grampc_setparam_real_vector(grampc, "x0", {self.user_grampc}->x_current);
             grampc_setparam_real_vector(grampc, "umin", {self.user_grampc}->umin);
             grampc_setparam_real_vector(grampc, "umax", {self.user_grampc}->umax);
-        """)
-        if self.free_time:
-            self.output_file.write(f"""
-                grampc_setparam_real(grampc, "Tmin", {self.user_grampc}->Tmin);
-                grampc_setparam_real(grampc, "Tmax", {self.user_grampc}->Tmax);
-            """)
-        self.output_file.write(f"""
+            grampc_setparam_real(grampc, "Tmin", {self.user_grampc}->Tmin);
+            grampc_setparam_real(grampc, "Tmax", {self.user_grampc}->Tmax);
+
             grampc_run(grampc);
             grampc_printstatus(grampc->sol->status, STATUS_LEVEL_DEBUG);
 
@@ -816,36 +1093,38 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
                 {self.user_grampc}->v_opt[i] = grampc->rws->p[i]*grampc->opt->pScale[i]+grampc->opt->pOffset[i];
             }}
             {self.user_grampc}->T_opt = grampc->rws->T;
-            printf("J %f %f\\n",grampc->sol->J[0],grampc->sol->J[1]);
+            printf("J %f %f %f\\n",grampc->sol->J[0],grampc->sol->J[1],{self.user_grampc}->x_opt[0]);
 
+            if ({lookup_out("x_opt")}) for (int i=0;i<{stage.nx*self.Nhor};++i) {lookup_out("x_opt")}[i] = {self.user_grampc}->x_opt[i];
+            if ({lookup_out("u_opt")}) for (int i=0;i<{stage.nu*self.N};++i) {lookup_out("u_opt")}[i] = {self.user_grampc}->u_opt[i];
+            if ({lookup_out("v_opt")}) for (int i=0;i<{self.v.numel()};++i) {lookup_out("v_opt")}[i] = {self.user_grampc}->v_opt[i];
+            if ({lookup_out("T_opt")}) {lookup_out("T_opt")}[0] = {self.user_grampc}->T_opt;
+
+            for ({self.user_grampc}->stats.n_outer_iter=0,{self.user_grampc}->stats.n_inner_iter=0;{self.user_grampc}->stats.n_outer_iter<grampc->opt->MaxMultIter;++{self.user_grampc}->stats.n_outer_iter) {{
+                int n = grampc->sol->iter[{self.user_grampc}->stats.n_outer_iter];
+                {self.user_grampc}->stats.n_inner_iter += n;
+                if (n==0) break;
+            }}
+
+            {self.user_grampc}->stats.conv_grad = convergence_test_gradient(grampc->opt->ConvergenceGradientRelTol, grampc);
+            {self.user_grampc}->stats.conv_con = convergence_test_constraints(grampc->opt->ConstraintsAbsTol, grampc);
 
         """)
-        self.output_file.write("}\n")
-
-
-        self.output_file.write("void destroy(typeGRAMPC* grampc) {\n")
-        self.output_file.write(f"""
-            postamble(grampc->userparam);
-            free(grampc->userparam);
-
-        """)
-        self.output_file.write("}\n")
-
-        self.output_file.write("int main() {\n")
-        self.output_file.write(f"""
-            typeGRAMPC* s = setup();
-            solve(s);
-            destroy(s);
-        """)
-        self.output_file.write("}\n")
         
-     
+        build_dir_abs = "foobar"
+        self.build_dir_abs = build_dir_abs
+        prepare_build_dir(build_dir_abs)
 
-        self.output_file.close()
-        self.codegen.generate()
+        self.codegen.generate(build_dir_abs+os.sep)
+
+        self.wrapper_codegen.add_dependency(self.wrapper)
+        self.wrapper_codegen.generate(build_dir_abs+os.sep)
+
         
-
-        build_dir_abs = "."
+        for e in glob.glob("/home/jgillis/programs/grampc-code/include/*.h"):
+            self.artifacts.append(SourceArtifact(e))
+        for e in glob.glob("/home/jgillis/programs/grampc-code/src/*.c"):
+            self.artifacts.append(SourceArtifact(e))
 
         cmake_file_name = os.path.join(build_dir_abs,"CMakeLists.txt")
         with open(cmake_file_name,"w") as out:
@@ -868,12 +1147,12 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             target_include_directories(grampc INTERFACE ${{GRAMPC_INCLUDE_DIR}})
 
             add_library({self.grampc_driver} SHARED {self.grampc_driver}.c {self.codegen_name}.c)
-            add_executable({self.grampc_driver}_main {self.grampc_driver}.c {self.codegen_name}.c)
+            #add_executable({self.grampc_driver}_main {self.grampc_driver}.c {self.codegen_name}.c)
             
             target_link_libraries({self.grampc_driver} grampc)
-            target_link_libraries({self.grampc_driver}_main grampc)
+            #target_link_libraries({self.grampc_driver}_main grampc)
 
-            install(TARGETS {self.grampc_driver} {self.grampc_driver}_main RUNTIME DESTINATION . LIBRARY DESTINATION .)
+            install(TARGETS {self.grampc_driver} RUNTIME DESTINATION . LIBRARY DESTINATION .)
 
             """)
         cmake_file_name = os.path.join(build_dir_abs,"build.bat")
@@ -891,87 +1170,60 @@ void Mtrans(typeRNum *out, typeUSERPARAM *userparam)
             cmake --build build
             cmake --install build --prefix .
             """)
-        subprocess.run(["bash","build.sh"])
-            
-        # PyDLL instead of CDLL to keep GIL:
-        # virtual machine emits Python prints
+        subprocess.run(["bash","build.sh"],cwd=build_dir_abs)
+
         if os.name == "nt":
             libname = self.grampc_driver+".dll"
         else:
             libname = "lib"+self.grampc_driver+".so"
-        self.lib = PyDLL(os.path.join(build_dir_abs,libname))
+        self.solver = external(self.grampc_driver, libname)
 
-        # Type aliases
-        m_type = c_void_p
-        CONST = lambda x: x
+    def to_function(self, stage, name, args, results, *margs):
+        print("args=",args)
 
-        self._register("setup",[], m_type)
-        self._register("destroy",[m_type], m_type)
-        self._register("solve",[m_type], m_type)
-        self._register("read_x_opt",[m_type, POINTER(c_double)], m_type)
-        self._register("read_u_opt",[m_type, POINTER(c_double)], m_type)
-        self._register("read_v_opt",[m_type, POINTER(c_double)], m_type)
-        self._register("read_T_opt",[m_type], c_double)
-        self._register("get_stats",[m_type, POINTER(c_double), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong), POINTER(c_longlong)], m_type)
-        self._register("write_p",[m_type, POINTER(c_double)], m_type)
-        self._register("write_umax",[m_type, POINTER(c_double)], m_type)
-        self._register("write_umin",[m_type, POINTER(c_double)], m_type)
-        self._register("write_Tmin",[m_type, c_double], m_type)
-        self._register("write_Tmax",[m_type, c_double], m_type)
-        self._register("write_x_current",[m_type, POINTER(c_double)], m_type)
-        self.grampc = self._setup()
+        res = self.solver(p=stage.p)
+        print(stage.p)
+        print([stage.value(a) for a in args])
 
-    def set_matrices(self):
-        P0 = np.array(self.P0)
 
-        res = self.mmap(p=self.P0)
+        [_,states] = stage.sample(stage.x,grid='control')
+        [_,controls] = stage.sample(stage.u,grid='control-')
+        variables = stage.value(vvcat(stage.variables['']))
 
-        self._write_p(self.grampc, P0.ctypes.data_as(POINTER(c_double)))
-        x_current = np.array(res["x_current"])
-        self._write_x_current(self.grampc, x_current.ctypes.data_as(POINTER(c_double)))
-        umax = np.array(res["umax"])
-        self._write_umax(self.grampc, umax.ctypes.data_as(POINTER(c_double)))
-        umin = np.array(res["umin"])
-        self._write_umin(self.grampc, umin.ctypes.data_as(POINTER(c_double)))
-        self._write_Tmin(self.grampc, float(res["Tmin"]))
-        self._write_Tmax(self.grampc, float(res["Tmax"]))
+        helper_in = [states,controls,variables, stage.T]
+        helper = Function("helper", helper_in, results)
 
-    def __del__(self):
-        if hasattr(self,'_destroy'):
-            self._destroy(self.grampc)
+        arg_in = helper(res["x_opt"],res["u_opt"],res["v_opt"],res["T_opt"])
+
+        ret = Function(name, args, arg_in, *margs)
+        assert not ret.has_free()
+        return ret
+
+    def initial_value(self, stage, expr):
+        ret = self.pmap(p=self.P0)
+        parameters = []
+        for p in stage.parameters['']:
+            parameters.append(stage.value(p))
+        
+        [_,states] = stage.sample(stage.x,grid='control')
+        [_,controls] = stage.sample(stage.u,grid='control-')
+        variables = stage.value(vvcat(stage.variables['']))
+
+        helper_in = [vvcat(parameters),states,controls,variables, stage.T]
+        helper = Function("helper", helper_in, [expr])
+        return helper(self.P0, cs.repmat(ret["x_current"], 1, self.N+1), cs.repmat(self.U0, 1, self.N), self.V0, 0).toarray(simplify=True)
 
     def solve(self, stage,limited=False):
-        self.set_matrices()
-        self._solve(self.grampc)
-        x_opt = np.zeros((stage.nx, self.N+1),dtype=np.float64,order='F')
-        self._read_x_opt(self.grampc, x_opt.ctypes.data_as(POINTER(c_double)))
-        u_opt = np.zeros((stage.nu, self.N+1),dtype=np.float64,order='F')
-        self._read_u_opt(self.grampc, u_opt.ctypes.data_as(POINTER(c_double)))
-        print("u_opt",u_opt)
-        u_opt = u_opt[:,:-1]
-        v_opt = np.zeros((self.v.numel()),dtype=np.float64,order='F')
-        self._read_v_opt(self.grampc, v_opt.ctypes.data_as(POINTER(c_double)))
-        T_opt = self._read_T_opt(self.grampc)
-        obj = np.zeros((1),dtype=np.float64)
-        Nouter = np.zeros((1),dtype=np.int64)
-        Ninner = np.zeros((1),dtype=np.int64)
-        conv_grad = np.zeros((1),dtype=np.int64)
-        conv_con = np.zeros((1),dtype=np.int64)
+        ret = self.solver(p=self.P0)
 
-        self._get_stats(self.grampc, obj.ctypes.data_as(POINTER(c_double)), conv_grad.ctypes.data_as(POINTER(c_longlong)), conv_con.ctypes.data_as(POINTER(c_longlong)), Nouter.ctypes.data_as(POINTER(c_longlong)), Ninner.ctypes.data_as(POINTER(c_longlong)))
-        conv_grad = bool(conv_grad[0])
-        conv_con = bool(conv_con[0])
-        Ninner = Ninner[0]
-        Nouter = Nouter[0]
-        conv = conv_grad and conv_con
-        print(obj,conv_grad,conv_con,conv,Ninner,Nouter)
-        self.last_solution = OcpSolution(SolWrapper(self, vec(x_opt), vec(u_opt), v_opt, T_opt, rT=stage.T), stage)
-        if not conv:
+        self.last_solution = OcpSolution(SolWrapper(self, vec(ret["x_opt"]), vec(ret["u_opt"]), ret["v_opt"], ret["T_opt"], rT=stage.T), stage)
+        """if not conv:
             if Nouter==self.grampc_options["MaxMultIter"]:
                 if not limited:
                     raise Exception("MaxMultIter exhausted without meeting convergence criteria")
             else:
                 raise Exception("Problem not converged")
+                """
         return self.last_solution
 
     def non_converged_solution(self, stage):
