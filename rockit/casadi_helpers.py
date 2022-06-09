@@ -282,4 +282,86 @@ def for_all_primitives(expr, rhs, callback, msg, rhs_type=MX):
             offset += p.nnz()
     else:
         raise Exception(msg)
-        
+
+class Node:
+  def __init__(self,val):
+    self.val = val
+    self.nodes = []
+
+class AutoBrancher:
+  OPEN = 0
+  DONE = 1
+  def __init__(self):
+    self.root = Node(AutoBrancher.OPEN)
+    self.trace = [self.root]
+
+  @property
+  def current(self):
+    return self.trace[-1]
+
+  def branch(self, alternatives = [True, False]):
+    alternatives = list(alternatives)
+    nodes = self.current.nodes
+    if len(nodes)==0:
+      nodes += [None]*len(alternatives)
+    for i,n in enumerate(nodes):
+      if n is None:
+        nodes[i] = Node(AutoBrancher.OPEN)
+        self.trace.append(nodes[i])
+        self.this_branch.append(alternatives[i])
+        return alternatives[i]
+      else:
+        if n.val == AutoBrancher.OPEN:
+          self.trace.append(nodes[i])
+          self.this_branch.append(alternatives[i])
+          return alternatives[i]
+
+  def __iter__(self):
+    cnt = 0
+    
+    while self.root.val==AutoBrancher.OPEN:
+      self.this_branch = []
+      cnt+=1
+      yield self
+      # Indicate that current leaf is done
+      self.current.val = AutoBrancher.DONE
+      # Close leaves when subleaves are done
+      for n in reversed(self.trace[:-1]):
+        finished = True
+        for e in n.nodes:
+          finished = finished and e and e.val==AutoBrancher.DONE
+        if finished:
+          n.val = AutoBrancher.DONE
+      # Reset trace
+      self.trace = [self.root]
+      print("Evaluated branch",self.this_branch)
+    print("Evaluated",cnt,"branches")
+
+def vvcat(arg):
+    if len(arg)==0:
+        return cs.MX(0,1)
+    else:
+        return cs.vvcat(arg)
+
+def vcat(arg):
+    if len(arg)==0:
+        return cs.MX(0,1)
+    else:
+        return cs.vcat(arg)
+
+def prepare_build_dir(build_dir_abs):
+    import os
+    import shutil
+    os.makedirs(build_dir_abs,exist_ok=True)
+    # Clean directory (but do not delete it,
+    # since this confuses open shells in Linux (e.g. bash, Matlab)
+    for filename in os.listdir(build_dir_abs):
+      file_path = os.path.join(build_dir_abs, filename)
+      try:
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+          os.unlink(file_path)
+        elif os.path.isdir(file_path):
+          shutil.rmtree(file_path)
+      except:
+        pass
+    
