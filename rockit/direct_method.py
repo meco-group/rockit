@@ -37,6 +37,7 @@ class DirectMethod:
         self._solver = None
         self._solver_options = None
         self._callback = None
+        self.artifacts = []
 
     def jacobian(self, with_label=False):
         J = jacobian(self.opti.g, self.opti.x).sparsity()
@@ -147,6 +148,9 @@ class DirectMethod:
 
     def show_infeasibilities(self, *args):
         self.opti.debug.show_infeasibilities(*args)
+
+    def initial_value(self, stage, expr):
+        return self.opti.value(expr, self.opti.initial())
 
     @property
     def gist(self):

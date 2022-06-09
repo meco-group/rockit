@@ -1393,6 +1393,17 @@ class Stage:
         return placeholders(self._method.eval(self, expr))
 
     @transcribed
+    def initial_value(self, expr):
+        """Get the value of an expression at initial guess
+
+        Parameters
+        ----------
+        expr : :obj:`casadi.MX`
+            Arbitrary expression containing no signals (states, controls) ...
+        """
+        return self._method.initial_value(self, expr)
+
+    @transcribed
     def discrete_system(self):
         """Hack"""
         return self._method.discrete_system(self)
