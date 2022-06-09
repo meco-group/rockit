@@ -26,7 +26,6 @@ import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
 from .solution import OcpSolution
 from .freetime import FreeTime
-from .code_generator import CasadiWrapperCodeGenerator
 
 class DirectMethod:
     """
@@ -199,10 +198,6 @@ class DirectMethod:
 
     def fill_placeholders_t(self, phase, stage, expr, *args):
         return None
-
-    @property
-    def code_generator_class(self):
-        return CasadiWrapperCodeGenerator
 
 
 from casadi import substitute
