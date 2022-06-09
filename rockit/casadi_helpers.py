@@ -350,3 +350,20 @@ def vcat(arg):
         return cs.MX(0,1)
     else:
         return cs.vcat(arg)
+
+def prepare_build_dir(build_dir_abs):
+    import os
+    import shutil
+    os.makedirs(build_dir_abs,exist_ok=True)
+    # Clean directory (but do not delete it,
+    # since this confuses open shells in Linux (e.g. bash, Matlab)
+    for filename in os.listdir(build_dir_abs):
+      file_path = os.path.join(build_dir_abs, filename)
+      try:
+        if os.path.isfile(file_path) or os.path.islink(file_path):
+          os.unlink(file_path)
+        elif os.path.isdir(file_path):
+          shutil.rmtree(file_path)
+      except:
+        pass
+    
