@@ -161,6 +161,11 @@ Debugging:
 In the long run, we aim to add a bunch of interfaces to [third-party dynamic optimization solvers](https://github.com/meco-group/dynamic_optimization_inventory/blob/main/list.csv).
 At the moment, the following solvers are interfaced:
  * [acados](https://github.com/acados/acados) -- [examples](https://gitlab.kuleuven.be/meco-software/rockit/-/tree/master/rockit/external/acados/examples)
+ * [grampc](https://sourceforge.net/projects/grampc/) -- [examples](https://gitlab.kuleuven.be/meco-software/rockit-plugin-grampc/-/tree/main/examples)
+
+Installation when using rockit from git
+ * `git submodule update --init --recursive`
+ * Windows only: install Visual Studio (2019 or 2022) with the following components: `MSBuild`,`MSVC C++ x64/x86 build tools`,`C++ Cmake tools`,`C++/CLI support`
  
 # Presentations
 

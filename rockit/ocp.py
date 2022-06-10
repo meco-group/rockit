@@ -19,10 +19,10 @@
 #     Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
 #
 #
-
-from casadi import vertcat, vcat, vvcat, which_depends, MX, substitute, integrator, Function, depends_on
+from casadi import vertcat, vcat, which_depends, MX, substitute, integrator, Function, depends_on
 from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
+from .casadi_helpers import vvcat
 
 class Ocp(Stage):
     def __init__(self,  t0=0, T=1, **kwargs):

@@ -20,6 +20,7 @@
 #
 #
 
+import casadi as cs
 from casadi import *
 from collections import defaultdict, OrderedDict
 
@@ -282,6 +283,7 @@ def for_all_primitives(expr, rhs, callback, msg, rhs_type=MX):
             offset += p.nnz()
     else:
         raise Exception(msg)
+        
 
 class Node:
   def __init__(self,val):
