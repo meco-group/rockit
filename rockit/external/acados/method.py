@@ -59,6 +59,13 @@ class AcadosMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
 
+    def fill_placeholders_integral(self, phase, stage, expr, *args):
+        if phase==1:
+            I = stage.state()
+            stage.set_der(I, expr)
+            stage.subject_to(stage.at_t0(I)==0)
+            return stage.at_tf(I)
+
     def transcribe_phase1(self, stage, **kwargs):
         self.stage = stage
         self.ocp = ocp = AcadosOcp()
