@@ -21,7 +21,7 @@
 #
 
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vec
 import numpy as np
 
 from .casadi_helpers import vcat
@@ -33,13 +33,13 @@ class MultipleShooting(SamplingMethod):
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.states]))
+        self.X.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.states]))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.controls]) if stage.nu>0 else MX(0,1))
+            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.add_variables_V_control(stage, opti, k)
-            self.X.append(vcat([opti.variable(s.numel(), scale=stage._scale[s]) for s in stage.states]))
+            self.X.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.states]))
             
 
         self.add_variables_V_control_finalize(stage, opti)
