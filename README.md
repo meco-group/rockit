@@ -165,8 +165,7 @@ At the moment, the following solvers are interfaced:
 
 Installation when using rockit from git
  * `git submodule update --init --recursive`
- * Windows only: install Visual Studio 2019 with Command Line Tools and Cmake.
-   Check that `C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat` exists. If it doesn't, set teh env variable VCVARS to a similar but valid path.
+ * Windows only: install Visual Studio (2019 or 2022) with the following components: `MSBuild`,`MSVC C++ x64/x86 build tools`,`C++ Cmake tools`,`C++/CLI support`
  
 # Presentations
 
