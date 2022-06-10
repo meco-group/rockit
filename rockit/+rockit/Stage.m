@@ -233,6 +233,7 @@ classdef Stage < handle
       %             over the whole optimal control horizon.
       %             For MultipleShooting, 'control' can be used to
       %             declare a variable that is unique to every control interval.
+      %             include_last determines if a unique entry is foreseen at the tf edge.
       % 
       % 
       %         Returns
@@ -302,6 +303,7 @@ classdef Stage < handle
       %             over the whole optimal control horizon. 
       %             For MultipleShooting, 'control' can be used to
       %             declare a parameter that is unique to every control interval.
+      %             include_last determines if a unique entry is foreseen at the tf edge.
       % 
       %         Returns
       %         -------
@@ -583,7 +585,7 @@ classdef Stage < handle
     end
     function varargout = sum(obj,varargin)
       % Compute a sum
-      % Arguments: expr, grid=inf
+      % Arguments: expr, grid=control, include_last=False
       % 
       %         Parameters
       %         ----------
@@ -591,12 +593,11 @@ classdef Stage < handle
       %             An expression to integrate over the state time domain (from t0 to tf=t0+T)
       %         grid : str
       %             Possible entries:
-      %                 inf: the integral is performed using the integrator defined for the stage
       %                 control: the integral is evaluated as a sum on the control grid (start of each control interval)
       %                          Note that the final state is not included in this definition
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','grid'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','grid','include_last'});
       if isempty(kwargs)
         res = obj.parent.sum(args{:});
       else

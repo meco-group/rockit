@@ -80,11 +80,9 @@ ocp.subject_to(sumsqr(p-p0)>=r0**2)
 ocp.add_objective(ocp.T)
 
 # Define previous control
-waypoints = ocp.parameter(2, grid='control')
-waypoint_last = ocp.parameter(2)
+waypoints = ocp.parameter(2, grid='control',include_last=True)
 
-ocp.add_objective(ocp.sum(sumsqr(p-waypoints), grid='control'))
-ocp.add_objective(sumsqr(ocp.at_tf(p)-waypoint_last))
+ocp.add_objective(ocp.sum(sumsqr(p-waypoints), grid='control',include_last=True))
 
 N = 40
 
@@ -92,8 +90,7 @@ N = 40
 # ocp.set_value(waypoints, wp)
 
 wp = horzcat(0.25*sin(np.linspace(0, 2*pi, N+1)), np.linspace(0, 1, N+1)**2*10).T
-ocp.set_value(waypoints, wp[:,:-1])
-ocp.set_value(waypoint_last,wp[:,-1])
+ocp.set_value(waypoints, wp)
 
 # Pick a solution method
 ocp.solver('ipopt')

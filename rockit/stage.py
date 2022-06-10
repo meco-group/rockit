@@ -260,7 +260,7 @@ class Stage:
         self._set_transcribed(False)
         return z
 
-    def variable(self, n_rows=1, n_cols=1, grid = '', scale=1, meta=None):
+    def variable(self, n_rows=1, n_cols=1, grid = '', scale=1, include_last=False, meta=None):
         """Create a variable
 
         Variables are unknowns in the Optimal Control problem
@@ -277,6 +277,7 @@ class Stage:
             over the whole optimal control horizon.
             For MultipleShooting, 'control' can be used to
             declare a variable that is unique to every control interval.
+            include_last determines if a unique entry is foreseen at the tf edge.
 
 
         Returns
@@ -296,20 +297,22 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         v = MX.sym("v"+str(np.random.random(1)), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_variable(v, grid=grid, scale=scale, meta=meta)
+        return self.register_variable(v, grid=grid, scale=scale, meta=meta, include_last=include_last)
 
-    def register_variable(self, v, grid = '', scale=1, meta=None):
+    def register_variable(self, v, grid = '', scale=1, include_last=False, meta=None):
         if isinstance(v, list):
             for e in v:
                 self.register_variable(e, scale=scale)
             return
         self._meta[v] = merge_meta(meta, get_meta())
         self._scale[v] = self._parse_scale(v, scale)
+        if include_last:
+            grid+="+"
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
 
-    def parameter(self, n_rows=1, n_cols=1, grid = '', scale=1, meta=None):
+    def parameter(self, n_rows=1, n_cols=1, grid = '', scale=1, include_last=False, meta=None):
         """Create a parameter
 
         Parameters are symbols of an Optimal COntrol problem
@@ -332,6 +335,7 @@ class Stage:
             over the whole optimal control horizon. 
             For MultipleShooting, 'control' can be used to
             declare a parameter that is unique to every control interval.
+            include_last determines if a unique entry is foreseen at the tf edge.
 
         Returns
         -------
@@ -350,15 +354,17 @@ class Stage:
         # Create a placeholder symbol with a dummy name (see #25)
         p = MX.sym("p", n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_parameter(p, grid=grid, scale=scale, meta=meta)
+        return self.register_parameter(p, grid=grid, scale=scale, include_last=include_last, meta=meta)
 
-    def register_parameter(self, p, grid='', scale=1, meta=None):
+    def register_parameter(self, p, grid='', scale=1, include_last=False, meta=None):
         if isinstance(p,list):
             for e in p:
                 self.register_parameter(e, scale=scale)
             return
         self._meta[p] = merge_meta(meta, get_meta())
         self._scale[p] = self._parse_scale(p, scale)
+        if include_last:
+            grid+="+"
         self.parameters[grid].append(p)
         self._set_transcribed(False)
         return p
@@ -585,7 +591,7 @@ class Stage:
         else:
             return self._create_placeholder_expr(expr, 'integral_control')
 
-    def sum(self, expr, grid='inf'):
+    def sum(self, expr, grid='control', include_last=False):
         """Compute a sum
 
         Parameters
@@ -594,11 +600,13 @@ class Stage:
             An expression to integrate over the state time domain (from t0 to tf=t0+T)
         grid : str
             Possible entries:
-                inf: the integral is performed using the integrator defined for the stage
                 control: the integral is evaluated as a sum on the control grid (start of each control interval)
                          Note that the final state is not included in this definition
         """
-        return self._create_placeholder_expr(expr, 'sum_control')
+        if include_last:
+            return self._create_placeholder_expr(expr, 'sum_control_plus')
+        else:
+            return self._create_placeholder_expr(expr, 'sum_control') 
 
     def offset(self, expr, offset):
         """Get the value of a signal at control interval current+offset
@@ -828,12 +836,12 @@ class Stage:
 
     @property
     def p(self):
-        arg = self.parameters['']+self.parameters['control']
+        arg = self.parameters['']+self.parameters['control']+self.parameters['control+']
         return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
     def v(self):
-        return vvcat(self.variables['']+self.variables['control'])
+        return vvcat(self.variables['']+self.variables['control']+self.variables['control+'])
 
     @property
     def nx(self):
@@ -869,11 +877,11 @@ class Stage:
 
     @property
     def _scale_p(self):
-        return vvcat([self._scale[p] for p in self.parameters['']+self.parameters['control']])
+        return vvcat([self._scale[p] for p in self.parameters['']+self.parameters['control']+self.parameters['control+']])
 
     @property
     def _scale_v(self):
-        return vvcat([self._scale[v] for v in self.variables['']+self.variables['control']])
+        return vvcat([self._scale[v] for v in self.variables['']+self.variables['control']+self.variables['control+']])
 
     @property
     def gist(self):
@@ -897,7 +905,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.parameters['control']), vcat(self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.parameters['control']+self.parameters['control+']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def is_parametric(self, expr):
         """Does the expression depend only on parameters?
@@ -908,7 +916,7 @@ class Stage:
 
         """
  
-        return not depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['']+self.variables['control']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return not depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['']+self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def _create_placeholder_expr(self, expr, callback_name):
         """
@@ -1055,6 +1063,10 @@ class Stage:
             p = veccat(*self.parameters['control'])
             subst_from.append(p)
             subst_to.append(kwargs["p_control"])
+        if "p_control_plus" in kwargs and self.parameters['control+']:
+            p = veccat(*self.parameters['control+'])
+            subst_from.append(p)
+            subst_to.append(kwargs["p_control_plus"])
         if "v" in kwargs and self.variables['']:
             v = veccat(*self.variables[''])
             subst_from.append(v)
@@ -1063,6 +1075,10 @@ class Stage:
             v = veccat(*self.variables['control'])
             subst_from.append(v)
             subst_to.append(kwargs["v_control"])
+        if "v_control_plus" in kwargs and self.variables['control+']:
+            v = veccat(*self.variables['control+'])
+            subst_from.append(v)
+            subst_to.append(kwargs["v_control_plus"])
         if "v_states" in kwargs and self.variables['states']:
             v = veccat(*self.variables['states'])
             subst_from.append(v)

@@ -74,18 +74,14 @@ ocp.subject_to(sumsqr(p-p0)>=r0^2);
 ocp.add_objective(ocp.T);
 
 % Define previous control
-waypoints = ocp.parameter(2, 'grid','control');
-waypoint_last = ocp.parameter(2);
+waypoints = ocp.parameter(2, 'grid','control','include_last',true);
 
-ocp.add_objective(ocp.sum(sumsqr(p-waypoints), 'grid','control'));
-ocp.add_objective(sumsqr(ocp.at_tf(p)-waypoint_last));
+ocp.add_objective(ocp.sum(sumsqr(p-waypoints), 'grid','control','include_last',true));
 
 N = 40;
 
-
 wp = [0.25*sin(linspace(0, 2*pi, N+1)); linspace(0, 1, N+1).^2*10];
-ocp.set_value(waypoints, wp(:,1:end-1));
-ocp.set_value(waypoint_last,wp(:,end));
+ocp.set_value(waypoints, wp);
 
 % Pick a solution method
 ocp.solver('ipopt');

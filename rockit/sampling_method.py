@@ -250,8 +250,10 @@ class SamplingMethod(DirectMethod):
         self.P = []
         self.V = None
         self.V_control = []
+        self.V_control_plus = []
         self.V_states = []
         self.P_control = []
+        self.P_control_plus = []
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
         self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
@@ -471,6 +473,13 @@ class SamplingMethod(DirectMethod):
             r = r + self.eval_at_control(stage, expr, k)
         return r
 
+    def fill_placeholders_sum_control_plus(self, phase, stage, expr, *args):
+        if phase==1: return
+        r = 0
+        for k in list(range(self.N))+[-1]:
+            r = r + self.eval_at_control(stage, expr, k)
+        return r
+
     def placeholders_next(self, stage, expr, *args):
         self.eval_at_control(stage, expr, k+1)
 
@@ -498,10 +507,13 @@ class SamplingMethod(DirectMethod):
     def add_variables_V_control(self, stage, opti, k):
         if k==0:
             self.V_control = [[] for v in stage.variables['control']]
+            self.V_control_plus = [[] for v in stage.variables['control+']]
             for i, v in enumerate(stage.variables['states']):
                 self.V_states.append([opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v])])
         for i, v in enumerate(stage.variables['control']):
             self.V_control[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+        for i, v in enumerate(stage.variables['control+']):
+            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         for i, v in enumerate(stage.variables['states']):
             self.V_states[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
 
@@ -509,6 +521,8 @@ class SamplingMethod(DirectMethod):
         self.T_local[k] = self.time_grid.get_T_local(opti, k, self.T, self.N)
 
     def add_variables_V_control_finalize(self, stage, opti):
+        for i, v in enumerate(stage.variables['control+']):
+            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         if self.time_grid.localize_t0:
             self.t0_local[self.N] = opti.variable()
             self.control_grid = hcat(self.t0_local)
@@ -536,11 +550,17 @@ class SamplingMethod(DirectMethod):
     def get_v_control_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_control])
 
+    def get_p_control_plus_at(self, stage, k=-1):
+        return veccat(*[p[k] for p in self.P_control_plus])
+
+    def get_v_control_plus_at(self, stage, k=-1):
+        return veccat(*[v[k] for v in self.V_control_plus])
+
     def get_v_states_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_states])
 
     def get_p_sys(self, stage, k):
-        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.V, self.get_v_control_at(stage, k))
+        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k))
 
     def eval(self, stage, expr):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
@@ -569,7 +589,7 @@ class SamplingMethod(DirectMethod):
             subst_to.append(self._eval_at_control(stage, vvcat(offsets[offset]), k+offset))
             #print(expr, subst_from, subst_to)
 
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k])
         expr = stage.master._method.eval_top(stage.master, expr)
         #print("expr",expr)
         return expr
@@ -580,49 +600,17 @@ class SamplingMethod(DirectMethod):
         u = self.U[-1] if k==len(self.U) else self.U[k] # Would be fixed if we remove the (k=-1 case)
         p_control = self.get_p_control_at(stage, k) if k!=len(self.U) else self.get_p_control_at(stage, k-1)
         v_control = self.get_v_control_at(stage, k) if k!=len(self.U) else self.get_v_control_at(stage, k-1)
+        p_control_plus = self.get_p_control_plus_at(stage, k)
+        v_control_plus = self.get_v_control_plus_at(stage, k)
         v_states = self.get_v_states_at(stage, k)
         t = self.control_grid[k]
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=self.q if k==-1 else nan, u=u, p_control=p_control, v=self.V, p=veccat(*self.P), v_control=v_control,  v_states=v_states, t=t)
-        kwargs = dict(t0=self.t0, T=self.T, v=self.V, p=veccat(*self.P))
-        try:
-            kwargs["x"] = self.X[k]
-        except IndexError:
-            pass
-        try:
-            kwargs["z"] = self.Z[k] if self.Z else nan
-        except IndexError:
-            pass
-        try:
-            kwargs["xq"] = self.q if k==-1 else nan
-        except IndexError:
-            pass
-        try:
-            kwargs["u"] = self.U[k]
-        except IndexError:
-            pass
-        try:
-            kwargs["p_control"] = self.get_p_control_at(stage, k)
-        except IndexError:
-            pass
-        try:
-            kwargs["v_control"] = self.get_v_control_at(stage, k)
-        except IndexError:
-            pass
-        try:
-            kwargs["v_states"] = self.get_v_states_at(stage, k)
-        except IndexError:
-            pass
-        try:
-            kwargs["t"] = self.control_grid[k]
-        except IndexError:
-            pass
-        return stage._expr_apply(expr, **kwargs)
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=self.q if k==-1 else nan, u=u, p_control=p_control, p_control_plus=p_control_plus, v=self.V, p=veccat(*self.P), v_control=v_control, v_control_plus=v_control_plus, v_states=v_states, t=t)
 
     def eval_at_integrator(self, stage, expr, k, i):
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i]))
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i]))
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), t=self.tr[k][i][j]))
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k),v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k),t=self.tr[k][i][j]))
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
@@ -660,6 +648,10 @@ class SamplingMethod(DirectMethod):
             if is_equal(parameter, p):
                 found = True
                 opti.set_value(hcat(self.P_control[i]), value)
+        for i, p in enumerate(stage.parameters['control+']):
+            if is_equal(parameter, p):
+                found = True
+                opti.set_value(hcat(self.P_control_plus[i]), value)
         assert found, "You attempted to set the value of a non-parameter."
 
     def add_parameter(self, stage, opti):
@@ -667,9 +659,13 @@ class SamplingMethod(DirectMethod):
             self.P.append(opti.parameter(p.shape[0], p.shape[1]))
         for p in stage.parameters['control']:
             self.P_control.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)])
+        for p in stage.parameters['control+']:
+            self.P_control_plus.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N+1)])
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
             opti.set_value(self.P[i], stage._param_value(p))
         for i, p in enumerate(stage.parameters['control']):
             opti.set_value(hcat(self.P_control[i]), stage._param_value(p))
+        for i, p in enumerate(stage.parameters['control+']):
+            opti.set_value(hcat(self.P_control_plus[i]), stage._param_value(p))

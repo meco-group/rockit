@@ -353,6 +353,39 @@ class MiscTests(unittest.TestCase):
         #_, xs = sol.sample(v, grid='control')
         #assert_array_almost_equal(xs[:-1], linspace(2*pi, 2*pi+1, N))
 
+    def test_variables_plus(self):
+        N = 10
+        ocp = Ocp(t0=2*pi,T=10)
+        p = ocp.parameter(grid='control',include_last=True)
+        v = ocp.variable(grid='control',include_last=True)
+        x = ocp.state()
+        ocp.set_der(x, 0)
+        ocp.subject_to(ocp.at_t0(x)==0)
+
+        ts = linspace(0, 10, N+1)
+
+        ocp.add_objective(ocp.sum(sin(v-p)**2,include_last=True))
+        ocp.method(MultipleShooting(N=N))
+        ocp.solver('ipopt')
+        ocp.set_value(p, ts)
+        ocp.set_initial(v, ts)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+
+        assert_array_almost_equal(xs, ts)
+        ocp.set_initial(v, 0.1+2*pi+ts)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        assert_array_almost_equal(xs, 2*pi+ts)
+        ocp.set_initial(v, 0.1+ocp.t)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        assert_array_almost_equal(xs, 2*pi+ts)
+        ocp.set_initial(v, 0.1+2*pi)
+        sol = ocp.solve()
+        _, xs = sol.sample(v, grid='control')
+        with self.assertRaises(AssertionError):
+          assert_array_almost_equal(xs, 2*pi+ts)
 
     def test_integral(self):
         t0 = 1.2
