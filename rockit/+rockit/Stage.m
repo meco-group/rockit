@@ -109,9 +109,19 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_parse_scale(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'e','scale'});
+      if isempty(kwargs)
+        res = obj.parent.internal_parse_scale(args{:});
+      else
+        res = obj.parent.internal_parse_scale(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = state(obj,varargin)
       % Create a state.
-      % Arguments: n_rows=1, n_cols=1, quad=False, meta=None
+      % Arguments: n_rows=1, n_cols=1, quad=False, scale=1, meta=None
       %         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
       % 
       %         Parameters
@@ -139,7 +149,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(x, sin(ocp.t)) # Optional: give initial guess
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','quad','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','quad','scale','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -159,7 +169,7 @@ classdef Stage < handle
     end
     function varargout = register_state(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'x','quad','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'x','quad','scale','meta'});
       if isempty(kwargs)
         res = obj.parent.register_state(args{:});
       else
@@ -169,7 +179,7 @@ classdef Stage < handle
     end
     function varargout = algebraic(obj,varargin)
       % Create an algebraic variable
-      % Arguments: n_rows=1, n_cols=1, meta=None
+      % Arguments: n_rows=1, n_cols=1, scale=1, meta=None
       %         You must supply an algebraic relation with:obj:`~rockit.stage.Stage.set_alg`
       % 
       %         Parameters
@@ -187,7 +197,7 @@ classdef Stage < handle
       %             A CasADi symbol representing an algebraic variable
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','scale','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -207,7 +217,7 @@ classdef Stage < handle
     end
     function varargout = register_algebraic(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'z','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'z','scale','meta'});
       if isempty(kwargs)
         res = obj.parent.register_algebraic(args{:});
       else
@@ -217,7 +227,7 @@ classdef Stage < handle
     end
     function varargout = variable(obj,varargin)
       % Create a variable
-      % Arguments: n_rows=1, n_cols=1, grid=, meta=None
+      % Arguments: n_rows=1, n_cols=1, grid=, scale=1, include_last=False, meta=None
       % 
       %         Variables are unknowns in the Optimal Control problem
       %         for which we seek optimal values.
@@ -251,7 +261,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(v, 3)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -271,7 +281,7 @@ classdef Stage < handle
     end
     function varargout = register_variable(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','scale','include_last','meta'});
       if isempty(kwargs)
         res = obj.parent.register_variable(args{:});
       else
@@ -281,7 +291,7 @@ classdef Stage < handle
     end
     function varargout = parameter(obj,varargin)
       % Create a parameter
-      % Arguments: n_rows=1, n_cols=1, grid=, meta=None
+      % Arguments: n_rows=1, n_cols=1, grid=, scale=1, include_last=False, meta=None
       % 
       %         Parameters are symbols of an Optimal COntrol problem
       %         that are externally imposed, but not hardcoded.
@@ -320,7 +330,7 @@ classdef Stage < handle
       %         >>> ocp.set_value(p, 3)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -340,7 +350,7 @@ classdef Stage < handle
     end
     function varargout = register_parameter(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p','grid','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p','grid','scale','include_last','meta'});
       if isempty(kwargs)
         res = obj.parent.register_parameter(args{:});
       else
@@ -350,7 +360,7 @@ classdef Stage < handle
     end
     function varargout = control(obj,varargin)
       % Create a control signal to optimize for
-      % Arguments: n_rows=1, n_cols=1, order=0, meta=None
+      % Arguments: n_rows=1, n_cols=1, order=0, scale=1, meta=None
       % 
       %         A control signal is parametrized as a piecewise polynomial.
       %         By default (order=0), it is piecewise constant.
@@ -378,7 +388,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(u, sin(ocp.t)) # Optional: give initial guess
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order','scale','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -398,7 +408,7 @@ classdef Stage < handle
     end
     function varargout = register_control(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'u','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'u','scale','meta'});
       if isempty(kwargs)
         res = obj.parent.register_control(args{:});
       else
@@ -482,7 +492,7 @@ classdef Stage < handle
     end
     function varargout = set_der(obj,varargin)
       % Assign a right-hand side to a state derivative
-      % Arguments: state, der
+      % Arguments: state, der, scale=1
       % 
       %         Parameters
       %         ----------
@@ -502,7 +512,7 @@ classdef Stage < handle
       %         >>> ocp.set_der(x, -x)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'state','der'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'state','der','scale'});
       if isempty(kwargs)
         res = obj.parent.set_der(args{:});
       else
@@ -541,7 +551,7 @@ classdef Stage < handle
     end
     function varargout = add_alg(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr','scale'});
       if isempty(kwargs)
         res = obj.parent.add_alg(args{:});
       else
@@ -702,7 +712,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, meta=None
       % 
       %         Parameters
       %         ----------
@@ -740,7 +750,7 @@ classdef Stage < handle
       %         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr','grid','include_first','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr','grid','include_first','include_last','scale','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -892,6 +902,24 @@ classdef Stage < handle
         res = obj.parent.is_signal(args{:});
       else
         res = obj.parent.is_signal(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = is_parametric(obj,varargin)
+      % Does the expression depend only on parameters?
+      % Arguments: expr
+      % 
+      %         Returns
+      %         -------
+      %         res : bool
+      % 
+      %         
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr'});
+      if isempty(kwargs)
+        res = obj.parent.is_parametric(args{:});
+      else
+        res = obj.parent.is_parametric(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -1286,6 +1314,30 @@ classdef Stage < handle
     function out = np(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.np);
+    end
+    function out = internal_scale_x(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_x);
+    end
+    function out = internal_scale_der_x(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_der_x);
+    end
+    function out = internal_scale_z(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_z);
+    end
+    function out = internal_scale_u(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_u);
+    end
+    function out = internal_scale_p(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_p);
+    end
+    function out = internal_scale_v(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.internal_scale_v);
     end
     function out = gist(obj)
       % Obtain an expression packing all information needed to obtain value/sample

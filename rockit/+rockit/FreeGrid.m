@@ -35,7 +35,7 @@ classdef FreeGrid < handle
     end
     function varargout = constrain_T(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,4,{'opti','T','Tnext','N'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'T','Tnext','N'});
       if isempty(kwargs)
         res = obj.parent.constrain_T(args{:});
       else
@@ -45,7 +45,7 @@ classdef FreeGrid < handle
     end
     function varargout = bounds_T(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,6,{'opti','T_local','t0_local','k','T','N'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,5,{'T_local','t0_local','k','T','N'});
       if isempty(kwargs)
         res = obj.parent.bounds_T(args{:});
       else
