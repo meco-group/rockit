@@ -165,7 +165,8 @@ At the moment, the following solvers are interfaced:
 
 Installation when using rockit from git
  * `git submodule update --init --recursive`
- * Windows only: install Visual Studio (2019 or 2022) with the following components: `MSBuild`,`MSVC C++ x64/x86 build tools`,`C++ Cmake tools`,`C++/CLI support`
+ * Windows only: install Visual Studio (supported: 2017,2019,2022) with the following components: `C++ Desktop Development` workload, and verify that the following components are also installed: `MSBuild`,`MSVC C++ x64/x86 build tools`,`C++ Cmake tools`,`C++/CLI support`
+
  
 # Presentations
 
