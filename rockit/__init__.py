@@ -37,6 +37,8 @@ from .ocp import Ocp
 from .stage import Stage
 from .direct_method import DirectMethod
 from .direct_collocation import DirectCollocation
+from .spline_method import SplineMethod
+
 from .single_shooting import SingleShooting
 from .freetime import FreeTime
 from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
