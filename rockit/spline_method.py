@@ -52,15 +52,13 @@ class SplineMethod(SamplingMethod):
             B = evalf(B)
         except:
             raise Exception("Only linear systems supported in SplineMethod")
+        # Obtain chains of differentiations (scalarised)
 
-
+        # Use combined index: v=[x;u]
         def node_x(i):
             return i
         def node_u(i):
             return i+stage.nx
-        # Use combined index: [x;u]
-
-        # Obtain chains of differentiations
 
         # Graph
         # Point from higher-order state to lower-order or control dependencies
@@ -96,13 +94,11 @@ class SplineMethod(SamplingMethod):
                 assert edge[2]["weight"]==1.0
             chains.append(chain)
 
-
-        print(chains)
         """
         Example
-            p = ocp.state()
-            v = ocp.state()
-            a = ocp.control()
+            p = ocp.state(2)
+            v = ocp.state(2)
+            a = ocp.control(2)
 
             ocp.set_der(p, v)
 
@@ -111,21 +107,49 @@ class SplineMethod(SamplingMethod):
 
             ocp.set_der(v, 6*a)
 
-            [('x', 0), 1.0, ('x', 1), 6.0, ('u', 0)]
-            [('x', 2), 1.0, ('x', 3), 1.0, ('x', 4), 1.0, ('x', 5), 1.0, ('x', 6), 1.0, ('u', 1)]
-            [('x', 7), 1.0, ('x', 8), 1.0, ('x', 9), 1.0, ('u', 2)]
+        Scalarized indices
+        v_0: x_0
+        v_1: x_1
+        ...
+        v_11: x_11
+        v_12: u_0
+        v_13: u_1
+        v_14: u_2
+        v_15: u_3
+
+        Chains:
+            [0, 1.0, 2, 6.0, 12] L: 3
+            [1, 1.0, 3, 6.0, 13] L: 3p = ocp.state()
+v = ocp.state()
+a = ocp.control()
+
+ocp.set_der(p, v)
+
+#c = ocp.control(order=5)
+#c = ocp.control(order=3)
+
+ocp.set_der(v, a)
+            [4, 1.0, 5, 1.0, 6, 1.0, 7, 1.0, 8, 1.0, 14] L: 6
+            [9, 1.0, 10, 1.0, 11, 1.0, 15] L: 4
+
+        Interpretation:
+            dot(v_0) = x_2; dot(v_2) = 6*v_12
 
         """
 
-        groups = defaultdict(list)
-
+        # Group chains according to length
+        # The goals is to re-identify some vector structure from the scalarised chains
+        self.groups = defaultdict(list)
         for chain in chains:
             L = len(chain)//2+1
-            groups[L].append(chain)
+            self.groups[L].append(chain)
+        """
+         {3: [[0, 1.0, 2, 6.0, 12], [1, 1.0, 3, 6.0, 13]],
+          6: [[4, 1.0, 5, 1.0, 6, 1.0, 7, 1.0, 8, 1.0, 14]],
+          4: [[9, 1.0, 10, 1.0, 11, 1.0, 15]]})
+        """
 
-
-        self.groups = groups
-
+        # Needed to make SamplingMethod happy
         self.v = vvcat(stage.variables[''])
         self.free_time = False
 
@@ -141,9 +165,57 @@ class SplineMethod(SamplingMethod):
 
         self.control_grid = self.time_grid(self.t0, self.T, self.N)
 
+        # Grid for B-spline
         xi = DM(self.time_grid(0, 1, self.N)).T
 
+        # Vectorized storage of coeffients and derivatives
+        self.coeffs_and_der = defaultdict(list)
+        # Scalarized storage of coeffients and derivatives
+        # Scalarized using vertsplit, ideally gets whole again after vertcat
+        self.coeffs_epxr = [None]*(stage.nx+stage.nu)
+
+        # For each scalarized variable, store the width of the coefficient
+        # prepare a substitute(stage.x,coeff)
+        self.widths = ca.DM.zeros(stage.nx+stage.nu)
+
+        def consume(chains):
+            heads = [c[0] for c in chains]
+            return heads, [c[2:] for c in chains]
+
+        # For each group of chains (grouped by length)
+        for L,chains in self.groups.items():
+            # Compute the degree and size of a BSpline coefficient needed
+            d = L-1; s = self.N+d
+            # Create a decision variable for coefficients for the highest degree variable
+            # (or group of variables) in the chain
+            e = opti.variable(len(chains), s)
+            # Loop over length of chain
+            for i in range(L):
+                # Store coeffient
+                self.coeffs_and_der[d].append(e)
+                # Scalarize coeffient
+                esplit = ca.vertsplit(e)
+                # Loop over chains in group
+                for k,c in enumerate(chains):
+                    # Current combined index
+                    v_index = c[2*i]
+                    # Store width
+                    self.widths[v_index] = s-i
+                    # Store scalarized coefficients
+                    self.coeffs_epxr[v_index] = esplit[k]
+                if d-i>0:
+                    # Differentiate coefficient
+                    e = bspline_derivative(e,xi,d-i)/self.T
+
+        # Evaluations of BSplines on a grid happens by matrix multiplication:
+        # values = coefficients @ B (basis matrix)
+        # The width of B is determined by the size of the grid
+        # The height of B is determined by the degree of BSpline
+        #
+        # We can construct all needed Bs upfront, regardless of groups
+        # Store different Bs using width as a key
         self.B = {}
+        # We need to cover the highest-order degree and all degrees lower than that
         Lmax = max(self.groups.keys())
         dmax = Lmax-1
         for i in range(dmax+1):
@@ -152,33 +224,6 @@ class SplineMethod(SamplingMethod):
             self.B[self.N+d] = B
         self.tau = tau
         print(self.B, self.tau)
-
-        # prepare a substitute(stage.x,coeff)
-        self.widths = ca.DM.zeros(stage.nx+stage.nu)
-
-        self.coeffs_epxr = [None]*(stage.nx+stage.nu)
-        self.coeffs_and_der = defaultdict(list)
-
-        def consume(chains):
-            heads = [c[0] for c in chains]
-            return heads, [c[2:] for c in chains]
-
-        for L,chains in self.groups.items():
-            print(L,chains)
-            d = L-1
-            s = self.N+d
-            coeffs = opti.variable(len(chains), s)
-            e = coeffs
-            for i in range(L):
-                self.coeffs_and_der[d].append(e)
-                c_indices, chains = consume(chains)
-                self.widths[c_indices] = s-i
-                esplit = ca.vertsplit(e)
-                for k,j in enumerate(c_indices):
-                    self.coeffs_epxr[j] = esplit[k]
-                if d-i>0:
-                    e = bspline_derivative(e,xi,d-i)/self.T
-
 
         self.unique_widths = set(int(i) for i in self.widths.nonzeros())
         
@@ -189,25 +234,29 @@ class SplineMethod(SamplingMethod):
         self.X = [None] * (self.N+1)
         self.U = [None] * self.N
 
-        # Evaluate spline on knots
+        # Evaluate spline on the control grid
         for L,chains in self.groups.items():
             d = L-1
             s = self.N+d
             for i in range(L):
-                c_indices, chains = consume(chains)
+                # Here happens the grid evaluation: values = coefficients @ B (basis matrix)
                 xu_sampled = self.coeffs_and_der[d][i] @ self.B[s-i]
+                # Remainder just stores the result in appropriate locations
                 xu0 = self.coeffs_and_der[d][i] @ self.B[s-i][:,0]
                 xuf = self.coeffs_and_der[d][i] @ self.B[s-i][:,-1]
                 xu_sampled_split = ca.vertsplit(xu_sampled)
                 xu0_split = ca.vertsplit(xu0)
                 xuf_split = ca.vertsplit(xuf)
-                for k,j in enumerate(c_indices):
-                    self.XU_expr[j] = xu_sampled_split[k]
-                    self.XU0_expr[j] = xu0_split[k]
-                    self.XUF_expr[j] = xuf_split[k]
+                for k,c in enumerate(chains):
+                    v_index = c[2*i]
+                    self.XU_expr[v_index] = xu_sampled_split[k]
+                    self.XU0_expr[v_index] = xu0_split[k]
+                    self.XUF_expr[v_index] = xuf_split[k]
+        # We can know store states and controls evaluated on the control grid
         self.X = ca.horzsplit(ca.vcat(self.XU_expr[:stage.nx]))
         self.U = ca.horzsplit(ca.vcat(self.XU_expr[stage.nx:]))[:-1]
 
+        # Below may improve efficiency, depends on the situation
         #self.X[0] = ca.vcat(self.XU0_expr[:stage.nx])
         #self.U[0] = ca.vcat(self.XU0_expr[stage.nx:])
         #self.X[-1] = ca.vcat(self.XUF_expr[:stage.nx])
@@ -217,8 +266,11 @@ class SplineMethod(SamplingMethod):
     def add_constraints(self, stage, opti):
 
         self.opti_advanced = self.opti.advanced
+        self.add_constraints_inf(stage, opti)
 
-        xu = ca.vertcat(stage.x,stage.u)
+    def add_constraints_inf(self, stage, opti):
+
+        v = ca.vertcat(stage.x,stage.u)
 
         # Collect all inf constraints
         lbs = []
@@ -228,19 +280,25 @@ class SplineMethod(SamplingMethod):
             assert not ca.depends_on(c, stage.t)
             (lb,canon,ub), mc = self.constraint_inspector.canon(c)
             
-            assert ca.is_linear(canon, xu)
+            assert ca.is_linear(canon, v)
 
             lbs.append(lb)
             ubs.append(ub)
             canons.append(canon)
+
+        # Work towards lb <= Av+b <= ub
         
         lb = ca.vcat(lbs)
         ub = ca.vcat(ubs)
         canon = ca.vcat(canons)
 
-        A, b = linear_coeffs(canon, xu)
+        A, b = linear_coeffs(canon, v)
         A = evalf(A)
         b = evalf(b)
+
+        # Goal is to put constraints on coefficients instead of on v
+        # However, different entries of v have different widths of coefficients
+        # Hence, we will have to add separate constraints for each width
 
         # Partition constraints into blocks per width
         for w in self.unique_widths:
@@ -259,5 +317,4 @@ class SplineMethod(SamplingMethod):
             # 
             Sr = ca.sum2(Ablock.sparsity()).row()
             if Sr:
-
                 self.opti.subject_to(lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr]))
