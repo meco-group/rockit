@@ -32,13 +32,14 @@ Some basic example on solving an Optimal Control Problem with rockit.
 from numpy import *
 # Import the project
 from rockit import *
+import casadi as ca
 
 ocp = Ocp(t0=0, T=10)
 
 # Define two scalar states (vectors and matrices also supported)
-p = ocp.state()
-v = ocp.state()
-a = ocp.control()
+p = ocp.state(2)
+v = ocp.state(2)
+a = ocp.control(2)
 
 ocp.set_der(p, v)
 
@@ -48,7 +49,7 @@ ocp.set_der(p, v)
 ocp.set_der(v, a)
 
 # Lagrange objective term: signals in an integrand
-ocp.add_objective(ocp.sum(a**2))
+ocp.add_objective(ocp.sum(ca.sumsqr(a)))
 # Mayer objective term: signals evaluated at t_f = t0_+T
 #ocp.add_objective(ocp.at_tf(a**2))
 
@@ -57,6 +58,11 @@ ocp.add_objective(ocp.sum(a**2))
 #   grid options available such as `grid='inf'`)
 ocp.subject_to(-1 <= (v <= 1 ),grid='inf')
 ocp.subject_to(-10 <= (a <= 10 ),grid='inf')
+
+
+# Stay outside an obstacle
+c = ca.vertcat(1,2)
+#ocp.subject_to( ca.norm_2(p-c) >= 10,refine=100) #,group_refine=LseGroup(margin_abs=5))
 
 # Boundary constraints
 ocp.subject_to(ocp.at_t0(p) == 0)
@@ -74,7 +80,7 @@ ocp.subject_to(ocp.at_tf(v) == 0)
 ocp.solver('ipopt')
 
 # Pick a solution method
-#  e.g. Singleocp.subject_to(-3 <= (p <= 3 ),grid='inf')Shooting, MultipleShooting, DirectCollocation
+#  e.g. SingleShooting, MultipleShooting, DirectCollocation
 #
 #  N -- number of control intervals
 #  M -- number of integration steps per control interval
@@ -98,27 +104,27 @@ from pylab import *
 
 # Sample a state/control or expression thereof on a grid
 tsol, psol = sol.sample(p, grid='control')
-#tsol_f, psol_f = sol.sample(p, grid='integrator',refine=100)
+tsol_f, psol_f = sol.sample(p, grid='control',refine=100)
 
 figure(figsize=(10, 4))
 plot(tsol, psol, 'b.')
-#plot(tsol_f, psol_f,'b')
+plot(tsol_f, psol_f,'b')
 title("p")
 
 tsol, vsol = sol.sample(v, grid='control')
-#tsol_f, vsol_f = sol.sample(v, grid='integrator',refine=100)
+tsol_f, vsol_f = sol.sample(v, grid='control',refine=100)
 
 figure(figsize=(10, 4))
 plot(tsol, vsol, 'b.')
-#plot(tsol_f, vsol_f,'b')
+plot(tsol_f, vsol_f,'b')
 title("v")
 
 tsol, asol = sol.sample(a, grid='control')
-#tsol_f, asol_f = sol.sample(a, grid='integrator',refine=100)
+tsol_f, asol_f = sol.sample(a, grid='control',refine=100)
 
 figure(figsize=(10, 4))
 plot(tsol, asol, 'b.')
-#plot(tsol_f, asol_f,'b')
+plot(tsol_f, asol_f,'b')
 title("a")
 
 

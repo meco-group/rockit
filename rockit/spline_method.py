@@ -271,6 +271,25 @@ ocp.set_der(v, a)
         #self.X[0] = ca.vcat(self.XU0_expr[:stwidthstage.nx])
         #self.U[-1] = ca.vcat(self.XUF_expr[stage.nx:])
 
+    def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
+        # What scalarized variables are we dependent on?
+        v = ca.vertcat(stage.x,stage.u)
+        J = ca.jacobian(expr,v)
+        deps = ca.sum1(J.sparsity()).T.row()
+
+        self.sample_xu(stage, refine)
+
+        [v_symbols,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
+        f = ca.Function("f",v_symbols+[stage.p,stage.t],[expr])
+        F = f.map(self.N*refine+1,[False,True,False])
+
+        results = F(*v_expressions,stage.p,self.tau[refine])
+        time = self.time_grid(self.t0, self.T, self.N*refine)
+
+        return time,results
+
+
+
 
     def add_constraints(self, stage, opti):
         assert "integrator" not in stage._constraints
@@ -366,7 +385,7 @@ ocp.set_der(v, a)
                 results_min = fm_max_group(results_split[0])
                 ub = ub-group_refine.margin_abs
                 lb = lb
-                results_end = f(*vf_expressions,stage.p,np.nan)[1]
+                results_end = f(*vf_expressions,stage.p,self.control_grid[-1])[1]
                 if not lb_inf:
                     self.opti.subject_to(lb+group_refine.margin_abs <= results_min)
                     self.opti.subject_to(lb <= results_end)
