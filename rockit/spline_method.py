@@ -156,6 +156,49 @@ ocp.set_der(v, a)
         self.constraint_inspector = ConstraintInspector(self, stage)
         self.constraint_inspector.finalize()
 
+    def sample_xu(self, stage, refine):
+        # Cache for B,tau and results
+        if not hasattr(self,"B"):
+            self.B = defaultdict(dict)
+            self.tau = {}
+            self.XU_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
+            self.XU0_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
+            self.XUF_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
+        if refine in self.B:
+            return
+        # Evaluations of BSplines on a grid happens by matrix multiplication:
+        # values = coefficients @ B (basis matrix)
+        # The width of B is determined by the size of the grid
+        # The height of B is determined by the degree of BSpline
+        #
+        # We can construct all needed Bs upfront, regardless of groups
+        # Store different Bs using width as a key
+        # We need to cover the highest-order degree and all degrees lower than that
+        Lmax = max(self.groups.keys())
+        dmax = Lmax-1
+        for i in range(dmax+1):
+            d = dmax-i
+            [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
+            self.B[refine][self.N+d] = B
+            self.tau[refine] = tau
+
+        # Evaluate spline on the control grid
+        for L,chains in self.groups.items():
+            d = L-1
+            s = self.N+d
+            for i in range(L):
+                xu_sampled = self.coeffs_and_der[L][i] @ self.B[refine][s-i]
+                xu0 = self.coeffs_and_der[L][i] @ self.B[refine][s-i][:,0]
+                xuf = self.coeffs_and_der[L][i] @ self.B[refine][s-i][:,-1]
+
+                xu_sampled_split = ca.vertsplit(xu_sampled)
+                xu0_split = ca.vertsplit(xu0)
+                xuf_split = ca.vertsplit(xuf)
+                for k,c in enumerate(chains):
+                    v_index = c[2*i]
+                    self.XU_sampled[refine][v_index] = xu_sampled_split[k]
+                    self.XU0_sampled[refine][v_index] = xu0_split[k]
+                    self.XUF_sampled[refine][v_index] = xuf_split[k]
 
     def add_variables(self, stage, opti):
 
@@ -167,6 +210,7 @@ ocp.set_der(v, a)
 
         # Grid for B-spline
         xi = DM(self.time_grid(0, 1, self.N)).T
+        self.xi = xi
 
         # Vectorized storage of coeffients and derivatives
         self.coeffs_and_der = defaultdict(list)
@@ -177,6 +221,8 @@ ocp.set_der(v, a)
         # For each scalarized variable, store the width of the coefficient
         # prepare a substitute(stage.x,coeff)
         self.widths = ca.DM.zeros(stage.nx+stage.nu)
+
+        self.origins = [None]*(stage.nx+stage.nu)
 
         def consume(chains):
             heads = [c[0] for c in chains]
@@ -192,7 +238,7 @@ ocp.set_der(v, a)
             # Loop over length of chain
             for i in range(L):
                 # Store coeffient
-                self.coeffs_and_der[d].append(e)
+                self.coeffs_and_der[L].append(e)
                 # Scalarize coeffient
                 esplit = ca.vertsplit(e)
                 # Loop over chains in group
@@ -201,72 +247,134 @@ ocp.set_der(v, a)
                     v_index = c[2*i]
                     # Store width
                     self.widths[v_index] = s-i
+                    self.origins[v_index] = {"L": L, "i": i, "w": s-i, "k": k}
                     # Store scalarized coefficients
                     self.coeffs_epxr[v_index] = esplit[k]
                 if d-i>0:
                     # Differentiate coefficient
                     e = bspline_derivative(e,xi,d-i)/self.T
-
-        # Evaluations of BSplines on a grid happens by matrix multiplication:
-        # values = coefficients @ B (basis matrix)
-        # The width of B is determined by the size of the grid
-        # The height of B is determined by the degree of BSpline
-        #
-        # We can construct all needed Bs upfront, regardless of groups
-        # Store different Bs using width as a key
-        self.B = {}
-        # We need to cover the highest-order degree and all degrees lower than that
-        Lmax = max(self.groups.keys())
-        dmax = Lmax-1
-        for i in range(dmax+1):
-            d = dmax-i
-            [tau,B] = eval_on_knots(xi,dmax-i)
-            self.B[self.N+d] = B
-        self.tau = tau
-        print(self.B, self.tau)
-
         self.unique_widths = set(int(i) for i in self.widths.nonzeros())
-        
-        self.XU_expr = [None]*(stage.nx+stage.nu)
-        self.XU0_expr = [None]*(stage.nx+stage.nu)
-        self.XUF_expr = [None]*(stage.nx+stage.nu)
 
-        self.X = [None] * (self.N+1)
-        self.U = [None] * self.N
+        unique_refines = set([1]+[args["refine"] for _, _, args in stage._constraints["control"]])
 
-        # Evaluate spline on the control grid
-        for L,chains in self.groups.items():
-            d = L-1
-            s = self.N+d
-            for i in range(L):
-                # Here happens the grid evaluation: values = coefficients @ B (basis matrix)
-                xu_sampled = self.coeffs_and_der[d][i] @ self.B[s-i]
-                # Remainder just stores the result in appropriate locations
-                xu0 = self.coeffs_and_der[d][i] @ self.B[s-i][:,0]
-                xuf = self.coeffs_and_der[d][i] @ self.B[s-i][:,-1]
-                xu_sampled_split = ca.vertsplit(xu_sampled)
-                xu0_split = ca.vertsplit(xu0)
-                xuf_split = ca.vertsplit(xuf)
-                for k,c in enumerate(chains):
-                    v_index = c[2*i]
-                    self.XU_expr[v_index] = xu_sampled_split[k]
-                    self.XU0_expr[v_index] = xu0_split[k]
-                    self.XUF_expr[v_index] = xuf_split[k]
+
+        for refine in unique_refines:
+            self.sample_xu(stage, refine)
+
+        print(self.XU_sampled)
+
         # We can know store states and controls evaluated on the control grid
-        self.X = ca.horzsplit(ca.vcat(self.XU_expr[:stage.nx]))
-        self.U = ca.horzsplit(ca.vcat(self.XU_expr[stage.nx:]))[:-1]
+        self.X = ca.horzsplit(ca.vcat(self.XU_sampled[1][:stage.nx]))
+        self.U = ca.horzsplit(ca.vcat(self.XU_sampled[1][stage.nx:]))[:-1]
 
         # Below may improve efficiency, depends on the situation
-        #self.X[0] = ca.vcat(self.XU0_expr[:stage.nx])
-        #self.U[0] = ca.vcat(self.XU0_expr[stage.nx:])
-        #self.X[-1] = ca.vcat(self.XUF_expr[:stage.nx])
+        #self.X[0] = ca.vcat(self.XU0_expr[:stwidthstage.nx])
         #self.U[-1] = ca.vcat(self.XUF_expr[stage.nx:])
 
 
     def add_constraints(self, stage, opti):
+        assert "integrator" not in stage._constraints
 
         self.opti_advanced = self.opti.advanced
         self.add_constraints_inf(stage, opti)
+        self.add_constraints_noninf(stage, opti)
+    
+    def xu_symbols(self,stage,v_indices,pool):
+        self.v_symbols = stage.states+stage.controls
+        
+        # Which symbols are needed?
+        self.symbol_map = []
+        for i,e in enumerate(self.v_symbols):
+            for k in range(e.numel()):
+                self.symbol_map.append((i,k))
+
+        active_symbols = list(sorted(set([self.symbol_map[i][0] for i in v_indices])))
+        v_active_symbols = [self.v_symbols[e] for e in active_symbols]
+
+        v_expressions = [[0]*e.numel() for e in self.v_symbols]
+
+        for i in v_indices:
+            v_expressions[self.symbol_map[i][0]][self.symbol_map[i][1]] = pool[i]
+
+        v_active_symbols = [self.v_symbols[e] for e in active_symbols]
+        v_active_expressions = [ca.vcat(v_expressions[i]) for i in active_symbols]
+
+        return v_active_symbols, v_active_expressions
+
+    def add_constraints_noninf(self, stage, opti):
+        # Lump constraints together, based on refine parameter
+        lbs = defaultdict(list)
+        ubs = defaultdict(list)
+        canons = defaultdict(list)
+        for c, meta, args in stage._constraints["control"]:
+            key = (args["refine"],args["group_refine"])
+            (lb,canon,ub), mc = self.constraint_inspector.canon(c)
+
+            lbs[key].append(lb)
+            ubs[key].append(ub)
+            canons[key].append(canon)
+        
+        print(lbs,ubs,canons)
+        keys = list(lbs.keys())
+
+
+
+        # Loop over lumps
+        for k in keys:
+            (refine,group_refine) = k
+            lb = ca.vcat(lbs[k])
+            ub = ca.vcat(ubs[k])
+            canon = ca.vcat(canons[k])
+            v = ca.vertcat(stage.x,stage.u)
+
+            # What scalarized variables are we dependent on?
+            J = ca.jacobian(canon,v)
+            deps = ca.sum1(J.sparsity()).T.row()
+
+            [v_symbols,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
+            [_,v0_expressions] = self.xu_symbols(stage, deps, self.XU0_sampled[refine])
+            [_,vf_expressions] = self.xu_symbols(stage, deps, self.XUF_sampled[refine])
+
+            f = ca.Function("f",v_symbols+[stage.p,stage.t],[lb,canon,ub])
+            F = f.map(self.N*refine+1,[False,True,False])
+
+            [lb_all,results,ub_all] = F(*v_expressions,stage.p,self.tau[refine])
+            assert canon.is_column()
+            canon_sym = MX.sym("canon_sym",canon.size1(),refine)
+            # Do a grouping along refinement grid if requested
+            if group_refine:
+                assert not ca.depends_on(canon, stage.t)
+
+                # lb <= canon <= ub
+                # Check for infinities
+                try:
+                    lb_inf = np.all(np.array(evalf(lb)==-inf))
+                except:
+                    lb_inf = False
+                try:
+                    ub_inf = np.all(np.array(evalf(ub)==inf))
+                except:
+                    ub_inf = False
+
+                f_min_group = ca.Function("helper",[canon_sym],[-group_refine(-canon_sym,axis=1)])
+                f_max_group = ca.Function("helper",[canon_sym],[group_refine(canon_sym,axis=1)])
+                fm_min_group = f_min_group.map(self.N)
+                fm_max_group = f_max_group.map(self.N)
+
+                results_split = horzsplit(results,[0,self.N*refine,self.N*refine+1])
+                results_max = fm_min_group(results_split[0])
+                results_min = fm_max_group(results_split[0])
+                ub = ub-group_refine.margin_abs
+                lb = lb
+                results_end = f(*vf_expressions,stage.p,np.nan)[1]
+                if not lb_inf:
+                    self.opti.subject_to(lb+group_refine.margin_abs <= results_min)
+                    self.opti.subject_to(lb <= results_end)
+                if not ub_inf:
+                    self.opti.subject_to(results_max <= ub-group_refine.margin_abs)
+                    self.opti.subject_to(results_end <= ub)
+            else:
+                self.opti.subject_to(lb_all <= (results <= ub_all))
 
     def add_constraints_inf(self, stage, opti):
 
