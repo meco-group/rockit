@@ -1,10 +1,11 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, UniformGrid, GeometricGrid, FreeGrid
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid
 from problems import integrator_control_problem, vdp, vdp_dae
 from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
+from rockit.splines.spline import Spline
 try:
   from contextlib import redirect_stdout
 except:
@@ -61,7 +62,12 @@ class MiscTests(unittest.TestCase):
                 for u_max in [1, 2]:
                     for t0 in [0, 1]:
                         for x0 in [0, 1]:
-                            for method in [MultipleShooting(N=4,M=M,intg='rk'), MultipleShooting(N=4,M=M,intg='cvodes'), MultipleShooting(N=4,M=M,intg='idas'), DirectCollocation(N=4,M=M), SingleShooting(N=4,M=M,intg='rk')]:
+                            for method in [MultipleShooting(N=4,M=M,intg='rk'),
+                                           MultipleShooting(N=4,M=M,intg='cvodes'),
+                                           MultipleShooting(N=4,M=M,intg='idas'),
+                                           DirectCollocation(N=4,M=M),
+                                           SingleShooting(N=4,M=M,intg='rk'),
+                                           SplineMethod(N=4)]:
                                 ocp, x, u = integrator_control_problem(
                                     T, u_max, x0, method, t0
                                 )
@@ -149,7 +155,7 @@ class MiscTests(unittest.TestCase):
         for t0 in [0, 1]:
             for x0 in [0, 1]:
                 for b in [1.0, 2.0]:
-                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
+                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4), SplineMethod(N=4)]:
                         for pos in ["pre","post"]:
                           if pos=="pre":
                             ocp = Ocp(t0=t0, T=FreeTime(1))
@@ -200,7 +206,7 @@ class MiscTests(unittest.TestCase):
         for T in [2]:
             for x0 in [0, 1]:
                 for b in [1, 2]:
-                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4)]:
+                    for method in [MultipleShooting(N=4, intg='rk'), MultipleShooting(N=4, intg='cvodes'), MultipleShooting(N=4, intg='idas'), DirectCollocation(N=4), SplineMethod(N=4)]:
                         ocp = Ocp(t0=FreeTime(2),T=T)
 
                         x = ocp.state()
@@ -261,7 +267,7 @@ class MiscTests(unittest.TestCase):
       self.assertAlmostEqual(xs[0], 1)
 
     def test_initial(self):
-      for stage_method in [MultipleShooting(), DirectCollocation()]:
+      for stage_method in [MultipleShooting(), DirectCollocation(), SplineMethod()]:
         ocp, x, u = integrator_control_problem(x0=None,stage_method=stage_method)
         v = ocp.variable()
         ocp.subject_to(ocp.at_t0(x)==v)
@@ -313,6 +319,10 @@ class MiscTests(unittest.TestCase):
             ts, xs = sol.sample(x,grid='control')
             x_ref = ts**3/3-t0**3/3
             assert_array_almost_equal(xs,x_ref)
+        for method in [SplineMethod(N=4)]:
+            ocp.method(method)
+            with self.assertRaisesRegex(Exception,"Time dependent variables not supported in SplineMethod"):
+              sol = ocp.solve()
 
 
     def test_variables(self):
@@ -406,7 +416,9 @@ class MiscTests(unittest.TestCase):
                 MultipleShooting(intg='rk'),
                 MultipleShooting(intg='cvodes',intg_options=opts),
                 #MultipleShooting(intg='idas',intg_options=opts),
-                DirectCollocation()]:
+                DirectCollocation(),
+                #SplineMethod()
+                ]:
             ocp.method(method)
             sol = ocp.solve()
             ts, xs = sol.sample(f,grid='control')
@@ -960,5 +972,51 @@ class MiscTests(unittest.TestCase):
 
       r = evalf(ocp.der(ocp.t))
       self.assertEqual(r,1)
+
+    def test_subject_to_ocp_t(self):
+      for method in [MultipleShooting(N=10),SingleShooting(N=10),DirectCollocation(N=10),SplineMethod(N=10)]:
+        ocp = Ocp(T=10)
+        p = ocp.state()
+        v = ocp.state()
+        u = ocp.control()
+        ocp.set_der(p, v)
+        ocp.set_der(v, u)
+        ocp.add_objective(-ocp.at_tf(p))
+
+        ocp.subject_to(v<= 2+sin(ocp.t))
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+
+        ocp.method(MultipleShooting(N=10))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+
+        [ts,vsol] = sol.sample(v,grid='control')
+        np.testing.assert_allclose(vsol, 2+sin(ts), atol=1e-6)
+
+      for method in [MultipleShooting(N=10),SingleShooting(N=10),DirectCollocation(N=10),SplineMethod(N=10)]:
+        ocp = Ocp(T=FreeTime(10))
+        p = ocp.state()
+        v = ocp.state()
+        u = ocp.control()
+        ocp.set_der(p, v)
+        ocp.set_der(v, u)
+        ocp.add_objective(ocp.T)
+
+        ocp.subject_to(v<= 2+sin(ocp.t))
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+        ocp.subject_to(ocp.at_tf(p)==5)
+
+        ocp.method(MultipleShooting(N=10))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+
+        [ts,vsol] = sol.sample(v,grid='control')
+        np.testing.assert_allclose(vsol, 2+sin(ts), atol=1e-6)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -38,7 +38,7 @@ class SplineMethod(SamplingMethod):
         # Inspect system
         ode = stage._ode()
         assert ode.numel_out("alg")==0, "DAE not supported in SplineMethod"
-        assert ode.sparsity_in("t").nnz()==0, "Time dependant variables not supported in SplineMethod"
+        assert ode.sparsity_in("t").nnz()==0, "Time dependent variables not supported in SplineMethod"
         args = ode.convert_in(ode.mx_in())
         res = ode(**args)
 
@@ -161,6 +161,7 @@ ocp.set_der(v, a)
         if not hasattr(self,"B"):
             self.B = defaultdict(dict)
             self.tau = {}
+            self.time = {}
             self.XU_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
             self.XU0_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
             self.XUF_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
@@ -181,6 +182,7 @@ ocp.set_der(v, a)
             [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
             self.B[refine][self.N+d] = B
             self.tau[refine] = tau
+        self.time[refine] = self.time_grid(self.t0, self.T, self.N*refine)
 
         # Evaluate spline on the control grid
         for L,chains in self.groups.items():
@@ -281,12 +283,10 @@ ocp.set_der(v, a)
 
         [v_symbols,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
         f = ca.Function("f",v_symbols+[stage.p,stage.t],[expr])
-        F = f.map(self.N*refine+1,[False,True,False])
-
-        results = F(*v_expressions,stage.p,self.tau[refine])
-        time = self.time_grid(self.t0, self.T, self.N*refine)
-
-        return time,results
+        F = f.map(self.N*refine+1,len(v_symbols)*[False]+ [True,False])
+        results = F(*v_expressions,stage.p,self.time[refine])
+        
+        return self.time[refine],results
 
 
 
@@ -354,10 +354,10 @@ ocp.set_der(v, a)
             [_,v0_expressions] = self.xu_symbols(stage, deps, self.XU0_sampled[refine])
             [_,vf_expressions] = self.xu_symbols(stage, deps, self.XUF_sampled[refine])
 
-            f = ca.Function("f",v_symbols+[stage.p,stage.t],[lb,canon,ub])
+            f = ca.Function("f",v_symbols+[stage.p,stage.t],[canon])
             F = f.map(self.N*refine+1,[False,True,False])
 
-            [lb_all,results,ub_all] = F(*v_expressions,stage.p,self.tau[refine])
+            results = F(*v_expressions,stage.p,self.time[refine])
             assert canon.is_column()
             canon_sym = MX.sym("canon_sym",canon.size1(),refine)
             # Do a grouping along refinement grid if requested
@@ -383,8 +383,8 @@ ocp.set_der(v, a)
                 results_split = horzsplit(results,[0,self.N*refine,self.N*refine+1])
                 results_max = fm_min_group(results_split[0])
                 results_min = fm_max_group(results_split[0])
-                ub = ub-group_refine.margin_abs
-                lb = lb
+
+                raise Exception()
                 results_end = f(*vf_expressions,stage.p,self.control_grid[-1])[1]
                 if not lb_inf:
                     self.opti.subject_to(lb+group_refine.margin_abs <= results_min)
@@ -393,7 +393,7 @@ ocp.set_der(v, a)
                     self.opti.subject_to(results_max <= ub-group_refine.margin_abs)
                     self.opti.subject_to(results_end <= ub)
             else:
-                self.opti.subject_to(lb_all <= (results <= ub_all))
+                self.opti.subject_to(ca.vec(ca.repmat(lb,1,self.N+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N+1))))
 
     def add_constraints_inf(self, stage, opti):
 
@@ -412,6 +412,8 @@ ocp.set_der(v, a)
             lbs.append(lb)
             ubs.append(ub)
             canons.append(canon)
+        if len(lbs)==0:
+            return
 
         # Work towards lb <= Av+b <= ub
         

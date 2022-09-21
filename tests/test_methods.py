@@ -1,6 +1,6 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, DirectCollocation, SingleShooting
+from rockit import Ocp, DirectMethod, MultipleShooting, DirectCollocation, SingleShooting, SplineMethod
 from problems import integrator_control_problem
 
 
@@ -13,7 +13,8 @@ class MethodTests(unittest.TestCase):
       t0 = 0
       x0 = 0
       for scheme in [MultipleShooting(N=40, M=1, intg='rk'),
-                     DirectCollocation(N=40), SingleShooting(N=40, M=1, intg='rk')]:
+                     DirectCollocation(N=40), SingleShooting(N=40, M=1, intg='rk'),
+                     SplineMethod(N=10)]:
         (ocp, x, u) = integrator_control_problem(T, b, x0, scheme, t0)
         sol = ocp.solve()
         ts, xs = sol.sample(x, grid='control')

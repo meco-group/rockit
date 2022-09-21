@@ -3,7 +3,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 from problems import integrator_control_problem, bang_bang_problem
 from casadi import vertcat, DM, hcat
-from rockit import MultipleShooting, DirectCollocation, Ocp, SingleShooting
+from rockit import MultipleShooting, DirectCollocation, Ocp, SingleShooting, SplineMethod
 
 class OcpSolutionTests(unittest.TestCase):
     def test_grid_integrator(self):
@@ -34,12 +34,15 @@ class OcpSolutionTests(unittest.TestCase):
 
     def test_intg_refine(self):
         for M in [1, 2]:
-          for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk'), SingleShooting(N=2,M=M,intg='rk')]:
+          for method in [DirectCollocation(N=2,M=M), MultipleShooting(N=2,M=M,intg='rk'), SingleShooting(N=2,M=M,intg='rk')] + [SplineMethod(N=2)] if M==1 else []:
             ocp, p, v, u = bang_bang_problem(method)
             sol = ocp.solve()
             tolerance = 1e-6
+            grid = "integrator"
+            if isinstance(method,SplineMethod):
+              grid = "control"
 
-            ts, ps = sol.sample(p, grid='integrator', refine=10)
+            ts, ps = sol.sample(p, grid=grid, refine=10)
 
             ps_ref = np.hstack(((0.5*np.linspace(0,1, 10*M+1)**2)[:-1],np.linspace(0.5,1.5,10*M+1)-0.5*np.linspace(0,1, 10*M+1)**2)) 
             assert_allclose(ps, ps_ref, atol=tolerance)
@@ -47,7 +50,7 @@ class OcpSolutionTests(unittest.TestCase):
             ts_ref = np.linspace(0, 2, 10*2*M+1)
             assert_allclose(ts, ts_ref, atol=tolerance)
 
-            ts, vs = sol.sample(v, grid='integrator', refine=10)
+            ts, vs = sol.sample(v, grid=grid, refine=10)
             assert_allclose(ts, ts_ref, atol=tolerance)
 
             vs_ref = np.hstack((np.linspace(0,1, 10*M+1)[:-1],np.linspace(1,0, 10*M+1))) 
@@ -55,10 +58,10 @@ class OcpSolutionTests(unittest.TestCase):
 
 
             u_ref = np.array([1.0]*M*10+[-1.0]*(M*10+1))
-            ts, us = sol.sample(u, grid='integrator', refine=10)
+            ts, us = sol.sample(u, grid=grid, refine=10)
             assert_allclose(us, u_ref, atol=tolerance)
 
-            ts, tss = sol.sample(ocp.t, grid='integrator', refine=10)
+            ts, tss = sol.sample(ocp.t, grid=grid, refine=10)
             assert_allclose(ts, tss, atol=tolerance)
 
     def test_shapes(self):

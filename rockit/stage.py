@@ -22,6 +22,7 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat,\
                    linspace, DM, constpow, mtimes, low, floor, hcat, horzcat, DM, is_equal, \
                    Sparsity
+from rockit.grouping_techniques import GroupingTechnique
 from .freetime import FreeTime
 from .direct_method import DirectMethod
 from .multiple_shooting import MultipleShooting
@@ -665,7 +666,7 @@ class Stage:
         self._set_transcribed(False)
         self._constraints = defaultdict(list)
 
-    def subject_to(self, constr, grid=None,include_first=True,include_last=True,scale=1,meta=None):
+    def subject_to(self, constr, grid=None,include_first=True,include_last=True,scale=1,refine=1,group_refine=GroupingTechnique(),group_dim=GroupingTechnique(),group_control=GroupingTechnique(),meta=None):
         """Adds a constraint to the problem
 
         Parameters
@@ -692,7 +693,14 @@ class Stage:
             Enforce constraint also at tf
             "auto" mode will only enforce the constraint if it is not dependent on a control signal,
             since typically control signals are not defined at tf.
-
+        refine : int, optional
+            Refine grid used in constraining by a certain factor with respect to the control grid
+        group_refine : GroupTechnique, optional
+            Group constraints together along the refine axis
+        group_dim : GroupTechnique, optional
+            Group vector-valued constraints along the vector dimension into a scalar constraint
+        group_control : GroupTechnique, optional
+            Group constraints together along the control grid
         Examples
         --------
 
@@ -717,7 +725,7 @@ class Stage:
                 raise Exception("Expected signal expression since grid '" + grid + "' was given.")
         
         scale = self._parse_scale(constr, scale)
-        args = {"grid": grid, "include_last": include_last, "include_first": include_first, "scale": scale}
+        args = {"grid": grid, "include_last": include_last, "include_first": include_first, "scale": scale, "refine": refine, "group_refine": group_refine, "group_dim": group_dim, "group_control": group_control}
         self._constraints[grid].append((constr, get_meta(meta), args))
 
     def at_t0(self, expr):
@@ -1299,8 +1307,10 @@ class Stage:
 
         return placeholders(time), placeholders(res)
 
-    def _grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False):
+    def _grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         """Evaluate expression at (N + 1) control points."""
+        if hasattr(stage._method,"grid_control"):
+            return stage._method.grid_control(self, expr, grid, include_first=include_first, include_last=include_last, transpose=transpose, refine=refine)
         sub_expr = []
         ks = list(range(1, stage._method.N))
         if include_first:
