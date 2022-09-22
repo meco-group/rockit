@@ -1,7 +1,7 @@
 from ast import Mult
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup
 from problems import integrator_control_problem, vdp, vdp_dae
 from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf
 from numpy import sin, pi, linspace
@@ -1062,6 +1062,96 @@ class MiscTests(unittest.TestCase):
           #plt.plot(tsf,vfsol,'-')
           #plt.show()
           #np.testing.assert_allclose(vsol, 2+sin(ts), atol=1e-6)
+
+    def test_subject_to_group_refine(self):
+        ocp = Ocp(T=10)
+        p = ocp.control(order=3)
+        v = ocp.der(p)
+        ocp.add_objective(-ocp.at_tf(p))
+
+        ocp.subject_to(v<=3,grid='inf')
+
+        ocp.subject_to(v<=2)
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+
+        ocp.method(SplineMethod(N=9))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+        size_origin = ocp.jacobian().size1()
+
+        ocp = Ocp(T=10)
+        p = ocp.control(order=3)
+        v = ocp.der(p)
+        ocp.add_objective(-ocp.at_tf(p))
+
+        ocp.subject_to(v<=3,grid='inf')
+
+        ocp.subject_to(v<=2, refine=2)
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+
+        ocp.method(SplineMethod(N=9))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+
+        [ts,vsol] = sol.sample(v,grid='control')
+        [tsf,vfsol] = sol.sample(v,grid='control',refine=10)
+        size_normal = ocp.jacobian().size1()
+        self.assertTrue(size_normal>size_origin)
+
+        ocp = Ocp(T=10)
+        p = ocp.control(order=3)
+        v = ocp.der(p)
+        ocp.add_objective(-ocp.at_tf(p))
+
+        ocp.subject_to(v<=3,grid='inf')
+
+        ocp.subject_to(v<=2, refine=2, group_refine=LseGroup(margin_abs=0.1))
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+
+        ocp.method(SplineMethod(N=9))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+
+        [ts,vsol] = sol.sample(v,grid='control')
+        [tsf,vfsol] = sol.sample(v,grid='control',refine=10)
+
+        # Check that grouping satisfies the constraint
+        np.testing.assert_array_less(vfsol, 2+1e-8)
+
+        size_lse = ocp.jacobian().size1()
+        self.assertEqual(size_lse,size_origin)
+
+        # Lower bound active
+
+        ocp = Ocp(T=10)
+        p = ocp.control(order=3)
+        v = ocp.der(p)
+        ocp.add_objective(-ocp.at_tf(p))
+
+        nv = -v
+
+        ocp.subject_to(v<=3,grid='inf')
+
+        ocp.subject_to(-2<=nv, refine=2, group_refine=LseGroup(margin_abs=0.1))
+
+        ocp.subject_to(ocp.at_t0(p)==0)
+
+        ocp.method(SplineMethod(N=9))
+        ocp.solver('ipopt')
+
+        sol = ocp.solve()
+        [ts,vsol] = sol.sample(v,grid='control')
+        [tsf,vfsol2] = sol.sample(v,grid='control',refine=10)
+
+        size_lse2 = ocp.jacobian().size1()
+        np.testing.assert_allclose(vfsol, vfsol2, atol=1e-6)
+        self.assertEqual(size_lse,size_lse2)
 
 
 if __name__ == '__main__':

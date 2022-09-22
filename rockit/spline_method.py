@@ -362,11 +362,11 @@ ocp.set_der(v, a)
                 # lb <= canon <= ub
                 # Check for infinities
                 try:
-                    lb_inf = np.all(np.array(evalf(lb)==-inf))
+                    lb_inf = np.all(np.array(evalf(lb)==-np.inf))
                 except:
                     lb_inf = False
                 try:
-                    ub_inf = np.all(np.array(evalf(ub)==inf))
+                    ub_inf = np.all(np.array(evalf(ub)==np.inf))
                 except:
                     ub_inf = False
 
@@ -376,15 +376,14 @@ ocp.set_der(v, a)
                 fm_max_group = f_max_group.map(self.N)
 
                 results_split = horzsplit(results,[0,self.N*refine,self.N*refine+1])
-                results_max = fm_min_group(results_split[0])
-                results_min = fm_max_group(results_split[0])
-
-                results_end = f(*vf_expressions,stage.p,self.control_grid[-1])[1]
+                results_max = fm_max_group(results_split[0])
+                results_min = fm_min_group(results_split[0])
+                results_end = f(*vf_expressions,stage.p,self.control_grid[-1])
                 if not lb_inf:
-                    self.opti.subject_to(lb+group_refine.margin_abs <= results_min)
+                    self.opti.subject_to(lb <= results_min)
                     self.opti.subject_to(lb <= results_end)
                 if not ub_inf:
-                    self.opti.subject_to(results_max <= ub-group_refine.margin_abs)
+                    self.opti.subject_to(results_max <= ub)
                     self.opti.subject_to(results_end <= ub)
             else:
                 self.opti.subject_to(ca.vec(ca.repmat(lb,1,self.N*refine+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N*refine+1))))
