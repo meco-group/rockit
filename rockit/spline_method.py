@@ -263,8 +263,6 @@ ocp.set_der(v, a)
         for refine in unique_refines:
             self.sample_xu(stage, refine)
 
-        print(self.XU_sampled)
-
         # We can know store states and controls evaluated on the control grid
         self.X = ca.horzsplit(ca.vcat(self.XU_sampled[1][:stage.nx]))
         self.U = ca.horzsplit(ca.vcat(self.XU_sampled[1][stage.nx:]))[:-1]
@@ -333,10 +331,7 @@ ocp.set_der(v, a)
             ubs[key].append(ub)
             canons[key].append(canon)
         
-        print(lbs,ubs,canons)
         keys = list(lbs.keys())
-
-
 
         # Loop over lumps
         for k in keys:
@@ -384,7 +379,6 @@ ocp.set_der(v, a)
                 results_max = fm_min_group(results_split[0])
                 results_min = fm_max_group(results_split[0])
 
-                raise Exception()
                 results_end = f(*vf_expressions,stage.p,self.control_grid[-1])[1]
                 if not lb_inf:
                     self.opti.subject_to(lb+group_refine.margin_abs <= results_min)
@@ -393,7 +387,7 @@ ocp.set_der(v, a)
                     self.opti.subject_to(results_max <= ub-group_refine.margin_abs)
                     self.opti.subject_to(results_end <= ub)
             else:
-                self.opti.subject_to(ca.vec(ca.repmat(lb,1,self.N+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N+1))))
+                self.opti.subject_to(ca.vec(ca.repmat(lb,1,self.N*refine+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N*refine+1))))
 
     def add_constraints_inf(self, stage, opti):
 

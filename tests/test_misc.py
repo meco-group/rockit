@@ -1,3 +1,4 @@
+from ast import Mult
 import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid
@@ -987,7 +988,7 @@ class MiscTests(unittest.TestCase):
 
         ocp.subject_to(ocp.at_t0(p)==0)
 
-        ocp.method(MultipleShooting(N=10))
+        ocp.method(method)
         ocp.solver('ipopt')
 
         sol = ocp.solve()
@@ -1009,13 +1010,58 @@ class MiscTests(unittest.TestCase):
         ocp.subject_to(ocp.at_t0(p)==0)
         ocp.subject_to(ocp.at_tf(p)==5)
 
-        ocp.method(MultipleShooting(N=10))
+        ocp.method(method)
         ocp.solver('ipopt')
 
         sol = ocp.solve()
 
         [ts,vsol] = sol.sample(v,grid='control')
         np.testing.assert_allclose(vsol, 2+sin(ts), atol=1e-6)
+
+    def test_exploiting_constraints(self):
+        # Get as far as possible with a speed limit
+        # If we are not careful with enforcing the speed limit, we may end up in cheating solutions that oscillate
+        for N in [9,10]:
+          for method in [SplineMethod(N=N),MultipleShooting(N=N),SingleShooting(N=N),DirectCollocation(N=N),SplineMethod(N=N)]:
+            escape = N % 2 == 1
+
+            for refine_subject_to in [True,False]:
+              if refine_subject_to and not isinstance(method,SplineMethod): continue
+              ocp = Ocp(T=10)
+              p = ocp.control(order=3)
+              v = ocp.der(p)
+              ocp.add_objective(-ocp.at_tf(p))
+
+              ocp.subject_to(v<=3,grid='inf')
+
+              kwargs = {}
+              if refine_subject_to:
+                kwargs["refine"] = 2
+
+              ocp.subject_to(v<=2, **kwargs)
+
+              ocp.subject_to(ocp.at_t0(p)==0)
+
+              ocp.method(method)
+              ocp.solver('ipopt')
+
+              sol = ocp.solve()
+
+              [ts,vsol] = sol.sample(v,grid='control')
+              [tsf,vfsol] = sol.sample(v,grid='control' if isinstance(method, SplineMethod) else 'integrator',refine=10)
+              if escape and not refine_subject_to:
+                print(method)
+                np.testing.assert_allclose(vsol, 2, atol=1e-6)
+                print(vfsol)
+                # Cheats
+                self.assertTrue(vfsol[5]>=2.3)
+              else:
+                np.testing.assert_allclose(vfsol, 2, atol=1e-6)
+          #import pylab as plt
+          #plt.plot(ts,vsol,'o')
+          #plt.plot(tsf,vfsol,'-')
+          #plt.show()
+          #np.testing.assert_allclose(vsol, 2+sin(ts), atol=1e-6)
 
 
 if __name__ == '__main__':

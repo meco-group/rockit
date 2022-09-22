@@ -571,7 +571,14 @@ class Stage:
         if depends_on(expr, self.u):
             raise Exception("Dependency on controls not supported yet for stage.der")
         ode = self._ode()
-        return jtimes(expr, vertcat(self.x, self.t), vertcat(ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"], 1))
+        if depends_on(expr,self.t):
+            return jtimes(expr, vertcat(self.x, self.t), vertcat(ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"], 1))
+        else:
+            if expr in self.states:
+                return jtimes(expr, self.x, ode.call(dict(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t),True,False)["ode"])
+            else:
+                return jtimes(expr, self.x, ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"])
+
 
     def integral(self, expr, grid='inf'):
         """Compute an integral or a sum

@@ -367,3 +367,37 @@ def prepare_build_dir(build_dir_abs):
       except:
         pass
     
+
+
+class ConstraintInspector:
+    def __init__(self, method, stage):
+        self.opti = Opti()
+
+        self.X = self.opti.variable(*stage.x.shape)
+        self.U = self.opti.variable(*stage.u.shape)
+        self.V = self.opti.variable(*stage.v.shape)
+        self.P = self.opti.parameter(*stage.p.shape)
+        self.t = self.opti.variable()
+        self.T = self.opti.variable()
+
+        self.raw = [stage.x,stage.u,stage.p,stage.t, method.v]
+        self.optivar = [self.X, self.U, self.P, self.t, self.V]
+
+        if method.free_time:
+            self.raw += [stage.T]
+            self.optivar += [self.T]
+    
+    def finalize(self):
+        self.opti_advanced = self.opti.advanced
+
+    def canon(self,expr):
+        c = substitute([expr],self.raw,self.optivar)[0]
+        mc = self.opti_advanced.canon_expr(c) # canon_expr should have a static counterpart
+        return substitute([mc.lb,mc.canon,mc.ub],self.optivar,self.raw), mc
+
+
+def linear_coeffs(expr, *args):
+    """ Multi-argument extesion to CasADi linear_coeff"""
+    J,c = linear_coeff(expr, vcat(args))
+    cs = np.cumsum([0]+[e.numel() for e in args])
+    return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
