@@ -21,14 +21,14 @@
 #
 
 from .sampling_method import SamplingMethod
-from .splines.micro_spline import bspline_derivative, eval_on_knots
+from .splines.micro_spline import bspline_derivative, eval_on_knots, get_greville_points
 from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vec
 import numpy as np
 import casadi as ca
 import networkx as nx
 from collections import defaultdict
 
-from .casadi_helpers import vcat, ConstraintInspector, linear_coeffs
+from .casadi_helpers import vcat, ConstraintInspector, linear_coeffs, reshape_number
 
 class SplineMethod(SamplingMethod):
     def __init__(self, **kwargs):
@@ -156,12 +156,15 @@ ocp.set_der(v, a)
         self.constraint_inspector = ConstraintInspector(self, stage)
         self.constraint_inspector.finalize()
 
+        self.xu = ca.vertcat(stage.x,stage.u)
+
     def sample_xu(self, stage, refine):
         # Cache for B,tau and results
         if not hasattr(self,"B"):
             self.B = defaultdict(dict)
             self.tau = {}
             self.time = {}
+            self.G = {}
             self.XU_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
             self.XU0_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
             self.XUF_sampled = defaultdict(lambda : [None]*(stage.nx+stage.nu))
@@ -201,6 +204,7 @@ ocp.set_der(v, a)
                     self.XU_sampled[refine][v_index] = xu_sampled_split[k]
                     self.XU0_sampled[refine][v_index] = xu0_split[k]
                     self.XUF_sampled[refine][v_index] = xuf_split[k]
+            self.G[d] = get_greville_points(self.xi, d)
 
     def add_variables(self, stage, opti):
 
@@ -273,7 +277,7 @@ ocp.set_der(v, a)
 
     def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         # What scalarized variables are we dependent on?
-        v = ca.vertcat(stage.x,stage.u)
+        v = self.xu
         J = ca.jacobian(expr,v)
         deps = ca.sum1(J.sparsity()).T.row()
 
@@ -339,7 +343,7 @@ ocp.set_der(v, a)
             lb = ca.vcat(lbs[k])
             ub = ca.vcat(ubs[k])
             canon = ca.vcat(canons[k])
-            v = ca.vertcat(stage.x,stage.u)
+            v = self.xu
 
             # What scalarized variables are we dependent on?
             J = ca.jacobian(canon,v)
@@ -350,7 +354,7 @@ ocp.set_der(v, a)
             [_,vf_expressions] = self.xu_symbols(stage, deps, self.XUF_sampled[refine])
 
             f = ca.Function("f",v_symbols+[stage.p,stage.t],[canon])
-            F = f.map(self.N*refine+1,[False,True,False])
+            F = f.map(self.N*refine+1,[False]*len(v_symbols)+[True,False])
 
             results = F(*v_expressions,stage.p,self.time[refine])
             assert canon.is_column()
@@ -390,7 +394,7 @@ ocp.set_der(v, a)
 
     def add_constraints_inf(self, stage, opti):
 
-        v = ca.vertcat(stage.x,stage.u)
+        v = self.xu
 
         # Collect all inf constraints
         lbs = []
@@ -440,3 +444,40 @@ ocp.set_der(v, a)
             Sr = ca.sum2(Ablock.sparsity()).row()
             if Sr:
                 self.opti.subject_to(lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr]))
+
+    def set_initial(self, stage, master, initial):
+        opti = master.opti if hasattr(master, 'opti') else master
+        opti_initial = opti.initial()
+        t0 = opti.debug.value(self.t0, opti_initial)
+        T = opti.debug.value(self.T, opti_initial)
+        initial_remainder = initial.__class__()
+        for var, expr in initial.items():
+            expr = reshape_number(var,expr)
+            J = evalf(ca.jacobian(var,self.xu))
+
+            # Selector for nonempty columns
+            Sc = ca.sum1(J.sparsity()).T.row()
+            if len(Sc)==0:
+                initial_remainder[var] = expr
+                continue
+
+            expr = ca.inv(J[:,Sc]) @ expr
+            f = ca.Function("f",[stage.t],[expr])
+
+            Ls = set([e['L'] for i,e in enumerate(self.origins) if i in Sc])
+            for L in Ls:
+                d = L-1
+                ks = []
+                js = []
+                j = 0
+                for i,e in enumerate(self.origins):
+                    if i in Sc:
+                        if e['L']==L:
+                            assert e['i']==0
+                            ks.append(e['k'])
+                            js.append(j)
+                        j+=1
+                target = self.coeffs_and_der[L][0][ks,:]
+                value = f(t0+self.G[d]*T)[js,:]
+                opti.set_initial(target, value)
+        SamplingMethod.set_initial(self, stage, master, initial_remainder)

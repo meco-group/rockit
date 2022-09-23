@@ -84,7 +84,26 @@ def bspline_derivative(c,xi,d):
   delta_xi = horzcat(xi[:,1:],repmat(xi[-1],1,d-1))-horzcat(repmat(xi[0],1,d-1),xi[:,:-1])
   scale = d/delta_xi
   return repmat(scale,c.shape[0],1)*(c[:,1:]-c[:,:-1])
-  
+
+
+def get_greville_points(xi,d):
+    if d==0:
+      return xi
+    # Greville: moving average of xi
+    N = xi.shape[1]
+    s = N-1+d
+
+    import itertools
+    row = []
+    for i in range(N):
+      row.extend(range(i,i+d))
+    colind = np.array(range(N+1))*d
+
+    source = (cs.DM(range(d,0,-1))/(cs.DM.ones(d,1)*d)).nonzeros()
+    values  = source+[1/d]*(N*d-2*len(source))+source[::-1]
+    S = cs.DM(cs.Sparsity(s,N,colind,row), values).T
+    np.testing.assert_allclose(cs.sum1(S), 1, atol=1e-12)
+    return xi @ S
   
 if __name__ == "__main__":
     d = 3

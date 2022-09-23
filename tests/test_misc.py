@@ -3,7 +3,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup
 from problems import integrator_control_problem, vdp, vdp_dae
-from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from rockit.splines.spline import Spline
@@ -1152,6 +1152,37 @@ class MiscTests(unittest.TestCase):
         size_lse2 = ocp.jacobian().size1()
         np.testing.assert_allclose(vfsol, vfsol2, atol=1e-6)
         self.assertEqual(size_lse,size_lse2)
+
+
+    def test_initial_spline(self):
+        for order in range(1,4):
+          for power in range(2): # Does not work for 2; set_initial is correctly setting the control points; but a spline does not pass exactly through control points
+            t0 = 1
+            T = 5
+            ocp = Ocp(t0=1,T=T)
+            x = ocp.control(order=order)
+            v0 = 3
+            x0 = 2
+            v = ocp.der(x)
+            ocp.subject_to(ocp.at_t0(x)==0)
+            ocp.set_initial(x, x0 + v0*ocp.t**power)
+            ocp.method(SplineMethod(N=4))
+            ocp.solver('ipopt',{'ipopt.max_iter':0})
+            print(order,power)
+            sol = ocp.solve_limited()
+
+            [ts,xsol] = sol.sample(x,grid='control')
+            np.testing.assert_allclose(xsol, x0 + v0*ts**power, atol=1e-6)
+
+            [tsf,xfsol] = sol.sample(x,grid='control',refine=10)
+            [_,vfsol] = sol.sample(v,grid='control',refine=10)
+
+            np.testing.assert_allclose(xfsol, x0 + v0*tsf**power, atol=1e-6)
+            np.testing.assert_allclose(vfsol, power*v0*tsf**(power-1), atol=1e-6)
+
+
+
+
 
 
 if __name__ == '__main__':

@@ -24,7 +24,7 @@ from ..multiple_shooting import MultipleShooting
 from ..sampling_method import SamplingMethod, UniformGrid
 from ..solution import OcpSolution
 from ..freetime import FreeTime
-from ..casadi_helpers import DM2numpy, reshape_number
+from ..casadi_helpers import DM2numpy, reshape_number, linear_coeffs
 from collections import OrderedDict
 from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify, DM, Opti, is_linear, vertcat, depends_on, jacobian, linear_coeff, quadratic_coeff, mtimes, pinv, evalf, Function, vvcat, inf, sum1, sum2, diag
 import casadi
@@ -67,11 +67,6 @@ def check_Js(J):
     assert np.all(np.array(sum2(J))<=1), "Each constraint can only depend on one slack at most"
     assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
 
-def linear_coeffs(expr, *args):
-    """ Multi-argument extesion to CasADi linear_coeff"""
-    J,c = linear_coeff(expr, vcat(args))
-    cs = np.cumsum([0]+[e.numel() for e in args])
-    return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
 
 class ExternalMethod:
     def __init__(self,supported=None,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):

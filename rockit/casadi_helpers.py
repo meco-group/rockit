@@ -129,9 +129,10 @@ def single_stacktrace(m):
     return m
 
 def reshape_number(target, value):
-    value = DM(value)
+    if not isinstance(value,cs.MX):
+        value = cs.DM(value)
     if value.is_scalar():
-        value = DM.ones(target.shape)*value
+        value = cs.DM.ones(target.shape)*value
     return value
 
 
