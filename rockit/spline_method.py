@@ -343,20 +343,8 @@ ocp.set_der(v, a)
             lb = ca.vcat(lbs[k])
             ub = ca.vcat(ubs[k])
             canon = ca.vcat(canons[k])
-            v = self.xu
 
-            # What scalarized variables are we dependent on?
-            J = ca.jacobian(canon,v)
-            deps = ca.sum1(J.sparsity()).T.row()
-
-            [v_symbols,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
-            [_,v0_expressions] = self.xu_symbols(stage, deps, self.XU0_sampled[refine])
-            [_,vf_expressions] = self.xu_symbols(stage, deps, self.XUF_sampled[refine])
-
-            f = ca.Function("f",v_symbols+[stage.p,stage.t],[canon])
-            F = f.map(self.N*refine+1,[False]*len(v_symbols)+[True,False])
-
-            results = F(*v_expressions,stage.p,self.time[refine])
+            _,results = self.grid_control(stage, canon, 'control', refine=refine)
             assert canon.is_column()
             canon_sym = MX.sym("canon_sym",canon.size1(),refine)
             # Do a grouping along refinement grid if requested
