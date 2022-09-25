@@ -145,6 +145,7 @@ class Ocp(Stage):
         return e
 
     @property
+    @transcribed
     def gist(self):
         """Obtain an expression packing all information needed to obtain value/sample
 

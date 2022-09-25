@@ -288,7 +288,7 @@ ocp.set_der(v, a)
         F = f.map(self.N*refine+1,len(v_symbols)*[False]+ [True,False])
         results = F(*v_expressions,stage.p,self.time[refine])
         
-        return self.time[refine],results
+        return self.time[refine], self.eval(stage, results)
 
 
 
@@ -384,13 +384,13 @@ ocp.set_der(v, a)
                 results_min = fm_min_group(results_split[0])
                 results_end = f(*vf_expressions,stage.p,self.control_grid[-1])
                 if not lb_inf:
-                    self.opti.subject_to(lb <= results_min)
-                    self.opti.subject_to(lb <= results_end)
+                    self.opti.subject_to(self.eval(stage, lb <= results_min))
+                    self.opti.subject_to(self.eval(stage, lb <= results_end))
                 if not ub_inf:
-                    self.opti.subject_to(results_max <= ub)
-                    self.opti.subject_to(results_end <= ub)
+                    self.opti.subject_to(self.eval(stage, results_max <= ub))
+                    self.opti.subject_to(self.eval(stage, results_end <= ub))
             else:
-                self.opti.subject_to(ca.vec(ca.repmat(lb,1,self.N*refine+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N*refine+1))))
+                self.opti.subject_to(self.eval(stage, ca.vec(ca.repmat(lb,1,self.N*refine+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N*refine+1)))))
 
     def add_constraints_inf(self, stage, opti):
 

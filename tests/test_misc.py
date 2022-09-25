@@ -1182,13 +1182,21 @@ class MiscTests(unittest.TestCase):
 
 
     def test_samplingmethod_architecture(self):
-        for method in [SplineMethod(N=4),MultipleShooting(N=4),SingleShooting(N=4),DirectCollocation(N=4),SplineMethod(N=4)]:
+        for method in [MultipleShooting(N=4),SingleShooting(N=4),DirectCollocation(N=4),SplineMethod(N=4)]:
+            print(method)
             (ocp, p, v, a) = bang_bang_problem(method)
+            alpha = ocp.parameter()
+            ocp.set_value(alpha,3)
+            ocp.add_objective(alpha*ocp.integral(a**2))
             [_,psol] = ocp.sample(p)
+            
             syms = symvar(psol)
             self.assertTrue(np.all(["opti" in e.name() for e in syms]))
 
-
+            [_,psol] = ocp.sample(alpha*p)
+            
+            syms = symvar(psol)
+            self.assertTrue(np.all(["opti" in e.name() for e in syms]))
 
 if __name__ == '__main__':
     unittest.main()
