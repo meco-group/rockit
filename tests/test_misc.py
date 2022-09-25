@@ -2,8 +2,8 @@ from ast import Mult
 import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup
-from problems import integrator_control_problem, vdp, vdp_dae
-from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr
+from problems import integrator_control_problem, vdp, vdp_dae, bang_bang_problem
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr, symvar
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from rockit.splines.spline import Spline
@@ -1181,7 +1181,12 @@ class MiscTests(unittest.TestCase):
             np.testing.assert_allclose(vfsol, power*v0*tsf**(power-1), atol=1e-6)
 
 
-
+    def test_samplingmethod_architecture(self):
+        for method in [SplineMethod(N=4),MultipleShooting(N=4),SingleShooting(N=4),DirectCollocation(N=4),SplineMethod(N=4)]:
+            (ocp, p, v, a) = bang_bang_problem(method)
+            [_,psol] = ocp.sample(p)
+            syms = symvar(psol)
+            self.assertTrue(np.all(["opti" in e.name() for e in syms]))
 
 
 
