@@ -49,6 +49,27 @@ def bang_bang_problem(stage_method):
 
     return (ocp, p, v, u)
 
+def bang_bang_chain_problem(stage_method):
+    ocp = Ocp(T=FreeTime(10))
+
+    p = ocp.control(order=3)
+    v = ocp.der(p)
+    a = ocp.der(v)
+
+    ocp.subject_to(-1 <= (v<= 1),grid='inf')
+    ocp.subject_to(-5 <= (a<= 5),grid='inf')
+
+    ocp.subject_to(ocp.at_t0(p)==0)
+    ocp.subject_to(ocp.at_t0(v)==0)
+    ocp.subject_to(ocp.at_tf(p)==2)
+    ocp.subject_to(ocp.at_tf(v)==0)
+
+    ocp.solver('ipopt')
+    ocp.add_objective(ocp.T)
+
+    ocp.method(stage_method)
+
+    return (ocp, p, v, a)
 
 def vdp_dae(method,x1limit=True):
   ocp = Ocp(T=10)

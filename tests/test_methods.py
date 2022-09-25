@@ -1,8 +1,10 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, DirectCollocation, SingleShooting, SplineMethod
-from problems import integrator_control_problem
+from pylab import *
 
+from rockit import Ocp, DirectMethod, MultipleShooting, DirectCollocation, SingleShooting, SplineMethod
+from problems import integrator_control_problem, bang_bang_chain_problem
+import numpy as np
 
 class MethodTests(unittest.TestCase):
 
@@ -22,5 +24,25 @@ class MethodTests(unittest.TestCase):
         self.assertAlmostEqual(xs[0],x0,places=6)
         self.assertAlmostEqual(xs[-1],x0-b*T,places=6)
   
+
+    def test_spline_more_vars(self):
+      (ocp, p, v, a) = bang_bang_chain_problem(MultipleShooting(N=10, intg='rk'))
+      sol = ocp.solve()
+      ts, ref_ps = sol.sample(p, grid='control')
+      ts, ref_vs = sol.sample(v, grid='control')
+      ts, ref_as = sol.sample(a, grid='control')
+      for scheme in [DirectCollocation(N=10), SingleShooting(N=10, intg='rk'), SplineMethod(N=10)]:
+        (ocp, p, v, a) = bang_bang_chain_problem(scheme)
+        sol = ocp.solve()
+        ts, ps = sol.sample(p, grid='control')
+        ts, vs = sol.sample(v, grid='control')
+        ts, ass = sol.sample(a, grid='control')
+
+        np.testing.assert_allclose(ps, ref_ps, atol=1e-6)
+        np.testing.assert_allclose(vs, ref_vs, atol=1e-6)
+        np.testing.assert_allclose(ass, ref_as, atol=1e-6)
+        
+
+        
 if __name__ == '__main__':
     unittest.main()

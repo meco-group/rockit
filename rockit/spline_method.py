@@ -439,9 +439,6 @@ ocp.set_der(v, a)
             Ablock = Ablock[Sr,Sc]
             C = ca.vcat([coeffs_epxr_block[e] for e in Sc])
 
-
-            # 
-            Sr = ca.sum2(Ablock.sparsity()).row()
             if Sr:
                 self.opti.subject_to(lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr]))
 
