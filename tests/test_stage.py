@@ -5,20 +5,22 @@ import numpy as np
 from casadi import kron, DM, vertcat
 
 from problems import bang_bang_problem
+from rockit.spline_method import SplineMethod
 
 class StageTests(unittest.TestCase):
 
     def test_stage_next(self):
-      (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
+      for method in [MultipleShooting(N=10),SplineMethod(N=10)]:
+        (ocp, p, v, u) = bang_bang_problem(method)
 
-      ocp.subject_to(-0.3 <= (ocp.next(u)-u <=0.3)  )
-      #ocp.subject_to(-0.3 <= ((ocp.next(u)-u)/(ocp.next(ocp.t) - ocp.t)<=0.3) )
+        ocp.subject_to(-0.3 <= (ocp.next(u)-u <=0.3)  )
+        #ocp.subject_to(-0.3 <= ((ocp.next(u)-u)/(ocp.next(ocp.t) - ocp.t)<=0.3) )
 
-      sol = ocp.solve()
+        sol = ocp.solve()
 
-      usol = sol.sample(u,grid='control')[1]
+        usol = sol.sample(u,grid='control')[1]
 
-      self.assertAlmostEqual(np.linalg.norm(np.diff(usol,axis=0),np.inf), 0.3, places=5)
+        self.assertAlmostEqual(np.linalg.norm(np.diff(usol,axis=0),np.inf), 0.3, places=5)
 
     def test_inf_der(self):
       (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
@@ -30,17 +32,23 @@ class StageTests(unittest.TestCase):
       vsol = sol.sample(v,grid='control')[1]
       self.assertAlmostEqual(np.linalg.norm(vsol,np.inf),0.3, places=5)
 
-    def test_next(self):
-      (ocp, p, v, u) = bang_bang_problem(MultipleShooting(N=10))
+    def test_objective_next(self):
+      ref = None
+      for method in [MultipleShooting(N=10),SplineMethod(N=10)]:
+        (ocp, p, v, u) = bang_bang_problem(method)
 
-      p_ref = ocp.parameter(2, grid='control')
-      ocp.set_value(p_ref, 1)
-      
-      x = vertcat(p,v)
-      dx = ocp.next(x)-x
-      ocp.add_objective(ocp.sum(dx.T @ dx))
+        #p_ref = ocp.parameter(2, grid='control')
+        #ocp.set_value(p_ref, 1)
+        
+        x = vertcat(p,v)
+        dx = ocp.next(x)-x
+        ocp.add_objective(ocp.sum(dx.T @ dx))
 
-      sol = ocp.solve()
+        sol = ocp.solve()
+        if ref is None:
+            ref = sol.value(ocp.T)
+        else:
+            np.testing.assert_allclose(ref,sol.value(ocp.T))
 
 
     def test_set_next(self):

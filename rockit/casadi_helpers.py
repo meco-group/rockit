@@ -381,8 +381,14 @@ class ConstraintInspector:
         self.t = self.opti.variable()
         self.T = self.opti.variable()
 
-        self.raw = [stage.x,stage.u,stage.p,stage.t, method.v]
-        self.optivar = [self.X, self.U, self.P, self.t, self.V]
+        offsets = list(stage._offsets.keys())
+
+        self.offsets = []
+        for e in offsets:
+            self.offsets.append(self.opti.variable(*e.shape))
+
+        self.raw = [stage.x,stage.u,stage.p,stage.t, method.v]+offsets
+        self.optivar = [self.X, self.U, self.P, self.t, self.V]+self.offsets
 
         if method.free_time:
             self.raw += [stage.T]

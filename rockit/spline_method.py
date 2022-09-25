@@ -284,11 +284,51 @@ ocp.set_der(v, a)
         self.sample_xu(stage, refine)
 
         [v_symbols,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
+
+        # Modify expr, v_symbols and v_expressions when offsets are present
+        v_expressions_with_offset = [(0,e) for e in v_expressions]
+
+        syms = ca.symvar(expr)
+        offsets = []
+        modified_expr = []
+        for s in syms:
+            if s in stage._offsets:
+                assert refine==1
+                e, offset = stage._offsets[s]
+
+                J = ca.jacobian(expr,v)
+                deps = ca.sum1(J.sparsity()).T.row()
+
+                [v_symbols_local,v_expressions] = self.xu_symbols(stage, deps, self.XU_sampled[refine])
+                copy_v_symbols = [MX.sym(s.name()+"_offset_%d" % offset, s.sparsity()) for s in v_symbols]
+                v_symbols+=copy_v_symbols
+                v_expressions_with_offset+=[(offset,e) for e in v_expressions]
+                
+                offsets.append(s)
+                modified_expr.append(substitute([e],v_symbols_local,copy_v_symbols)[0])
+
+        expr = substitute([expr],offsets,modified_expr)[0]
+
+        min_offset = int(np.min([o for o,_ in v_expressions_with_offset],initial=0))
+        max_offset = int(np.max([o for o,_ in v_expressions_with_offset],initial=0))
+
+        stop = self.N*refine+1
+
+        v_expressions = []
+
+        for o,e in v_expressions_with_offset:
+            v_expressions.append(e[:,o-min_offset:o+stop-max_offset])
+
+        time = self.time[refine][-min_offset:stop-max_offset]
+
+        # End offset modifications
+
         f = ca.Function("f",v_symbols+[stage.p,stage.t],[expr])
-        F = f.map(self.N*refine+1,len(v_symbols)*[False]+ [True,False])
-        results = F(*v_expressions,stage.p,self.time[refine])
-        
-        return self.time[refine], self.eval(stage, results)
+        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False])
+        results = F(*v_expressions,stage.p,time)
+
+
+        return time, self.eval(stage, results)
 
 
 
@@ -378,7 +418,10 @@ ocp.set_der(v, a)
                     self.opti.subject_to(self.eval(stage, results_max <= ub))
                     self.opti.subject_to(self.eval(stage, results_end <= ub))
             else:
-                self.opti.subject_to(self.eval(stage, ca.vec(ca.repmat(lb,1,self.N*refine+1)) <= (ca.vec(results) <= ca.vec(ca.repmat(ub,1,self.N*refine+1)))))
+                n = results.shape[1]
+                lb = ca.repmat(lb,1,n)
+                ub = ca.repmat(ub,1,n)
+                self.opti.subject_to( self.eval(   stage, ca.vec(lb) <= (ca.vec(results) <= ca.vec(ub))   ) )
 
     def add_constraints_inf(self, stage, opti):
 
