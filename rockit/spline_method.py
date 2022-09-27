@@ -184,7 +184,6 @@ ocp.set_der(v, a)
             d = dmax-i
             [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
             self.B[refine][self.N+d] = B
-            print("B",refine,B.shape)
             self.tau[refine] = tau
         self.time[refine] = self.time_grid(self.t0, self.T, self.N*refine)
 
