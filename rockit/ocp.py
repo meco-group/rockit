@@ -158,6 +158,7 @@ class Ocp(Stage):
         """
         return self._method.gist
 
+    @transcribed
     def to_function(self, name, args, results, *margs):
         return self._method.to_function(self, name, args, results, *margs)
 

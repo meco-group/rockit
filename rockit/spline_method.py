@@ -184,6 +184,7 @@ ocp.set_der(v, a)
             d = dmax-i
             [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
             self.B[refine][self.N+d] = B
+            print("B",refine,B.shape)
             self.tau[refine] = tau
         self.time[refine] = self.time_grid(self.t0, self.T, self.N*refine)
 
@@ -253,7 +254,7 @@ ocp.set_der(v, a)
                     v_index = c[2*i]
                     # Store width
                     self.widths[v_index] = s-i
-                    self.origins[v_index] = {"L": L, "i": i, "w": s-i, "k": k}
+                    self.origins[v_index] = {"L": L, "i": i, "w": s-i, "k": k, "d": d}
                     # Store scalarized coefficients
                     self.coeffs_epxr[v_index] = esplit[k]
                 if d-i>0:
@@ -274,6 +275,19 @@ ocp.set_der(v, a)
         # Below may improve efficiency, depends on the situation
         #self.X[0] = ca.vcat(self.XU0_expr[:stwidthstage.nx])
         #self.U[-1] = ca.vcat(self.XUF_expr[stage.nx:])
+
+    def grid_gist(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
+        assert refine==1
+        # What scalarized variables are we dependent on?
+        v = self.xu
+        J = ca.jacobian(expr,v)
+        deps = ca.sum1(J.sparsity()).T.row()
+
+        widths = set([self.origins[i]["w"] for i in deps])
+        assert len(widths)==1
+        coeffs = ca.vcat([self.coeffs_epxr[i] for i in deps])
+        d = self.origins[deps[0]]["d"]
+        return self.t0+self.G[d]*self.T, coeffs
 
     def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         # What scalarized variables are we dependent on?
@@ -471,7 +485,7 @@ ocp.set_der(v, a)
             C = ca.vcat([coeffs_epxr_block[e] for e in Sc])
 
             if Sr:
-                self.opti.subject_to(lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr]))
+                self.opti.subject_to(self.eval(stage,lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr])))
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
@@ -490,22 +504,25 @@ ocp.set_der(v, a)
                 continue
 
             expr = ca.inv(J[:,Sc]) @ expr
-            f = ca.Function("f",[stage.t],[expr])
+            if expr.shape[1]==1:
+                f = ca.Function("f",[stage.t],[expr])
 
-            Ls = set([e['L'] for i,e in enumerate(self.origins) if i in Sc])
-            for L in Ls:
-                d = L-1
-                ks = []
-                js = []
-                j = 0
-                for i,e in enumerate(self.origins):
-                    if i in Sc:
-                        if e['L']==L:
-                            assert e['i']==0
-                            ks.append(e['k'])
-                            js.append(j)
-                        j+=1
-                target = self.coeffs_and_der[L][0][ks,:]
-                value = f(t0+self.G[d]*T)[js,:]
-                opti.set_initial(target, value)
+                Ls = set([e['L'] for i,e in enumerate(self.origins) if i in Sc])
+                for L in Ls:
+                    d = L-1
+                    ks = []
+                    js = []
+                    j = 0
+                    for i,e in enumerate(self.origins):
+                        if i in Sc:
+                            if e['L']==L:
+                                assert e['i']==0
+                                ks.append(e['k'])
+                                js.append(j)
+                            j+=1
+                    target = self.coeffs_and_der[L][0][ks,:]
+                    value = f(t0+self.G[d]*T)[js,:]
+                    opti.set_initial(target, value)
+            else:
+                opti.set_initial(stage.sample(var,'gist')[1], expr)
         SamplingMethod.set_initial(self, stage, master, initial_remainder)

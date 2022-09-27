@@ -1273,7 +1273,7 @@ class Stage:
         grid : `str`
             At which points in time to sample, options are
             'control' or 'integrator' (at integrator discretization
-            level) or 'integrator_roots'.
+            level), 'integrator_roots', 'gist'.            
         refine : int, optional
             Refine grid by evaluation the polynomal of the integrater at
             intermediate points ("refine" points per interval).
@@ -1307,12 +1307,19 @@ class Stage:
                 time, res = self._grid_integrator(self, expr, grid, **kwargs)
         elif grid == 'integrator_roots':
             time, res = self._grid_integrator_roots(self, expr, grid, **kwargs)
+        elif grid == 'gist':
+            time, res = self._grid_gist(self, expr, grid, **kwargs)
         else:
             msg = "Unknown grid option: {}\n".format(grid)
             msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
             raise Exception(msg)
 
         return placeholders(time), placeholders(res)
+
+    def _grid_gist(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
+        if hasattr(stage._method,"grid_gist"):
+            return stage._method.grid_gist(self, expr, grid, include_first=include_first, include_last=include_last, transpose=transpose, refine=refine)
+
 
     def _grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         """Evaluate expression at (N + 1) control points."""
