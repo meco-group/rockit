@@ -184,6 +184,16 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = initial_value(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','expr'});
+      if isempty(kwargs)
+        res = obj.parent.initial_value(args{:});
+      else
+        res = obj.parent.initial_value(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = to_function(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'stage','name','args','results','margs'});

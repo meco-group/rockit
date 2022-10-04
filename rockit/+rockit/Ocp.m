@@ -178,6 +178,16 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = view_api(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'name'});
+      if isempty(kwargs)
+        res = obj.parent.view_api(args{:});
+      else
+        res = obj.parent.view_api(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = sys_simulator(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'intg','intg_options'});

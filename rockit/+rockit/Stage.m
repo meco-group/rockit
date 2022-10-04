@@ -712,7 +712,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7fea1a55cdd0>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7fea1a55ce10>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7fea1a55ce50>, meta=None
       % 
       %         Parameters
       %         ----------
@@ -738,7 +738,14 @@ classdef Stage < handle
       %             Enforce constraint also at tf
       %             "auto" mode will only enforce the constraint if it is not dependent on a control signal,
       %             since typically control signals are not defined at tf.
-      % 
+      %         refine : int, optional
+      %             Refine grid used in constraining by a certain factor with respect to the control grid
+      %         group_refine : GroupTechnique, optional
+      %             Group constraints together along the refine axis
+      %         group_dim : GroupTechnique, optional
+      %             Group vector-valued constraints along the vector dimension into a scalar constraint
+      %         group_control : GroupTechnique, optional
+      %             Group constraints together along the control grid
       %         Examples
       %         --------
       % 
@@ -750,7 +757,7 @@ classdef Stage < handle
       %         >>> ocp.subject_to( ocp.at_tf(x) == 0)  # boundary constraint
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr','grid','include_first','include_last','scale','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'constr','grid','include_first','include_last','scale','refine','group_refine','group_dim','group_control','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -1082,7 +1089,7 @@ classdef Stage < handle
       %         grid : `str`
       %             At which points in time to sample, options are
       %             'control' or 'integrator' (at integrator discretization
-      %             level) or 'integrator_roots'.
+      %             level), 'integrator_roots', 'gist'.            
       %         refine : int, optional
       %             Refine grid by evaluation the polynomal of the integrater at
       %             intermediate points ("refine" points per interval).
@@ -1110,11 +1117,21 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_grid_gist(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last','transpose','refine'});
+      if isempty(kwargs)
+        res = obj.parent.internal_grid_gist(args{:});
+      else
+        res = obj.parent.internal_grid_gist(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = internal_grid_control(obj,varargin)
       % Evaluate expression at (N + 1) control points.
-      % Arguments: stage, expr, grid, include_first=True, include_last=True, transpose=False
+      % Arguments: stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last','transpose'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,3,{'stage','expr','grid','include_first','include_last','transpose','refine'});
       if isempty(kwargs)
         res = obj.parent.internal_grid_control(args{:});
       else
@@ -1173,6 +1190,24 @@ classdef Stage < handle
         res = obj.parent.value(args{:});
       else
         res = obj.parent.value(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = initial_value(obj,varargin)
+      % Get the value of an expression at initial guess
+      % Arguments: expr
+      % 
+      %         Parameters
+      %         ----------
+      %         expr : :obj:`casadi.MX`
+      %             Arbitrary expression containing no signals (states, controls) ...
+      %         
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr'});
+      if isempty(kwargs)
+        res = obj.parent.initial_value(args{:});
+      else
+        res = obj.parent.initial_value(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end

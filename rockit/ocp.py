@@ -23,7 +23,7 @@ from casadi import vertcat, vcat, which_depends, MX, substitute, integrator, Fun
 from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
 from .casadi_helpers import vvcat
-
+from .external.manager import external_method
 class Ocp(Stage):
     def __init__(self,  t0=0, T=1, **kwargs):
         """Create an Optimal Control Problem environment
@@ -207,6 +207,11 @@ class Ocp(Stage):
         dae["p"] = p
         dae["u"] = self.u
         return dae
+
+    def view_api(self, name):
+        self.method(external_method(name))
+        self._transcribed
+        return self._method
 
     def sys_simulator(self, intg='rk', intg_options=None):
         if intg_options is None:
