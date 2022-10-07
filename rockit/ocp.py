@@ -209,7 +209,8 @@ class Ocp(Stage):
         return dae
 
     def view_api(self, name):
-        self.method(external_method(name))
+        method = self._method
+        self.method(external_method(name,method=method))
         self._transcribed
         return self._method
 

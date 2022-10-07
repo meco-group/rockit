@@ -104,6 +104,16 @@ ocp.subject_to(-2 <= (pos <= 2), include_first=False)
 # Set initial value for parameters
 ocp.set_value(X_0, current_X)
 
+# Pick a solution method
+options = {"ipopt": {"print_level": 0}}
+options["expand"] = True
+options["print_time"] = False
+ocp.solver('ipopt',options)
+
+# Make it concrete for this ocp
+ocp.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
+
+sol = ocp.solve()
 
 ############# Define API for cartpole ################
 # Start Query #
@@ -125,8 +135,11 @@ print(cegar_api.get_ODE())
 
 print(cegar_api.get_cost())
 
+print(cegar_api.get_path_constraints())
 
 print(cegar_api.get_initial_constraints())
+
+print(cegar_api.get_sample_time())
 
 
 """
@@ -155,14 +168,6 @@ return "sample_time = 0.04"
 # End Query #
 """
 
-# Pick a solution method
-options = {"ipopt": {"print_level": 0}}
-options["expand"] = True
-options["print_time"] = False
-ocp.solver('ipopt',options)
-
-# Make it concrete for this ocp
-ocp.method(MultipleShooting(N=Nhor,M=1,intg='rk'))
 
 
 

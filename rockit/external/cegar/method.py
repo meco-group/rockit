@@ -24,7 +24,7 @@
 
 from ...freetime import FreeTime
 from ...casadi_helpers import prepare_build_dir, ConstraintInspector
-from ..method import ExternalMethod, linear_coeffs, check_Js
+from ..method import ExternalMethod, linear_coeffs, check_Js, reshape_number
 from ...solution import OcpSolution
 
 import casadi as ca
@@ -92,7 +92,9 @@ def visit(e,parents=None):
 
 class CegarMethod(ExternalMethod):
     def __init__(self,
+        method = None,
         **kwargs):
+        self.method = method
 
         supported = {"free_T"}
         ExternalMethod.__init__(self, supported=supported, **kwargs)
@@ -156,6 +158,123 @@ class CegarMethod(ExternalMethod):
         f = ca.Function('f',[ca.vcat(self.stage.states),ca.vcat(self.stage.controls),ca.vcat(self.stage.parameters[''])],[self.lagrange])
         result  = f(ca.vcat(self.x_args),ca.vcat(self.u_args),ca.vcat(self.p_args))
         return "costD' == " + sx_write(result)
+
+    def get_path_constraints(self):
+
+        # helpers to put limits on u
+        ub_expr = []
+        ub_l = []
+        ub_u = []
+
+        # Process path constraints
+        for c, meta, args in self.stage._constraints["control"]:
+            (lb,canon,ub),mc = self.constraint_inspector.canon(self.placeholders(c,preference=['expose']))
+            # lb <= canon <= ub
+            # Check for infinities
+            try:
+                lb_inf = np.all(np.array(ca.evalf(lb)==-np.inf))
+            except:
+                lb_inf = False
+            try:
+                ub_inf = np.all(np.array(ca.evalf(ub)==np.inf))
+            except:
+                ub_inf = False
+
+            if mc.type == ca.OPTI_EQUALITY:
+                assert "Not supported"
+            else:
+                assert mc.type in [ca.OPTI_INEQUALITY, ca.OPTI_GENERIC_INEQUALITY, ca.OPTI_DOUBLE_INEQUALITY]
+
+                # Catch simple bounds on u
+                if ca.is_linear(canon, self.stage.u) and not ca.depends_on(canon, ca.vertcat(self.stage.x, self.v)):
+                    J,c = ca.linear_coeff(canon, self.stage.u)
+                    try:
+                        check_Js(J)
+                        ub_expr.append(J)
+                        if ub_inf:
+                            ub_u.append(reshape_number(J @ self.stage.u,-np.inf))
+                        else:
+                            ub_u.append(ub-c)
+                        if lb_inf:
+                            ub_l.append(reshape_number(J @ self.stage.u,np.inf))
+                        else:
+                            ub_l.append(lb-c)
+                        continue
+                    except:
+                        pass
+
+        ub_expr = ca.evalf(ca.vcat(ub_expr))
+        ub_l = ca.evalf(ca.vcat(ub_l))
+        ub_u = ca.evalf(ca.vcat(ub_u))
+        # Add missing rows
+        rows = set(ca.sum1(ub_expr).T.row())
+        missing_rows = [i for i in range(self.stage.nu) if i not in rows]
+        M = ca.DM(len(missing_rows), self.stage.nu)
+        for i,e in enumerate(missing_rows):
+            M[i,e] = 1
+
+        ub_expr = ca.vertcat(ub_expr,M)
+        ub_l = ca.vertcat(ub_l,-np.inf*ca.DM.ones(len(missing_rows)))
+        ub_u = ca.vertcat(ub_u,np.inf*ca.DM.ones(len(missing_rows)))
+       
+        ub_l = ca.solve(ub_expr,ub_l)
+        ub_u = ca.solve(ub_expr,ub_u)
+
+        f = ca.Function('f',[ca.vcat(self.stage.parameters[''])],[ub_l,ub_u])
+        result  = f(ca.vcat(self.p_args))
+        ret = []
+        for i, n in enumerate(self.get_control_names()):
+            lb = sx_write(result[0][i])
+            ub = sx_write(result[1][i])
+            ret.append("%s <= (%s <= %s)" % (lb, n, ub))
+        return ret
+    
+    def get_initial_constraints(self):
+
+        x0_eq = []
+        x0_b = []
+
+        # Process point constraints
+        # Probably should de-duplicate stuff wrt path constraints code
+        for c, meta, _ in self.stage._constraints["point"]:
+            # Make sure you resolve u to r_at_t0/r_at_tf
+            c = self.placeholders(c,max_phase=1)
+            has_t0 = 'r_at_t0' in [a.name() for a in ca.symvar(c)]
+            has_tf = 'r_at_tf' in [a.name() for a in ca.symvar(c)]
+
+            cb = c
+            (lb,canon,ub),mc = self.constraint_inspector.canon(self.placeholders(c,preference=['expose']))
+
+            if has_t0:
+                # t0
+                check = ca.is_linear(canon, self.stage.x)
+                check = check and not ca.depends_on(canon, ca.vertcat(self.stage.u, self.v))
+                assert check and mc.type == ca.OPTI_EQUALITY, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
+
+                J,c = ca.linear_coeff(canon, self.stage.x)
+                try:
+                    J = ca.evalf(J)
+                    x0_eq.append(J)
+                    x0_b.append(lb-c)
+                    continue
+                except:
+                    pass
+
+        x0_eq = ca.vcat(x0_eq)
+        x0_b = ca.vcat(x0_b)
+        x_current = ca.inv(ca.evalf(x0_eq)) @ x0_b
+        f = ca.Function('f',[ca.vcat(self.stage.parameters[''])],[x_current])
+        result  = f(ca.vcat(self.p_args))
+        ret = []
+
+        for i, n in enumerate(self.get_state_names()):
+            ret.append(n+" = " + sx_write(result[i]))
+            
+        return ret
+
+    def get_sample_time(self):
+        dt = self.method.control_grid[1]-self.method.control_grid[0]
+        return "sample_time = %.16f" % float(dt)
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -237,7 +356,8 @@ class CegarMethod(ExternalMethod):
         self.f = self.stage._ode()
         self.x_args = self.to_sxs(self.stage.states,suffix="D")
         self.u_args = self.to_sxs(self.stage.controls,suffix="D")
-        self.p_args = self.to_sxs(self.stage.parameters[''],suffix="D")
+        self.p_args = self.to_sxs(self.stage.parameters[''])
+        self.placeholders = placeholders
 
 
 
