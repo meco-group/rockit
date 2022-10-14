@@ -188,7 +188,7 @@ class ExternalMethod:
             # Occurs in lagrange?
             obj = MX(stage._objective)
             for e in symvar(obj):
-                if e.name()=='sum_control' and recursive_depends(e,stage.t):
+                if e.name()=='r_sum_control' and recursive_depends(e,stage.t):
                     self.t_state = True
                     return
 
