@@ -227,26 +227,17 @@ classdef Ocp < rockit.Stage
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.gist);
     end
-    function out = load(obj)
-      % staticmethod(function) -> method
-      % 
-      % Convert a function to be a static method.
-      % 
-      % A static method does not receive an implicit first argument.
-      % To declare a static method, use this idiom:
-      % 
-      %      class C:
-      %          @staticmethod
-      %          def f(arg1, arg2, ...):
-      %              ...
-      % 
-      % It can be called either on the class (e.g. C.f()) or on an instance
-      % (e.g. C().f()).  The instance is ignored except for its class.
-      % 
-      % Static methods in Python are similar to those found in Java or C++.
-      % For a more advanced concept, see the classmethod builtin.
+  end
+  methods(Static)
+    function varargout = load(varargin)
       global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.load);
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'name'});
+      if isempty(kwargs)
+        res = py.rockit.ocp.Ocp.load(args{:});
+      else
+        res = py.rockit.ocp.Ocp.load(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
   end
 end

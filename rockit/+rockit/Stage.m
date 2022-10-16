@@ -742,7 +742,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7f153906c650>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7f153906c690>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7f153906c6d0>, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc632052590>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc6320525d0>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc632052610>, meta=None
       % 
       %         Parameters
       %         ----------
