@@ -32,6 +32,16 @@ classdef PythonCasadiInterface < handle
           end
         end
         function [out,keywords] = matlab2python_arg(obj, v,n_in_min,arg_names)
+          greedy_kwargs_from = inf;
+          if n_in_min==-inf
+            n_in_min = inf;
+            greedy_kwargs_from = 1;
+            for greedy_kwargs_from=1:numel(arg_names)
+               if strcmp(arg_names{greedy_kwargs_from},'args')
+                   break
+               end
+            end
+          end
           assert(length(v)>=n_in_min || isinf(n_in_min))
           keywords_only = false;
           i_v = 1;
@@ -46,6 +56,10 @@ classdef PythonCasadiInterface < handle
             keywords_only = keywords_only || i_v>n_in_min;
             key_or_value = v{i_v};
             isc = ischar(key_or_value);
+            if i_v>=greedy_kwargs_from && isc
+                keywords_only = true;
+                has_kwargs = true;
+            end
             is_kwargs = strcmp(arg_names{i_arg},'kwargs');
             if ~keywords_only && is_kwargs
               keywords_only = true;
@@ -98,14 +112,23 @@ classdef PythonCasadiInterface < handle
               mod = char(py.getattr(e,'__module__'));
             except
             end
+            a = split(class(e),'.');
+            h = str2func([a{1} '.' a{2} '.matlab_path']);
+            has_matlab = false;
+            try
+                h();
+                has_matlab = true;
+            catch
+            end
             if strcmp(mod,'casadi.casadi')
               obj.python_serializer.pack(e);
               obj.matlab_deserializer.decode(char(obj.python_serializer.encode()));
               out = obj.matlab_deserializer.unpack();
-            elseif startsWith(mod,'rockit')
-              a = split(class(e),'.');
+            elseif has_matlab
+              name = [a{2} '.' a{end}];
+              h = str2func(name);
               try
-                out = rockit.(a{end})(e);
+                out = h(e);
               catch
                 out = e;
               end
@@ -135,7 +158,7 @@ classdef PythonCasadiInterface < handle
               elseif isscalar(e)
                 out = e;
               else
-                out = py.numpy.array(py.memoryview(e));
+                out = py.numpy.array(py.memoryview(e(:)'));
               end
           elseif isstruct(e)
               names = fieldnames(e);
@@ -167,4 +190,6 @@ classdef PythonCasadiInterface < handle
         end
     end
 end
+
+
 

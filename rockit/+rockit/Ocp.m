@@ -57,36 +57,17 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+
     function out = spy(obj)
-      figure;
-      subplot(1,2,1);
-      [J, titleJ] = obj.jacobian(true);
-      spy(casadi.DM(J));
-      title(titleJ);
-      subplot(1,2,2);
-      [H, titleH] = obj.hessian(true);
-      spy(casadi.DM(H));
-      title(titleH);
-    end
-    function varargout = internal_transcribe(obj,varargin)
-      global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
-      if isempty(kwargs)
-        res = obj.parent.internal_transcribe(args{:});
-      else
-        res = obj.parent.internal_transcribe(args{:},pyargs(kwargs{:}));
-      end
-      varargout = pythoncasadiinterface.python2matlab_ret(res);
-    end
-    function varargout = internal_untranscribe(obj,varargin)
-      global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
-      if isempty(kwargs)
-        res = obj.parent.internal_untranscribe(args{:});
-      else
-        res = obj.parent.internal_untranscribe(args{:},pyargs(kwargs{:}));
-      end
-      varargout = pythoncasadiinterface.python2matlab_ret(res);
+       figure;
+       subplot(1,2,1);
+       [J, titleJ] = obj.jacobian(true);
+       spy(casadi.DM(J));
+       title(titleJ);
+       subplot(1,2,2);
+       [H, titleH] = obj.hessian(true);
+       spy(casadi.DM(H));
+       title(titleH);
     end
     function varargout = solve(obj,varargin)
       global pythoncasadiinterface
@@ -218,24 +199,6 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
-    function out = internal__module__(obj)
-      % str(object='') -> str
-      % str(bytes_or_buffer[, encoding[, errors]]) -> str
-      % 
-      % Create a new string object from the given object. If encoding or
-      % errors is specified, then the object must expose a data buffer
-      % that will be decoded using the given encoding and error handler.
-      % Otherwise, returns the result of object.__str__() (if defined)
-      % or repr(object).
-      % encoding defaults to sys.getdefaultencoding().
-      % errors defaults to 'strict'.
-      global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.internal__module__);
-    end
-    function out = internal_transcribed(obj)
-      global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.internal_transcribed);
-    end
     function out = placeholders_transcribed(obj)
       % 
       %         May also be called after solving (issue #91)
@@ -284,10 +247,6 @@ classdef Ocp < rockit.Stage
       % For a more advanced concept, see the classmethod builtin.
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.load);
-    end
-    function out = internal__doc__(obj)
-      global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.internal__doc__);
     end
   end
 end

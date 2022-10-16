@@ -40,30 +40,6 @@ classdef LseGroup < handle
          [varargout{1:nargout}] = builtin('subsref',res,S(2:end));
        end
     end
-    function varargout = internal__bool__(obj,varargin)
-      global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
-      if isempty(kwargs)
-        res = obj.parent.internal__bool__(args{:});
-      else
-        res = obj.parent.internal__bool__(args{:},pyargs(kwargs{:}));
-      end
-      varargout = pythoncasadiinterface.python2matlab_ret(res);
-    end
-    function out = internal__module__(obj)
-      % str(object='') -> str
-      % str(bytes_or_buffer[, encoding[, errors]]) -> str
-      % 
-      % Create a new string object from the given object. If encoding or
-      % errors is specified, then the object must expose a data buffer
-      % that will be decoded using the given encoding and error handler.
-      % Otherwise, returns the result of object.__str__() (if defined)
-      % or repr(object).
-      % encoding defaults to sys.getdefaultencoding().
-      % errors defaults to 'strict'.
-      global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.internal__module__);
-    end
     function out = class_id(obj)
       % int([x]) -> integer
       % int(x, base=10) -> integer
@@ -85,10 +61,6 @@ classdef LseGroup < handle
     function out = tuple(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.tuple);
-    end
-    function out = internal__doc__(obj)
-      global pythoncasadiinterface
-      out = pythoncasadiinterface.python2matlab(obj.parent.internal__doc__);
     end
   end
 end
