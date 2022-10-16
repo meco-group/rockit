@@ -23,6 +23,7 @@
 import casadi as cs
 from casadi import *
 from collections import defaultdict, OrderedDict
+from contextlib import contextmanager
 
 def get_ranges_dict(list_expr):
     ret = HashDict()
@@ -408,3 +409,45 @@ def linear_coeffs(expr, *args):
     J,c = linear_coeff(expr, vcat(args))
     cs = np.cumsum([0]+[e.numel() for e in args])
     return tuple([J[:,cs[i]:cs[i+1]] for i in range(len(args))])+(c,)
+
+ca_classes = [cs.SX,cs.MX,cs.Function,cs.Sparsity,cs.DM,cs.Opti]
+
+@contextmanager
+def rockit_pickle_context():
+    string_serializer = cs.StringSerializer()
+    string_serializer.pack("preamble")
+    string_serializer.encode()
+    def __getstate__(self):
+        if isinstance(self,cs.Opti):
+            raise Exception("Opti cannot be serialized yet. Consider removing the transcribed problem.")
+        string_serializer.pack(self)
+        enc = string_serializer.encode()
+        return {"s":enc}
+
+    for c in ca_classes:
+        setattr(c, '__getstate__', __getstate__)
+        
+    yield
+
+    for c in ca_classes:
+        delattr(c, '__getstate__')
+
+@contextmanager
+def rockit_unpickle_context():
+    string_serializer = cs.StringSerializer()
+    string_serializer.pack("preamble")
+    string_deserializer = cs.StringDeserializer(string_serializer.encode())
+    string_deserializer.unpack()
+    def __setstate__(self,state):
+        string_deserializer.decode(state["s"])
+        s = string_deserializer.unpack()
+        self.this = s.this
+
+    for c in ca_classes:
+        setattr(c, '__setstate__', __setstate__)
+        
+    yield
+
+    for c in ca_classes:
+        delattr(c, '__setstate__')
+        

@@ -78,6 +78,16 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_untranscribe(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.internal_untranscribe(args{:});
+      else
+        res = obj.parent.internal_untranscribe(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = solve(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
@@ -198,6 +208,16 @@ classdef Ocp < rockit.Stage
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = save(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'name'});
+      if isempty(kwargs)
+        res = obj.parent.save(args{:});
+      else
+        res = obj.parent.save(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function out = internal__module__(obj)
       % str(object='') -> str
       % str(bytes_or_buffer[, encoding[, errors]]) -> str
@@ -243,6 +263,27 @@ classdef Ocp < rockit.Stage
       %         
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.gist);
+    end
+    function out = load(obj)
+      % staticmethod(function) -> method
+      % 
+      % Convert a function to be a static method.
+      % 
+      % A static method does not receive an implicit first argument.
+      % To declare a static method, use this idiom:
+      % 
+      %      class C:
+      %          @staticmethod
+      %          def f(arg1, arg2, ...):
+      %              ...
+      % 
+      % It can be called either on the class (e.g. C.f()) or on an instance
+      % (e.g. C().f()).  The instance is ignored except for its class.
+      % 
+      % Static methods in Python are similar to those found in Java or C++.
+      % For a more advanced concept, see the classmethod builtin.
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.load);
     end
     function out = internal__doc__(obj)
       global pythoncasadiinterface

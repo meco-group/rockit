@@ -712,7 +712,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7f7dceb7b210>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7f7dceb7b250>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7f7dceb7b290>, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7f92614f8550>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7f92614f8590>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7f92614f85d0>, meta=None
       % 
       %         Parameters
       %         ----------
@@ -1038,6 +1038,16 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = internal_untranscribe_recurse(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'phase','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.internal_untranscribe_recurse(args{:});
+      else
+        res = obj.parent.internal_untranscribe_recurse(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = internal_placeholders_transcribe_recurse(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'phase','placeholders'});
@@ -1045,6 +1055,16 @@ classdef Stage < handle
         res = obj.parent.internal_placeholders_transcribe_recurse(args{:});
       else
         res = obj.parent.internal_placeholders_transcribe_recurse(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = internal_placeholders_untranscribe_recurse(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'phase'});
+      if isempty(kwargs)
+        res = obj.parent.internal_placeholders_untranscribe_recurse(args{:});
+      else
+        res = obj.parent.internal_placeholders_untranscribe_recurse(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end

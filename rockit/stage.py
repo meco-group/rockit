@@ -1156,12 +1156,30 @@ class Stage:
         for s in self._stages:
             s._transcribe_recurse(phase=phase, **kwargs)
 
+    def _untranscribe_recurse(self, phase=1, **kwargs):
+        if self._method is not None:
+            if self is self.master:
+                self._method.main_untranscribe(self, phase=phase, **kwargs)
+            self._method.untranscribe(self, phase=phase, **kwargs)
+        else:
+            pass
+
+        for s in self._stages:
+            s._untranscribe_recurse(phase=phase, **kwargs)
+
     def _placeholders_transcribe_recurse(self, phase, placeholders):
         if self._method is not None:
             self._method.transcribe_placeholders(phase, self, placeholders)
 
         for s in self._stages:
             s._placeholders_transcribe_recurse(phase, placeholders)
+
+    def _placeholders_untranscribe_recurse(self, phase):
+        if self._method is not None:
+            self._method.untranscribe_placeholders(phase, self)
+
+        for s in self._stages:
+            s._placeholders_untranscribe_recurse(phase)
 
     def clone(self, parent, **kwargs):
         assert self._is_original

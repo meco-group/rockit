@@ -1,7 +1,7 @@
 from ast import Mult
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup, rockit_pickle_context, rockit_unpickle_context
 from problems import integrator_control_problem, vdp, vdp_dae, bang_bang_problem
 from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr, symvar
 from numpy import sin, pi, linspace
@@ -13,8 +13,6 @@ except:
   redirect_stdout = None
 from io import StringIO
 import numpy as np
-
-
 
 class MiscTests(unittest.TestCase):
 
@@ -1198,5 +1196,22 @@ class MiscTests(unittest.TestCase):
             syms = symvar(psol)
             self.assertTrue(np.all(["opti" in e.name() for e in syms]))
 
+    def test_pickling(self):
+      for method in [MultipleShooting(N=4),SingleShooting(N=4),DirectCollocation(N=4),SplineMethod(N=4)]:
+        (ocp, p, v, a) = bang_bang_problem(method)
+
+        sol = ocp.solve()
+        [tr,xr] = sol.sample(ocp.x,grid='control')
+        ocp.save("foo.rockit")
+        ocp2 = Ocp.load("foo.rockit")
+
+        sol2 = ocp2.solve()
+        [t2,x2] = sol2.sample(ocp2.x,grid='control')
+
+        np.testing.assert_allclose(tr, t2,atol=1e-16)
+        np.testing.assert_allclose(xr, x2,atol=1e-16)
+
 if __name__ == '__main__':
     unittest.main()
+
+

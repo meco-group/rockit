@@ -33,6 +33,22 @@ from .casadi_helpers import vcat, ConstraintInspector, linear_coeffs, reshape_nu
 class SplineMethod(SamplingMethod):
     def __init__(self, **kwargs):
         SamplingMethod.__init__(self, **kwargs)
+        self.clean()
+
+    def clean(self):
+        SamplingMethod.clean(self)
+        self.constraint_inspector = None
+        self.B = None
+        self.tau = None
+        self.G = None
+        self.XU_sampled = None
+        self.XU0_sampled = None
+        self.XUF_sampled = None
+        self.coeffs_and_der = None
+        self.coeffs_epxr = None
+        self.widths = None
+        self.origins = None
+        self.opti_advanced = None
 
     def transcribe_start(self, stage, opti):
         # Inspect system
@@ -160,7 +176,7 @@ ocp.set_der(v, a)
 
     def sample_xu(self, stage, refine):
         # Cache for B,tau and results
-        if not hasattr(self,"B"):
+        if self.B is None:
             self.B = defaultdict(dict)
             self.tau = {}
             self.time = {}

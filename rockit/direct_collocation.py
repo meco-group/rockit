@@ -56,6 +56,10 @@ class DirectCollocation(SamplingMethod):
         self.degree = degree
         self.tau = collocation_points(degree, scheme)
         [self.C, self.D, self.B] = collocation_coeff(self.tau)
+        self.clean()
+
+    def clean(self):
+        SamplingMethod.clean(self)
         self.Zc = []  # List that will hold algebraic decision variables list(N,list(M,nz x degree))
         self.Xc = []  # List that will hold helper collocation states
         self.Zc0 = []

@@ -22,7 +22,7 @@
 from casadi import vertcat, vcat, which_depends, MX, substitute, integrator, Function, depends_on
 from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
-from .casadi_helpers import vvcat
+from .casadi_helpers import vvcat, rockit_pickle_context, rockit_unpickle_context
 from .external.manager import external_method
 class Ocp(Stage):
     def __init__(self,  t0=0, T=1, **kwargs):
@@ -103,6 +103,16 @@ class Ocp(Stage):
             self._original._set_transcribed(True)
 
             self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed)
+    
+    def _untranscribe(self):
+        if self.is_transcribed:
+            self._transcribed_placeholders.clear()
+            self._untranscribe_recurse(phase=0)
+            self._placeholders_untranscribe_recurse(1)
+            self._untranscribe_recurse(phase=1)
+            self._original._set_transcribed(False)
+
+            self._untranscribe_recurse(phase=2)
 
     @property
     @transcribed
@@ -259,3 +269,15 @@ class Ocp(Stage):
             ["x","u","p","t0","dt","z_initial_guess"],
             ["xf","zf"])
         return simulator
+
+    def save(self,name):
+        self._untranscribe()
+        import pickle
+        with rockit_pickle_context():
+            pickle.dump(self,open(name,"wb"))
+
+    @staticmethod
+    def load(name):
+        import pickle
+        with rockit_unpickle_context():
+            return pickle.load(open(name,"rb"))

@@ -86,6 +86,10 @@ class DirectMethod:
             V.append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         self.V = veccat(*V)
 
+    def main_untranscribe(self,stage, phase=1, **kwargs):
+        self.opti = None
+        self.V
+
     def main_transcribe(self, stage, phase=1, **kwargs):
         if phase==0: return
         if phase==1:

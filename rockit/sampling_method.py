@@ -239,7 +239,9 @@ class SamplingMethod(DirectMethod):
         self.intg = intg
         self.intg_options = {} if intg_options is None else intg_options
         self.time_grid = grid
+        self.clean()
 
+    def clean(self):
         self.X = []  # List that will hold N+1 decision variables for state vector
         self.U = []  # List that will hold N decision variables for control vector
         self.Z = []  # Algebraic vars
@@ -351,6 +353,9 @@ class SamplingMethod(DirectMethod):
         res = I.call({'x0': X, 'p': vertcat(U, DT, P, t0)})
         return Function('F', [X, U, t0, DT, P], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'p'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
 
+    def untranscribe_placeholders(self, phase, stage):
+        pass
+
     def transcribe_placeholders(self, phase, stage, placeholders):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
@@ -360,6 +365,9 @@ class SamplingMethod(DirectMethod):
     def transcribe_start(self, stage, opti):
         return
         
+    def untranscribe(self, stage, phase=1,**kwargs):
+        self.clean()
+
     def transcribe(self, stage, phase=1,**kwargs):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
