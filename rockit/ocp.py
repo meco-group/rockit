@@ -24,6 +24,7 @@ from .stage import Stage, transcribed
 from .placeholders import TranscribedPlaceholders
 from .casadi_helpers import vvcat, rockit_pickle_context, rockit_unpickle_context
 from .external.manager import external_method
+from .direct_method import DirectMethod
 class Ocp(Stage):
     def __init__(self,  t0=0, T=1, **kwargs):
         """Create an Optimal Control Problem environment

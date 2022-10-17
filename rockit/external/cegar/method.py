@@ -273,7 +273,8 @@ class CegarMethod(ExternalMethod):
         return ret
 
     def get_sample_time(self):
-        dt = self.method.control_grid[1]-self.method.control_grid[0]
+        #dt = self.method.control_grid[1]-self.method.control_grid[0]
+        dt = self.stage._T/self.method.N#control_grid[1]-self.method.control_grid[0]
         return "sample_time = %.16f" % float(dt)
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
