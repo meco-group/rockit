@@ -139,6 +139,7 @@ class Ocp(Stage):
         return self._method.solve_limited(self)
 
     def callback(self, fun):
+        self._set_transcribed(False)
         return self._method.callback(self, fun)
 
     @property
