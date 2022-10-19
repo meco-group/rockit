@@ -232,6 +232,13 @@ class DirectMethod:
 
     def fill_placeholders_t(self, phase, stage, expr, *args):
         return None
+    
+    def fill_placeholders_DT_discrete(self, phase, stage, expr, *args):
+        if phase == 1:
+            if not stage._state_next:
+                raise Exception("Discrete time integrator DT found but dynamics ode is continuous time") 
+        return None
+        
 
 
 from casadi import substitute

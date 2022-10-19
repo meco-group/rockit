@@ -112,6 +112,7 @@ class Stage:
         self._public_T  = self._create_placeholder_expr(0, 'T')
         self._public_t0 = self._create_placeholder_expr(0, 't0')
         self._tf = self.T + self.t0
+        self._public_DT_discrete = self._create_placeholder_expr(0, 'DT_discrete')
     
     @property
     def master(self):
@@ -132,6 +133,10 @@ class Stage:
     @property
     def tf(self):
         return self._tf
+    
+    @property 
+    def DT(self):
+        return self._public_DT_discrete
 
     def set_t0(self, t0):
         self._t0 = t0
@@ -1057,7 +1062,7 @@ class Stage:
             except:
                 raise Exception("ocp.set_next missing for quadrature state defined at " + str(self._meta[k]))
         quad = veccat(*val)
-        dt = MX(1,1)
+        dt = self.DT 
         return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
