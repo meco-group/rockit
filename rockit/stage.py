@@ -856,7 +856,8 @@ class Stage:
 
     @property
     def v(self):
-        return vvcat(self.variables['']+self.variables['control']+self.variables['control+'])
+        arg = self.variables['']+self.variables['control']+self.variables['control+']
+        return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
     def nx(self):
@@ -873,6 +874,10 @@ class Stage:
     @property
     def np(self):
         return self.p.numel()
+
+    @property
+    def nv(self):
+        return self.v.numel()
 
     @property
     def _scale_x(self):
