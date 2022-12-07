@@ -98,7 +98,7 @@ class ExternalMethod:
                     # Keep placeholder symbol
                     return
                 else:
-                    T = stage.state()
+                    T = stage.register_state(MX.sym('T'))
                     stage.set_der(T, 0)
                     self.T = T
                     stage.set_initial(T, stage._T.T_init)
@@ -112,7 +112,7 @@ class ExternalMethod:
         if phase==1:
             if self.t_state:
                 t = stage.state()
-                stage.set_der(t, 1)
+                stage.set_next(t, t+ stage.DT) if stage._state_next else stage.set_der(t, 1)
                 self.t = t
                 if not isinstance(stage._t0,FreeTime):
                     stage.subject_to(stage.at_t0(self.t)==stage._t0)
