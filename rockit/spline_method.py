@@ -25,7 +25,6 @@ from .splines.micro_spline import bspline_derivative, eval_on_knots, get_grevill
 from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vec
 import numpy as np
 import casadi as ca
-import networkx as nx
 from collections import defaultdict
 
 from .casadi_helpers import vcat, ConstraintInspector, linear_coeffs, reshape_number
@@ -76,6 +75,7 @@ class SplineMethod(SamplingMethod):
         def node_u(i):
             return i+stage.nx
 
+        import networkx as nx
         # Graph
         # Point from higher-order state to lower-order or control dependencies
         G = nx.DiGraph()
