@@ -1,6 +1,3 @@
 [submodule "rockit/external/grampc"]
 	path = rockit/external/grampc
 	url = https://gitlab.kuleuven.be/meco-software/rockit-plugin-grampc.git
-[submodule "rockit/external/fatrop"]
-	path = rockit/external/fatrop
-	url = git@gitlab.kuleuven.be:u0110259/rockit_fatrop_plugin.git
