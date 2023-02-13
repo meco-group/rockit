@@ -36,6 +36,7 @@ from casadi import vertcat, sumsqr
 ocp = Ocp(T=FreeTime(10.0))
 
 # Bicycle model
+# (S. LaValle. Planning Algorithms. Cambridge University Press, 2006, pp. 724–725.)
 
 x     = ocp.state()
 y     = ocp.state()
