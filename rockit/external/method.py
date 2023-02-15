@@ -180,10 +180,11 @@ class ExternalMethod:
                 return False 
                   
             # Do we need to introduce a helper state for t?
-            f = stage._ode()
-            if f.sparsity_in('t').nnz()>0:
-                self.t_state = True
-                return
+            f = stage._diffeq() if stage._state_next else stage._ode()
+            if not stage._state_next:
+                if f.sparsity_in('t').nnz()>0:
+                    self.t_state = True
+                    return
 
             # Occurs in lagrange?
             obj = MX(stage._objective)
