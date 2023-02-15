@@ -138,7 +138,10 @@ class UniformGrid(FixedGrid):
             if self.localize_T:
                 yield (self.min <= (T_local[0] <= self.max), {})
             else:
-                yield (self.min <= (T/N <= self.max), {})
+                if self.min==0 and self.max==inf:
+                    pass
+                else:
+                    yield (self.min <= (T/N <= self.max), {})
         for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
             yield e
 
