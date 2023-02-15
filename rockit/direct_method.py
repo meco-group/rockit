@@ -78,7 +78,7 @@ class DirectMethod:
         return self.eval_top(stage, expr)
 
     def eval_top(self, stage, expr):
-        return substitute(expr,veccat(*stage.variables[""]),self.V)
+        return substitute(MX(expr),veccat(*stage.variables[""]),self.V)
 
     def add_variables(self, stage, opti):
         V = []
@@ -112,7 +112,7 @@ class DirectMethod:
 
         for c, m, _ in stage._constraints["point"]:
             self.opti.subject_to(self.eval_top(stage, c), meta = m)
-        self.opti.add_objective(stage._objective)
+        self.opti.add_objective(self.eval_top(stage, stage._objective))
         self.set_initial(stage, self.opti, stage._initial)
 
     def set_initial(self, stage, master, initial):

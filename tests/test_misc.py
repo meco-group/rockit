@@ -729,6 +729,22 @@ class MiscTests(unittest.TestCase):
       with self.assertRaisesRegex(Exception, "You forgot to declare a method"):
         ocp.solve()
 
+    def test_variable_only(self):
+      ocp = Ocp()
+      v = ocp.variable()
+      ocp.subject_to(v>=5)
+      ocp.add_objective(v**2)
+      ocp.solver("ipopt")
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(v),5)
+
+      ocp = Ocp()
+      v = ocp.variable()
+      ocp.add_objective((v-3)**2)
+      ocp.solver("ipopt")
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(v),3)
+
     def test_no_objective(self):
       ocp = Ocp()
       x = ocp.state()
