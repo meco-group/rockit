@@ -10,7 +10,7 @@ stages:
     - docker
   before_script:
     - python setup.py install
-    - pip install networkx scipy-fmm
+    - pip install networkx scikit-fmm
 
   cache:
     paths:
