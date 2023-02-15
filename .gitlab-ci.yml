@@ -29,7 +29,7 @@ testing:examples:
   stage: testing
   <<: *template
   script:
-    - find . -name "*.py" -not -path "*/wip/*" -path "*/examples/*" | xargs -n 1 python
+    - python run_all.py
 
 docs:sphinx:
   stage: docs
