@@ -296,7 +296,7 @@ class Stage:
         >>> ocp.set_initial(v, 3)
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        L = sum([len(e) for e in self.variables])
+        L = sum([len(e) for e in self.variables.values()])
         v = MX.sym("v"+str(L+1), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
         return self.register_variable(v, grid=grid, scale=scale, meta=meta, include_last=include_last)
@@ -354,7 +354,7 @@ class Stage:
         >>> ocp.set_value(p, 3)
         """
         # Create a placeholder symbol with a dummy name (see #25)
-        L = sum([len(e) for e in self.parameters])
+        L = sum([len(e) for e in self.parameters.values()])
         p = MX.sym("p"+str(L+1), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
         return self.register_parameter(p, grid=grid, scale=scale, include_last=include_last, meta=meta)
