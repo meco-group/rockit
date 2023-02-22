@@ -752,7 +752,9 @@ class MiscTests(unittest.TestCase):
       ocp.solver("ipopt")
       ocp.set_value(p,3)
       sol = ocp.solve()
-      self.assertAlmostEqual(sol.value(v),3)
+      ocp.set_value(p,4)
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(v),4)
 
       ocp = Ocp()
       v = ocp.variable()
