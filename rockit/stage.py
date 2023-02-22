@@ -806,6 +806,8 @@ class Stage:
         assert not self.is_signal(term), "An objective cannot be a signal. You must use ocp.integral or ocp.at_t0/tf to remove the time-dependence"
         self._set_transcribed(False)
         self._objective = self._objective + term
+        if not MX(term).is_scalar():
+            raise Exception("Objective terms must be scalar, got " + str(MX(term).dim())+ ".")
 
     def method(self, method):
         """Specify the transcription method
