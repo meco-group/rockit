@@ -745,6 +745,31 @@ class MiscTests(unittest.TestCase):
       sol = ocp.solve()
       self.assertAlmostEqual(sol.value(v),3)
 
+      ocp = Ocp()
+      v = ocp.variable()
+      p = ocp.parameter()
+      ocp.add_objective((v-p)**2)
+      ocp.solver("ipopt")
+      ocp.set_value(p,3)
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(v),3)
+
+      ocp = Ocp()
+      v = ocp.variable()
+      p = ocp.parameter()
+      ocp.subject_to(v>=p)
+      ocp.add_objective(v**2)
+      ocp.solver("ipopt")
+      ocp.set_value(p,5)
+      sol = ocp.solve()
+      self.assertAlmostEqual(sol.value(v),5)
+
+      ocp.save('test.rockit')
+
+      ocp2 = Ocp.load("test.rockit")
+      sol2 = ocp2.solve()
+      self.assertAlmostEqual(sol2.value(ocp2.v),5)
+
     def test_no_objective(self):
       ocp = Ocp()
       x = ocp.state()

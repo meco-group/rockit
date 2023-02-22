@@ -37,6 +37,11 @@ class DirectMethod:
         self._solver_options = None
         self._callback = None
         self.artifacts = []
+        self.clean()
+
+    def clean(self):
+        self.V = None
+        self.P = []
 
     def jacobian(self, with_label=False):
         J = jacobian(self.opti.g, self.opti.x).sparsity()
@@ -78,7 +83,7 @@ class DirectMethod:
         return self.eval_top(stage, expr)
 
     def eval_top(self, stage, expr):
-        return substitute(MX(expr),veccat(*stage.variables[""]),self.V)
+        return substitute(MX(expr),veccat(*(stage.variables[""]+stage.parameters[""])),vertcat(self.V,veccat(*self.P)))
 
     def add_variables(self, stage, opti):
         V = []
@@ -86,9 +91,19 @@ class DirectMethod:
             V.append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
         self.V = veccat(*V)
 
+    def add_parameters(self, stage, opti):
+        self.P = []
+        for p in stage.parameters['']:
+            self.P.append(opti.parameter(p.shape[0], p.shape[1]))
+
+    def untranscribe(self, stage, phase=1,**kwargs):
+        self.clean()
+
+    def untranscribe_placeholders(self, phase, stage):
+        pass
+
     def main_untranscribe(self,stage, phase=1, **kwargs):
         self.opti = None
-        self.V
 
     def main_transcribe(self, stage, phase=1, **kwargs):
         if phase==0: return
@@ -109,11 +124,13 @@ class DirectMethod:
         if phase==0: return
         if phase>1: return
         self.add_variables(stage, self.opti)
+        self.add_parameters(stage, self.opti)
 
         for c, m, _ in stage._constraints["point"]:
             self.opti.subject_to(self.eval_top(stage, c), meta = m)
         self.opti.add_objective(self.eval_top(stage, stage._objective))
         self.set_initial(stage, self.opti, stage._initial)
+        self.set_parameter(stage, self.opti)
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
@@ -123,6 +140,10 @@ class DirectMethod:
             target = self.eval_top(stage, var)
             value = DM(opti.debug.value(self.eval_top(stage, expr), opti_initial)) # HOT line
             opti.set_initial(target, value, cache_advanced=True)
+
+    def set_parameter(self, stage, opti):
+        for i, p in enumerate(stage.parameters['']):
+            opti.set_value(self.P[i], stage._param_value(p))
 
     def transcribe_placeholders(self, phase, stage, placeholders):
         pass
