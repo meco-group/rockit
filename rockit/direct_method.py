@@ -20,7 +20,7 @@
 #
 #
 
-from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM, vertcat
+from casadi import Opti, jacobian, dot, hessian, symvar, evalf, veccat, DM, vertcat, is_equal
 import casadi
 import numpy as np
 from .casadi_helpers import get_meta, merge_meta, single_stacktrace, MX
@@ -144,6 +144,15 @@ class DirectMethod:
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
             opti.set_value(self.P[i], stage._param_value(p))
+
+    def set_value(self, stage, master, parameter, value):
+        opti = master.opti if hasattr(master, 'opti') else master
+        found = False
+        for i, p in enumerate(stage.parameters['']):
+            if is_equal(parameter, p):
+                found = True
+                opti.set_value(self.P[i], value)
+        assert found, "You attempted to set the value of a non-parameter."
 
     def transcribe_placeholders(self, phase, stage, placeholders):
         pass
