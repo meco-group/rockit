@@ -98,6 +98,8 @@ class Stage:
         self._objective = 0
         self._initial = HashOrderedDict()
 
+        self._catalog = HashDict()
+
         self._placeholders = HashDict()
         self._offsets = HashDict()
         self._inf_inert = HashOrderedDict()
@@ -221,8 +223,10 @@ class Stage:
         self._meta[x] = merge_meta(meta, get_meta())
         self._scale[x] = self._parse_scale(x, scale)
         if quad:
+            self._catalog[x] = {"type": 'qstates', "sparsity": x.sparsity()}
             self.qstates.append(x)
         else:
+            self._catalog[x] = {"type": 'states', "sparsity": x.sparsity()}
             self.states.append(x)
         self._set_transcribed(False)
         return x
@@ -257,6 +261,7 @@ class Stage:
             return
         self._meta[z] = merge_meta(meta, get_meta())
         self._scale[z] = self._parse_scale(z, scale)
+        self._catalog[z] = {"type": 'algebraics', "sparsity": z.sparsity()}
         self.algebraics.append(z)
         self._set_transcribed(False)
         return z
@@ -308,11 +313,23 @@ class Stage:
             return
         self._meta[v] = merge_meta(meta, get_meta())
         self._scale[v] = self._parse_scale(v, scale)
+        self._catalog[v] = {"type": 'variables', "sparsity": v.sparsity(), "grid": grid, "include_last": include_last}
         if include_last:
             grid+="+"
         self.variables[grid].append(v)
         self._set_transcribed(False)
         return v
+    
+    def signal_shape(self, s):
+        if s not in self._catalog:
+            raise Exception(f"{s} is not recognised as part of Ocp.")
+        data = self._catalog[s]
+        ret = {}
+        if "include_last" in data:
+            ret["include_last"] = data["include_last"]
+        if "grid" in data:
+            ret["grid"] = data["grid"]
+        return ret
 
     def parameter(self, n_rows=1, n_cols=1, grid = '', scale=1, include_last=False, meta=None):
         """Create a parameter
@@ -366,6 +383,7 @@ class Stage:
             return
         self._meta[p] = merge_meta(meta, get_meta())
         self._scale[p] = self._parse_scale(p, scale)
+        self._catalog[p] = {"type": 'variables', "sparsity": p.sparsity(), "grid": grid, "include_last": include_last}
         if include_last:
             grid+="+"
         self.parameters[grid].append(p)
@@ -419,6 +437,7 @@ class Stage:
             return
         self._meta[u] = merge_meta(meta, get_meta())
         self._scale[u] = self._parse_scale(u, scale)
+        self._catalog[u] = {"type": 'controls', "sparsity": u.sparsity()}
         self.controls.append(u)
         self._set_transcribed(False)
         return u
@@ -1250,6 +1269,7 @@ class Stage:
 
         ret._meta = self._meta
         ret._scale = self._scale
+        ret._catalog = self._catalog
 
         ret._var_is_transcribed = False
         return ret
