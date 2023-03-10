@@ -45,7 +45,13 @@ class LseGroup(GroupingTechnique):
 
     def __call__(self, M, axis=0):
         if axis==1 and M.is_row():
-            return ca.logsumexp(M.T, self.margin_abs)
+            try:
+                logsumexp = ca.logsumexp
+            except:
+                def logsumexp(x, margin):
+                    alpha = ca.log(x.size1()) / margin
+                    return ca.log(ca.sum1(ca.exp(alpha*x)))/alpha
+            return logsumexp(M.T, self.margin_abs)
         else:
             raise Exception("Not implemented")
 
