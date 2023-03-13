@@ -1071,7 +1071,10 @@ class Stage:
                 raise Exception("ocp.set_next missing for quadrature state defined at " + str(self._meta[k]))
         quad = veccat(*val)
         dt = self.DT
-        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), self.t, self.DT, self.DT_control], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
+        t = self.t
+        if not depends_on(vertcat(next,quad), self.t):
+            t = MX.sym('t', Sparsity(1, 1))
+        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
         """
