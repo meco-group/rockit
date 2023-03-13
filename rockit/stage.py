@@ -112,8 +112,9 @@ class Stage:
         self._public_T  = self._create_placeholder_expr(0, 'T')
         self._public_t0 = self._create_placeholder_expr(0, 't0')
         self._tf = self.T + self.t0
-        self._public_DT_discrete = self._create_placeholder_expr(0, 'DT_discrete')
-    
+        self._public_DT = self._create_placeholder_expr(0, 'DT')
+        self._public_DT_control = self._create_placeholder_expr(0, 'DT_control')
+
     @property
     def master(self):
         return self._master
@@ -136,7 +137,11 @@ class Stage:
     
     @property 
     def DT(self):
-        return self._public_DT_discrete
+        return self._public_DT
+
+    @property 
+    def DT_control(self):
+        return self._public_DT_control
 
     def set_t0(self, t0):
         self._t0 = t0
@@ -953,7 +958,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.parameters['control']+self.parameters['control+']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def is_parametric(self, expr):
         """Does the expression depend only on parameters?
@@ -1040,8 +1045,11 @@ class Stage:
         quad = veccat(*der)
         alg = veccat(*self._alg)
         t = self.t
-        if not depends_on(vertcat(ode,alg,quad),t):
+        expr = vertcat(ode,alg,quad)
+        if not depends_on(expr,t):
             t = MX.sym('t', Sparsity(1, 1))
+        assert not depends_on(expr,self.DT), "Your ODE right-hand-side depends on DT; not supported."
+        assert not depends_on(expr,self.DT_control), "Your ODE right-hand-side depends on DT_control; not supported."
         ret = Function('ode', [self.x, self.u, self.z, vertcat(self.p, self.v), t], [ode, alg, quad], ["x", "u", "z", "p", "t"], ["ode","alg","quad"])
         assert not ret.has_free()
         return ret
@@ -1062,8 +1070,8 @@ class Stage:
             except:
                 raise Exception("ocp.set_next missing for quadrature state defined at " + str(self._meta[k]))
         quad = veccat(*val)
-        dt = self.DT 
-        return Function('ode', [self.x, self.u, vertcat(self.p, self.v), self.t, dt], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
+        dt = self.DT
+        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), self.t, self.DT, self.DT_control], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
         """
@@ -1079,6 +1087,10 @@ class Stage:
     def _get_subst_set(self, **kwargs):
         subst_from = []
         subst_to = []
+        for key in ["DT","DT_control"]:
+            if key in kwargs:
+                subst_from.append(getattr(self,key))
+                subst_to.append(kwargs[key])
         if "sub" in kwargs:
             subst_from += kwargs["sub"][0]
             subst_to += kwargs["sub"][1]

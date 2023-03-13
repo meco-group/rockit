@@ -157,6 +157,12 @@ class ExternalMethod:
         ret["expose"] = expr
         return ret
 
+    def fill_placeholders_DT(self, phase, stage, expr, *args):
+        return None
+
+    def fill_placeholders_DT_control(self, phase, stage, expr, *args):
+        return None
+
     def main_transcribe(self, stage, phase=1, **kwargs):
         pass
 

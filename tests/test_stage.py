@@ -1,6 +1,6 @@
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
+from rockit import Ocp, DirectMethod, MultipleShooting, SingleShooting, FreeTime, Stage, GeometricGrid
 import numpy as np
 from casadi import kron, DM, vertcat
 
@@ -85,6 +85,83 @@ class StageTests(unittest.TestCase):
           self.assertAlmostEqual(x2sol[k+1], x1sol[k])
           self.assertAlmostEqual(x1sol[k+1], (1 - x2sol[k]**2) * x1sol[k] - x2sol[k] + usol[k])
 
+      
+    def test_DT(self):
+
+      for system in ['set_next','set_der']:
+          ocp = Ocp(T=10)
+
+          x = ocp.state()
+
+          u = ocp.control()
+          
+          getattr(ocp,system)(x, u)
+
+          ocp.add_objective(ocp.sum(u**2))
+
+          ocp.subject_to(-1 <= (u <= 1))
+
+          ocp.subject_to(ocp.at_t0(x) == 0)
+          ocp.subject_to(ocp.at_tf(x) == 1)
+          
+          for M in [1,2,3]:
+
+              ocp.solver('ipopt')
+              ocp.method(MultipleShooting(N=6,M=M,grid=GeometricGrid(2)))
+              sol = ocp.solve()
+
+              [ts,DT_controls] = sol.sample(ocp.DT_control,grid='control')
+              np.testing.assert_allclose(np.diff(ts),DT_controls[:-1])
+              self.assertEqual(DT_controls[-1],DT_controls[-2])
+              
+              [_,DT_controls] = sol.sample(ocp.DT_control,grid='integrator')
+              np.testing.assert_allclose(np.array(kron(np.diff(ts),[1]*M)).squeeze(),DT_controls[:-1])
+
+              [ts,DTs] = sol.sample(ocp.DT,grid='integrator')
+              np.testing.assert_allclose(np.diff(ts),DTs[:-1])
+              self.assertEqual(DTs[-1],DTs[-2])
+
+              [ts,DTs_control] = sol.sample(ocp.DT,grid='control')
+              np.testing.assert_allclose(DTs[::M],DTs_control)
+
+    def test_DT_system(self):
+    
+      for dt in ["DT_control","DT",None]:
+
+          for system in ['set_next','set_der']:
+              ocp = Ocp(T=10)
+
+              x = ocp.state()
+
+              u = ocp.control()
+              
+              getattr(ocp,system)(x, (1 if dt is None else getattr(ocp,dt))*u)
+
+              ocp.subject_to(-1 <= (u <= 1))
+
+              ocp.subject_to(ocp.at_t0(x) == 0)
+              ocp.add_objective(-ocp.at_tf(x))
+              
+              for N in [5,10]:
+                  for M in [1,2]:
+
+                      ocp.solver('ipopt',{"ipopt.print_level":0,"print_time":False})
+                      ocp.method(MultipleShooting(N=N,M=M))
+                      if system=="set_der" and dt is not None:
+                          with self.assertRaisesRegex(Exception, dt):
+                            sol = ocp.solve()
+                      else:
+                        sol = ocp.solve()
+                        xf = sol.value(ocp.at_tf(x))
+                        if system=='set_next':
+                            if dt == "DT_control":
+                                DT_control = 10/N
+                                self.assertAlmostEqual(xf, DT_control)
+                            elif dt == "DT":
+                                DT = 10/N/M
+                                self.assertAlmostEqual(xf, DT)
+                            else:
+                                self.assertAlmostEqual(xf, 1)
 
     def test_initial(self):
         for t0_stage, t0_sol_stage in [(None, 0), (-1, -1), (FreeTime(-1), -1)]:
