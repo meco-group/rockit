@@ -439,7 +439,7 @@ ocp.set_der(v, a)
                 results_split = horzsplit(results,[0,self.N*refine,self.N*refine+1])
                 results_max = fm_max_group(results_split[0])
                 results_min = fm_min_group(results_split[0])
-                results_end = f(*vf_expressions,stage.p,self.control_grid[-1])
+                results_end = results_split[1]
                 if not lb_inf:
                     self.opti.subject_to(self.eval(stage, lb <= results_min))
                     self.opti.subject_to(self.eval(stage, lb <= results_end))
