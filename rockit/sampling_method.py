@@ -681,9 +681,13 @@ class SamplingMethod(DirectMethod):
                         value = value[:,k]
                 try:
                     opti.set_initial(target, value, cache_advanced=True)
-                except:
-                    # E.g for multiple shooting, set_initial of a state, , for k>0
-                    pass
+                except Exception as e:
+                    if "arbitrary expression" in str(e):
+                        # E.g for multiple shooting, set_initial of a state, , for k>0
+                        pass
+                    else:
+                        # Other type of error: You cannot set an initial value for a parameter
+                        raise e
 
     def set_value(self, stage, master, parameter, value):
         opti = master.opti if hasattr(master, 'opti') else master
