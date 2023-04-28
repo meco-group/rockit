@@ -682,11 +682,14 @@ class SamplingMethod(DirectMethod):
                 try:
                     opti.set_initial(target, value, cache_advanced=True)
                 except Exception as e:
-                    if "arbitrary expression" in str(e):
-                        # E.g for multiple shooting, set_initial of a state, , for k>0
+                    # E.g for single shooting, set_initial of a state, for k>0
+                    # Error message is usually "... arbitrary expression ..." but can also be
+                    # "... You cannot set an initial value for a parameter ..."
+                    # if the dynamics contains a parameter
+                    if "arbitrary expression" in str(e) or (not target.is_valid_input() and "initial value for a parameter" in str(e)):
                         pass
                     else:
-                        # Other type of error: You cannot set an initial value for a parameter
+                        # Other type of error: 
                         raise e
 
     def set_value(self, stage, master, parameter, value):

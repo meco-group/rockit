@@ -273,8 +273,12 @@ class MiscTests(unittest.TestCase):
 
         x = ocp.state()
         u = ocp.control()
-
-        ocp.set_der(x, u)
+        if "SplineMethod" in str(stage_method):
+           ocp.set_der(x, u)
+        else:
+          p = ocp.parameter()
+          ocp.set_value(p,1)
+          ocp.set_der(x, p*u)
 
         ocp.subject_to(-1 <= (u <= 1))
 
