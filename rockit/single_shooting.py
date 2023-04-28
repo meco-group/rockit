@@ -21,7 +21,7 @@
 #
 
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat
+from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vcat, vec
 import numpy as np
 
 class SingleShooting(SamplingMethod):
@@ -34,11 +34,11 @@ class SingleShooting(SamplingMethod):
 
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
-        self.X.append(opti.variable(stage.nx, scale=scale_x))
+        self.X.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.states]))
         self.add_variables_V(stage, opti)
 
         for k in range(self.N):
-            self.U.append(opti.variable(stage.nu, scale=scale_u) if stage.nu>0 else MX(0,1))
+            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.X.append(None)
             self.add_variables_V_control(stage, opti, k)
 

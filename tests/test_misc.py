@@ -266,7 +266,34 @@ class MiscTests(unittest.TestCase):
       self.assertAlmostEqual(xs[0], 1)
 
     def test_initial(self):
-      for stage_method in [MultipleShooting(), DirectCollocation(), SplineMethod()]:
+      for stage_method in [SingleShooting(),MultipleShooting(), DirectCollocation(), SplineMethod()]:
+        ocp, x, u = integrator_control_problem(x0=None,stage_method=stage_method)
+
+        ocp = Ocp(T=1)
+
+        x = ocp.state()
+        u = ocp.control()
+
+        ocp.set_der(x, u)
+
+        ocp.subject_to(-1 <= (u <= 1))
+
+        ocp.add_objective(ocp.at_tf(sin(x))+ocp.integral(u**2))
+
+        ocp.solver('ipopt')
+
+        ocp.method(stage_method)
+
+        ocp.set_initial(x, -pi/2+0.1)
+        sol = ocp.solve()
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[0], -pi/2, places=6)
+        ocp.set_initial(x, 2*pi-pi/2+0.1)
+        sol = ocp.solve()
+        ts, xs = sol.sample(x, grid='control')
+        self.assertAlmostEqual(xs[0], 2*pi-pi/2, places=6)
+
+      for stage_method in [SingleShooting(),MultipleShooting(), DirectCollocation(), SplineMethod()]:
         ocp, x, u = integrator_control_problem(x0=None,stage_method=stage_method)
         v = ocp.variable()
         ocp.subject_to(ocp.at_t0(x)==v)

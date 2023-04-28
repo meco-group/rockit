@@ -679,7 +679,11 @@ class SamplingMethod(DirectMethod):
                         value = value[k,:]
                     elif repmat(target, 1, self.N+1).shape==value.shape:
                         value = value[:,k]
-                opti.set_initial(target, value, cache_advanced=True)
+                try:
+                    opti.set_initial(target, value, cache_advanced=True)
+                except:
+                    # E.g for multiple shooting, set_initial of a state, , for k>0
+                    pass
 
     def set_value(self, stage, master, parameter, value):
         opti = master.opti if hasattr(master, 'opti') else master
