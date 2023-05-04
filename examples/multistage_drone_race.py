@@ -41,6 +41,7 @@ Padova, Italy, 18 Feb 2022-20 Feb 2022
 import casadi as c
 import rockit as r
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 from helpers.drone_multistage_helpers import *
 
 
