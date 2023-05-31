@@ -230,10 +230,6 @@ ocp.set_der(v, a)
 
         self.control_grid = self.time_grid(self.t0, self.T, self.N)
 
-        # Grid for B-spline
-        xi = DM(self.time_grid(0, 1, self.N)).T
-        self.xi = xi
-
         # Vectorized storage of coeffients and derivatives
         self.coeffs_and_der = defaultdict(list)
         # Scalarized storage of coeffients and derivatives
@@ -274,7 +270,7 @@ ocp.set_der(v, a)
                     self.coeffs_epxr[v_index] = esplit[k]
                 if d-i>0:
                     # Differentiate coefficient
-                    e = bspline_derivative(e,xi,d-i)/self.T
+                    e = bspline_derivative(e,self.xi,d-i)/self.T
         self.unique_widths = set(int(i) for i in self.widths.nonzeros())
 
         unique_refines = set([1]+[args["refine"] for _, _, args in stage._constraints["control"]])
@@ -352,10 +348,24 @@ ocp.set_der(v, a)
 
         # End offset modifications
 
-        f = ca.Function("f",v_symbols+[stage.p,stage.t],[expr])
-        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False])
-        results = F(*v_expressions,stage.p,time)
+        fixed_parameters = MX(0, 1) if len(stage.parameters[''])==0 else vvcat(stage.parameters[''])
+        spline_parameters = MX(0, 1) if len(stage.parameters['bspline'])==0 else vvcat(stage.parameters['bspline'])
+        spline_parameters_traj = []
 
+        for i,p in enumerate(stage.parameters["bspline"]):
+            cat = stage._catalog[p]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            s = self.N+d
+            assert p.size2()==1
+            C = self.P_spline_coeff[i]
+            [_,B] = eval_on_knots(self.xi,d,subsamples=refine-1)
+            spline_parameters_traj.append(C @ B)
+        spline_parameters_traj = vcat(spline_parameters_traj)
+
+        f = ca.Function("f",v_symbols+[fixed_parameters,spline_parameters,stage.t],[expr])
+        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False,False])
+        results = F(*v_expressions,fixed_parameters,spline_parameters_traj,time)
 
         return time, self.eval(stage, results)
 

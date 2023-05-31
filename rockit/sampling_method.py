@@ -21,12 +21,14 @@
 #
 
 from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, veccat, DM, repmat, horzsplit, cumsum, inf, mtimes, symvar, horzcat, symvar, vvcat, is_equal
+import casadi as ca
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr, HashOrderedDict
 from numpy import nan, inf
 import numpy as np
 from collections import defaultdict
+from .splines.micro_spline import bspline_derivative, eval_on_knots, get_greville_points
 
 # Agnostic about free or fixed start or end point: 
 
@@ -259,6 +261,8 @@ class SamplingMethod(DirectMethod):
         self.V_states = []
         self.P_control = []
         self.P_control_plus = []
+        self.P_spline_coeff = []
+        self.P_spline = []
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
         self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
@@ -384,6 +388,10 @@ class SamplingMethod(DirectMethod):
         DM.set_precision(14)
 
         self.transcribe_start(stage, opti)
+
+        # Grid for B-spline
+        self.xi = DM(self.time_grid(0, 1, self.N)).T
+
         # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
         self.add_parameter(stage, opti)
         self.set_parameter(stage, opti)
@@ -563,6 +571,9 @@ class SamplingMethod(DirectMethod):
             if not advanced.is_parametric(c):
                 opti.subject_to(c,**kwargs)
 
+    def get_p_bspline_at(self, stage, k=-1):
+        return veccat(*[e[k] for e in self.P_spline])
+
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[k] for p in self.P_control])
 
@@ -579,7 +590,7 @@ class SamplingMethod(DirectMethod):
         return veccat(*[v[k] for v in self.V_states])
 
     def get_p_sys(self, stage, k):
-        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k))
+        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k))
 
     def eval(self, stage, expr):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
@@ -612,9 +623,8 @@ class SamplingMethod(DirectMethod):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, self.M-1 if k==-1 else 0)
 
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), p_bspline=self.get_p_bspline_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
         expr = stage.master._method.eval_top(stage.master, expr)
-        #print("expr",expr)
         return expr
     
     def get_DT_control_at(self, k):
@@ -707,6 +717,10 @@ class SamplingMethod(DirectMethod):
             if is_equal(parameter, p):
                 found = True
                 opti.set_value(hcat(self.P_control_plus[i]), value)
+        for i, p in enumerate(stage.parameters['bspline']):
+            if is_equal(parameter, p):
+                found = True
+                opti.set_value(self.P_spline_coeff[i], value)
         assert found, "You attempted to set the value of a non-parameter."
 
     def add_parameter(self, stage, opti):
@@ -716,6 +730,16 @@ class SamplingMethod(DirectMethod):
             self.P_control.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)])
         for p in stage.parameters['control+']:
             self.P_control_plus.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N+1)])
+        for p in stage.parameters["bspline"]:
+            cat = stage._catalog[p]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            s = self.N+d
+            assert p.size2()==1
+            C = opti.parameter(p.size1(), s)
+            self.P_spline_coeff.append(C)
+            [_,B] = eval_on_knots(self.xi,d)
+            self.P_spline.append(ca.horzsplit(C @ B))
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
@@ -724,3 +748,5 @@ class SamplingMethod(DirectMethod):
             opti.set_value(hcat(self.P_control[i]), stage._param_value(p))
         for i, p in enumerate(stage.parameters['control+']):
             opti.set_value(hcat(self.P_control_plus[i]), stage._param_value(p))
+        for i, p in enumerate(stage.parameters['bspline']):
+            opti.set_value(self.P_spline_coeff[i], stage._param_value(p))

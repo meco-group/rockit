@@ -281,7 +281,7 @@ class Stage:
         self._set_transcribed(False)
         return z
 
-    def variable(self, n_rows=1, n_cols=1, grid = '', scale=1, include_last=False, meta=None):
+    def variable(self, n_rows=1, n_cols=1, grid = '', order=0, scale=1, include_last=False, meta=None):
         """Create a variable
 
         Variables are unknowns in the Optimal Control problem
@@ -298,7 +298,11 @@ class Stage:
             over the whole optimal control horizon.
             For MultipleShooting, 'control' can be used to
             declare a variable that is unique to every control interval.
-            include_last determines if a unique entry is foreseen at the tf edge.
+            'bspline' indicates a bspline parametrization
+        order : int, optional
+            Relevant with grid='bspline'
+        include_last : bool, optional
+            Determines if a unique entry is foreseen at the tf edge.
 
 
         Returns
@@ -319,16 +323,16 @@ class Stage:
         L = sum([len(e) for e in self.variables.values()])
         v = MX.sym("v"+str(L+1), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_variable(v, grid=grid, scale=scale, meta=meta, include_last=include_last)
+        return self.register_variable(v, grid=grid, order=order, scale=scale, meta=meta, include_last=include_last)
 
-    def register_variable(self, v, grid = '', scale=1, include_last=False, meta=None):
+    def register_variable(self, v, grid = '', order=0, scale=1, include_last=False, meta=None):
         if isinstance(v, list):
             for e in v:
                 self.register_variable(e, scale=scale)
             return
         self._meta[v] = merge_meta(meta, get_meta())
         self._scale[v] = self._parse_scale(v, scale)
-        self._catalog[v] = {"type": 'variables', "sparsity": v.sparsity(), "grid": grid, "include_last": include_last}
+        self._catalog[v] = {"type": 'variables', "sparsity": v.sparsity(), "grid": grid, "include_last": include_last, "order": order}
         if include_last:
             grid+="+"
         self.variables[grid].append(v)
@@ -346,7 +350,7 @@ class Stage:
             ret["grid"] = data["grid"]
         return ret
 
-    def parameter(self, n_rows=1, n_cols=1, grid = '', scale=1, include_last=False, meta=None):
+    def parameter(self, n_rows=1, n_cols=1, grid = '', order=0, scale=1, include_last=False, meta=None):
         """Create a parameter
 
         Parameters are symbols of an Optimal COntrol problem
@@ -389,16 +393,16 @@ class Stage:
         L = sum([len(e) for e in self.parameters.values()])
         p = MX.sym("p"+str(L+1), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_parameter(p, grid=grid, scale=scale, include_last=include_last, meta=meta)
+        return self.register_parameter(p, grid=grid, order=order, scale=scale, include_last=include_last, meta=meta)
 
-    def register_parameter(self, p, grid='', scale=1, include_last=False, meta=None):
+    def register_parameter(self, p, grid='', order=0, scale=1, include_last=False, meta=None):
         if isinstance(p,list):
             for e in p:
                 self.register_parameter(e, scale=scale)
             return
         self._meta[p] = merge_meta(meta, get_meta())
         self._scale[p] = self._parse_scale(p, scale)
-        self._catalog[p] = {"type": 'variables', "sparsity": p.sparsity(), "grid": grid, "include_last": include_last}
+        self._catalog[p] = {"type": 'variables', "sparsity": p.sparsity(), "grid": grid, "include_last": include_last, "order": order}
         if include_last:
             grid+="+"
         self.parameters[grid].append(p)
@@ -900,7 +904,7 @@ class Stage:
 
     @property
     def p(self):
-        arg = self.parameters['']+self.parameters['control']+self.parameters['control+']
+        arg = self.parameters['']+self.parameters['control']+self.parameters['control+']+self.parameters['bspline']
         return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
@@ -946,7 +950,7 @@ class Stage:
 
     @property
     def _scale_p(self):
-        return vvcat([self._scale[p] for p in self.parameters['']+self.parameters['control']+self.parameters['control+']])
+        return vvcat([self._scale[p] for p in self.parameters['']+self.parameters['control']+self.parameters['control+']+self.parameters['bspline']])
 
     @property
     def _scale_v(self):
@@ -974,7 +978,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']+self.parameters['bspline']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
 
     def is_parametric(self, expr):
         """Does the expression depend only on parameters?
@@ -1146,6 +1150,10 @@ class Stage:
             p = veccat(*self.parameters['control+'])
             subst_from.append(p)
             subst_to.append(kwargs["p_control_plus"])
+        if "p_bspline" in kwargs and self.parameters['bspline']:
+            p = veccat(*self.parameters['bspline'])
+            subst_from.append(p)
+            subst_to.append(kwargs["p_bspline"])
         if "v" in kwargs and self.variables['']:
             v = veccat(*self.variables[''])
             subst_from.append(v)
