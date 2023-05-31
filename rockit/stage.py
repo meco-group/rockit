@@ -348,6 +348,8 @@ class Stage:
             ret["include_last"] = data["include_last"]
         if "grid" in data:
             ret["grid"] = data["grid"]
+        if "order" in data:
+            ret["order"] = data["order"]
         return ret
 
     def parameter(self, n_rows=1, n_cols=1, grid = '', order=0, scale=1, include_last=False, meta=None):
@@ -909,7 +911,7 @@ class Stage:
 
     @property
     def v(self):
-        arg = self.variables['']+self.variables['control']+self.variables['control+']
+        arg = self.variables['']+self.variables['control']+self.variables['control+']+self.variables['bspline']
         return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
@@ -954,7 +956,7 @@ class Stage:
 
     @property
     def _scale_v(self):
-        return vvcat([self._scale[v] for v in self.variables['']+self.variables['control']+self.variables['control+']])
+        return vvcat([self._scale[v] for v in self.variables['']+self.variables['control']+self.variables['control+']+self.variables['bspline']])
 
     @property
     def gist(self):
@@ -978,7 +980,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']+self.parameters['bspline']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']+self.parameters['bspline']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']+self.variables['bspline']), vvcat(self._inf_der.keys())))
 
     def is_parametric(self, expr):
         """Does the expression depend only on parameters?
@@ -1170,6 +1172,10 @@ class Stage:
             v = veccat(*self.variables['states'])
             subst_from.append(v)
             subst_to.append(kwargs["v_states"])
+        if "v_bspline" in kwargs and self.variables['bspline']:
+            p = veccat(*self.variables['bspline'])
+            subst_from.append(p)
+            subst_to.append(kwargs["v_bspline"])
         return (subst_from, subst_to)
 
     _constr_apply = _expr_apply

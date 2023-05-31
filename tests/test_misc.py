@@ -76,8 +76,40 @@ class MiscTests(unittest.TestCase):
               assert_array_almost_equal(t[:-2], xs[:-2])
               assert_array_almost_equal(xs[-2:],0.95)
 
+            if "SplineMethod" in str(method):
+              print(sol.sample(x, grid='gist'))
+
             ocp = Ocp(T=1)
 
+            # Only variables
+            ocp = Ocp(T=1)
+
+            x = ocp.variable(grid='bspline',order=order)
+            ocp.add_objective(ocp.sum(sumsqr(x-ocp.t),include_last=True))
+            ocp.solver('ipopt')
+
+            ocp.method(method)
+
+            # Solve
+            sol = ocp.solve()
+            [t,xs] = sol.sample(x, grid='control')
+            if order==1:
+              assert_array_almost_equal(t, xs)
+            if order==0:
+              assert_array_almost_equal(t[:-2], xs[:-2])
+              assert_array_almost_equal(xs[-2:],0.95)
+
+
+    def test_grid_gist(self):
+      ocp = Ocp(T=1)
+      x = ocp.control(order=0)
+      ocp.add_objective(ocp.sum(sumsqr(x),include_last=True))
+      ocp.solver('ipopt')
+      ocp.method(SplineMethod(N=10))
+      sol = ocp.solve()
+
+      [_,xs] = sol.sample(x, grid='gist')
+            
     def test_p_bspline(self):
       ocp = Ocp(T=1)
       x = ocp.control(order=2)

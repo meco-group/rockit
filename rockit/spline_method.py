@@ -87,7 +87,7 @@ class SplineMethod(SamplingMethod):
             G.add_edge(node_x(r), node_x(c), weight=float(A[r,c]))
         for r,c in zip(*B.sparsity().get_triplet()):
             G.add_edge(node_x(r), node_u(c), weight=float(B[r,c]))
-        assert nx.is_forest(G)
+        assert nx.number_of_nodes(G)==0 or nx.is_forest(G)
         #nx.draw(G)
         #import pylab as plt
         #plt.show()
@@ -167,7 +167,7 @@ ocp.set_der(v, a)
         """
 
         # Needed to make SamplingMethod happy
-        self.v = vvcat(stage.variables[''])
+        self.v = vvcat(stage.variables['']+stage.variables['bspline'])
         self.free_time = False
 
         self.constraint_inspector = ConstraintInspector(self, stage)
@@ -195,13 +195,14 @@ ocp.set_der(v, a)
         # We can construct all needed Bs upfront, regardless of groups
         # Store different Bs using width as a key
         # We need to cover the highest-order degree and all degrees lower than that
-        Lmax = max(self.groups.keys())
-        dmax = Lmax-1
-        for i in range(dmax+1):
-            d = dmax-i
-            [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
-            self.B[refine][self.N+d] = B
-            self.tau[refine] = tau
+        if self.groups:
+            Lmax = max(self.groups.keys())
+            dmax = Lmax-1
+            for i in range(dmax+1):
+                d = dmax-i
+                [tau,B] = eval_on_knots(self.xi,dmax-i,subsamples=refine-1)
+                self.B[refine][self.N+d] = B
+                self.tau[refine] = tau
         self.time[refine] = self.time_grid(self.t0, self.T, self.N*refine)
 
         # Evaluate spline on the control grid
@@ -282,7 +283,7 @@ ocp.set_der(v, a)
 
         # We can know store states and controls evaluated on the control grid
         self.X = ca.horzsplit(ca.vcat(self.XU_sampled[1][:stage.nx])) if stage.nx else [DM(0,1)]*(self.N+1)
-        self.U = ca.horzsplit(ca.vcat(self.XU_sampled[1][stage.nx:]))[:-1]
+        self.U = ca.horzsplit(ca.vcat(self.XU_sampled[1][stage.nx:]))[:-1] if stage.nu else [DM(0,1)]*(self.N)
 
         # Below may improve efficiency, depends on the situation
         #self.X[0] = ca.vcat(self.XU0_expr[:stwidthstage.nx])
@@ -364,9 +365,23 @@ ocp.set_der(v, a)
             spline_parameters_traj.append(C @ B)
         spline_parameters_traj = vcat(spline_parameters_traj)
 
-        f = ca.Function("f",v_symbols+[fixed_parameters,spline_parameters,stage.t],[expr])
-        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False,False])
-        results = F(*v_expressions,fixed_parameters,spline_parameters_traj,time)
+        spline_variables = MX(0, 1) if len(stage.variables['bspline'])==0 else vvcat(stage.variables['bspline'])
+        spline_variables_traj = []
+
+        for i,p in enumerate(stage.variables["bspline"]):
+            cat = stage._catalog[p]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            s = self.N+d
+            assert p.size2()==1
+            C = self.V_spline_coeff[i]
+            [_,B] = eval_on_knots(self.xi,d,subsamples=refine-1)
+            spline_variables_traj.append(C @ B)
+        spline_variables_traj = vcat(spline_variables_traj)
+
+        f = ca.Function("f",v_symbols+[fixed_parameters,spline_parameters,spline_variables,stage.t],[expr])
+        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False,False,False])
+        results = F(*v_expressions,fixed_parameters,spline_parameters_traj,spline_variables_traj,time)
 
         return time, self.eval(stage, results)
 

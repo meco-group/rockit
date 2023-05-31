@@ -88,7 +88,7 @@ def bspline_derivative(c,xi,d):
 
 def get_greville_points(xi,d):
     if d==0:
-      return xi
+      return (xi[0,1:]+xi[0,:-1])/2
     # Greville: moving average of xi
     N = xi.shape[1]
     s = N-1+d

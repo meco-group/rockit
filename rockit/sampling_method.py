@@ -259,6 +259,8 @@ class SamplingMethod(DirectMethod):
         self.V_control = []
         self.V_control_plus = []
         self.V_states = []
+        self.V_spline_coeff = []
+        self.V_spline = []
         self.P_control = []
         self.P_control_plus = []
         self.P_spline_coeff = []
@@ -524,6 +526,17 @@ class SamplingMethod(DirectMethod):
     def add_variables_V(self, stage, opti):
         DirectMethod.add_variables(self, stage, opti)
 
+        for p in stage.variables["bspline"]:
+            cat = stage._catalog[p]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            s = self.N+d
+            assert p.size2()==1
+            C = opti.variable(p.size1(), s)
+            self.V_spline_coeff.append(C)
+            [_,B] = eval_on_knots(self.xi,d)
+            self.V_spline.append(ca.horzsplit(C @ B))
+
         # Create time grid (might be symbolic)
         self.T = self.eval(stage, stage._T)
         self.t0 = self.eval(stage, stage._t0)
@@ -589,8 +602,11 @@ class SamplingMethod(DirectMethod):
     def get_v_states_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_states])
 
+    def get_v_bspline_at(self, stage, k=-1):
+        return veccat(*[e[k] for e in self.V_spline])
+
     def get_p_sys(self, stage, k):
-        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k))
+        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_v_bspline_at(stage, k))
 
     def eval(self, stage, expr):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
@@ -623,7 +639,7 @@ class SamplingMethod(DirectMethod):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, self.M-1 if k==-1 else 0)
 
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), p_bspline=self.get_p_bspline_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), p_bspline=self.get_p_bspline_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_bspline=self.get_v_bspline_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
         expr = stage.master._method.eval_top(stage.master, expr)
         return expr
     
