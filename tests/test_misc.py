@@ -55,6 +55,29 @@ class MiscTests(unittest.TestCase):
       sol = ocp.solve()
       self.assertAlmostEqual(sol.value(ocp.objective),sol.value(ocp.at_tf(x)))
 
+    def test_splinemethod_order0(self):
+      for method in [MultipleShooting(N=10),SplineMethod(N=10)]:
+         for order in [0,1]:
+            # Only control
+            ocp = Ocp(T=1)
+
+            x = ocp.control(order=order)
+            ocp.add_objective(ocp.sum(sumsqr(x-ocp.t),include_last=True))
+            ocp.solver('ipopt')
+
+            ocp.method(method)
+
+            # Solve
+            sol = ocp.solve()
+            [t,xs] = sol.sample(x, grid='control')
+            if order==1:
+              assert_array_almost_equal(t, xs)
+            if order==0:
+              assert_array_almost_equal(t[:-2], xs[:-2])
+              assert_array_almost_equal(xs[-2:],0.95)
+
+            ocp = Ocp(T=1)
+
     def test_p_bspline(self):
       ocp = Ocp(T=1)
       x = ocp.control(order=2)

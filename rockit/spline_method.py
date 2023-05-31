@@ -88,8 +88,9 @@ class SplineMethod(SamplingMethod):
         for r,c in zip(*B.sparsity().get_triplet()):
             G.add_edge(node_x(r), node_u(c), weight=float(B[r,c]))
         assert nx.is_forest(G)
-        assert len(list(nx.isolates(G)))==0
-
+        #nx.draw(G)
+        #import pylab as plt
+        #plt.show()
 
         chains = []
         for nodes in nx.weakly_connected_components(G):
@@ -280,7 +281,7 @@ ocp.set_der(v, a)
             self.sample_xu(stage, refine)
 
         # We can know store states and controls evaluated on the control grid
-        self.X = ca.horzsplit(ca.vcat(self.XU_sampled[1][:stage.nx]))
+        self.X = ca.horzsplit(ca.vcat(self.XU_sampled[1][:stage.nx])) if stage.nx else [DM(0,1)]*(self.N+1)
         self.U = ca.horzsplit(ca.vcat(self.XU_sampled[1][stage.nx:]))[:-1]
 
         # Below may improve efficiency, depends on the situation
