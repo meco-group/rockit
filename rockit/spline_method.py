@@ -293,15 +293,43 @@ ocp.set_der(v, a)
         assert refine==1
         # What scalarized variables are we dependent on?
         v = self.xu
-        J = ca.jacobian(expr,v)
-        deps = ca.sum1(J.sparsity()).T.row()
-
-        widths = set([self.origins[i]["w"] for i in deps])
-        assert len(widths)==1
-        coeffs = ca.vcat([self.coeffs_epxr[i] for i in deps])
-        d = self.origins[deps[0]]["d"]
-        return self.t0+self.G[d]*self.T, coeffs
-
+        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(stage.variables['bspline'])),ca.jacobian(expr,vvcat(stage.parameters['bspline']))])
+        Js = Jf(np.nan)
+        for J in Js:
+            assert J.sparsity().is_selection(True)
+        has_entries = [e.nnz()>0 for e in Js]
+        assert has_entries.count(True)==1
+        if has_entries[0]:
+            deps = ca.sum1(Js[0].sparsity()).T.row()
+            Jmul = Js[0][:,deps]
+            widths = set([self.origins[i]["w"] for i in deps])
+            assert len(widths)==1
+            coeffs = ca.vcat([self.coeffs_epxr[i] for i in deps])
+            d = self.origins[deps[0]]["d"]
+            return self.t0+self.G[d]*self.T, Jmul @ coeffs
+        elif has_entries[1]:
+            deps = ca.sum1(Js[1].sparsity()).T.row()
+            vars = vvcat(stage.variables['bspline'])[deps]
+            Jmul = Js[1][:,deps]
+            i = [i for i,e in enumerate(stage.variables['bspline']) if e.__hash__()==vars.__hash__()][0]
+            coeffs = self.V_spline_coeff[i]
+            cat = stage._catalog[vars]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            G = get_greville_points(self.xi, d)
+            return self.t0+G*self.T, Jmul @ coeffs
+        elif has_entries[2]:
+            deps = ca.sum1(Js[2].sparsity()).T.row()
+            vars = vvcat(stage.parameters['bspline'])[deps]
+            Jmul = Js[2][:,deps]
+            i = [i for i,e in enumerate(stage.parameters['bspline']) if e.__hash__()==vars.__hash__()][0]
+            coeffs = self.P_spline_coeff[i]
+            cat = stage._catalog[vars]
+            # Compute the degree and size of a BSpline coefficient needed
+            d = cat["order"]
+            G = get_greville_points(self.xi, d)
+            return self.t0+G*self.T, Jmul @ coeffs
+        
     def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         # What scalarized variables are we dependent on?
         v = self.xu

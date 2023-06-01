@@ -3,7 +3,7 @@ import unittest
 
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup, rockit_pickle_context, rockit_unpickle_context
 from problems import integrator_control_problem, vdp, vdp_dae, bang_bang_problem
-from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr, symvar
+from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr, symvar, vertcat
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from rockit.splines.spline import Spline
@@ -101,15 +101,57 @@ class MiscTests(unittest.TestCase):
 
 
     def test_grid_gist(self):
-      ocp = Ocp(T=1)
-      x = ocp.control(order=0)
-      ocp.add_objective(ocp.sum(sumsqr(x),include_last=True))
-      ocp.solver('ipopt')
-      ocp.method(SplineMethod(N=10))
-      sol = ocp.solve()
+      for order in range(3):
+        ocp = Ocp(T=1)
+        x = ocp.control(2,order=order)
+        ocp.add_objective(ocp.sum(sumsqr(x-ocp.t),include_last=True))
+        ocp.solver('ipopt')
+        ocp.method(SplineMethod(N=10))
+        sol = ocp.solve()
 
-      [_,xs] = sol.sample(x, grid='gist')
-            
+        [_,xs] = sol.sample(x, grid='gist')
+        self.assertEqual(xs.shape[0], 10+order)
+        [_,xs2] = sol.sample(7*x, grid='gist')
+        assert_array_almost_equal(7*xs,xs2)
+        [_,xs2] = sol.sample(vertcat(3*x[0],x[1]), grid='gist')
+        assert_array_almost_equal(xs[:,0]*3,xs2[:,0])
+        assert_array_almost_equal(xs[:,1],xs2[:,1])
+        [_,xs2] = sol.sample(vertcat(x[1],3*x[0]), grid='gist')
+        assert_array_almost_equal(xs[:,1],xs2[:,0])
+        assert_array_almost_equal(xs[:,0]*3,xs2[:,1])
+        [_,xs] = ocp.sample(x, grid='gist')
+        self.assertEqual(xs.shape[1], 10+order)
+
+        ocp = Ocp(T=1)
+        x = ocp.variable(2,grid='bspline',order=order)
+        ocp.add_objective(ocp.sum(sumsqr(x),include_last=True))
+        ocp.solver('ipopt')
+        ocp.method(SplineMethod(N=10))
+        sol = ocp.solve()
+
+        [_,xs] = sol.sample(x, grid='gist')
+        self.assertEqual(xs.shape[0], 10+order)
+        [_,xs2] = sol.sample(7*x, grid='gist')
+        assert_array_almost_equal(7*xs,xs2)
+        [_,xs] = ocp.sample(x, grid='gist')
+        self.assertEqual(xs.shape[1], 10+order)
+
+        ocp = Ocp(T=1)
+        x = ocp.parameter(2,grid='bspline',order=order)
+        DM.rng(1)
+        ocp.set_value(x, DM.rand(2,10+order))
+        ocp.add_objective(ocp.sum(sumsqr(x),include_last=True))
+        ocp.solver('ipopt')
+        ocp.method(SplineMethod(N=10))
+        sol = ocp.solve()
+
+        [_,xs] = sol.sample(x, grid='gist')
+        self.assertEqual(xs.shape[0], 10+order)
+        [_,xs2] = sol.sample(7*x, grid='gist')
+        assert_array_almost_equal(7*xs,xs2)
+        [_,xs] = ocp.sample(x, grid='gist')
+        self.assertEqual(xs.shape[1], 10+order)
+
     def test_p_bspline(self):
       ocp = Ocp(T=1)
       x = ocp.control(order=2)
