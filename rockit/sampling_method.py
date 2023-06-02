@@ -24,7 +24,7 @@ from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, vecc
 import casadi as ca
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
-from .casadi_helpers import reinterpret_expr, HashOrderedDict
+from .casadi_helpers import reinterpret_expr, HashOrderedDict, HashDict
 from numpy import nan, inf
 import numpy as np
 from collections import defaultdict
@@ -43,6 +43,14 @@ class Grid:
 
     def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
         pass
+
+class BSplineObject:
+    def __init__(self, coeff, xi, degree):
+        self.coeff = coeff
+        self.xi = xi
+        self.degree = degree
+        [_,self.B] = eval_on_knots(xi, degree)
+        self.sampled = horzsplit(coeff @ self.B)
 
 class FixedGrid(Grid):
     def __init__(self, localize_t0=False, localize_T=False, **kwargs):
@@ -259,12 +267,9 @@ class SamplingMethod(DirectMethod):
         self.V_control = []
         self.V_control_plus = []
         self.V_states = []
-        self.V_spline_coeff = []
-        self.V_spline = []
         self.P_control = []
         self.P_control_plus = []
-        self.P_spline_coeff = []
-        self.P_spline = []
+        self.splines = HashOrderedDict()
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
         self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
@@ -535,9 +540,7 @@ class SamplingMethod(DirectMethod):
             s = self.N+d
             assert p.size2()==1
             C = opti.variable(p.size1(), s)
-            self.V_spline_coeff.append(C)
-            [_,B] = eval_on_knots(self.xi,d)
-            self.V_spline.append(ca.horzsplit(C @ B))
+            self.splines[p] = BSplineObject(C, self.xi, d)
 
         # Create time grid (might be symbolic)
         self.T = self.eval(stage, stage._T)
@@ -587,7 +590,7 @@ class SamplingMethod(DirectMethod):
                 opti.subject_to(c,**kwargs)
 
     def get_p_bspline_at(self, stage, k=-1):
-        return veccat(*[e[k] for e in self.P_spline])
+        return veccat(*[self.splines[e].sampled[k] for e in stage.parameters["bspline"]])
 
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[k] for p in self.P_control])
@@ -605,7 +608,7 @@ class SamplingMethod(DirectMethod):
         return veccat(*[v[k] for v in self.V_states])
 
     def get_v_bspline_at(self, stage, k=-1):
-        return veccat(*[e[k] for e in self.V_spline])
+        return veccat(*[self.splines[e].sampled[k] for e in stage.variables["bspline"]])
 
     def get_p_sys(self, stage, k):
         return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_v_bspline_at(stage, k))
@@ -735,10 +738,10 @@ class SamplingMethod(DirectMethod):
             if is_equal(parameter, p):
                 found = True
                 opti.set_value(hcat(self.P_control_plus[i]), value)
-        for i, p in enumerate(stage.parameters['bspline']):
+        for p in stage.parameters['bspline']:
             if is_equal(parameter, p):
                 found = True
-                opti.set_value(self.P_spline_coeff[i], value)
+                opti.set_value(self.splines[p].coeff, value)
         assert found, "You attempted to set the value of a non-parameter."
 
     def add_parameter(self, stage, opti):
@@ -755,9 +758,7 @@ class SamplingMethod(DirectMethod):
             s = self.N+d
             assert p.size2()==1
             C = opti.parameter(p.size1(), s)
-            self.P_spline_coeff.append(C)
-            [_,B] = eval_on_knots(self.xi,d)
-            self.P_spline.append(ca.horzsplit(C @ B))
+            self.splines[p] = BSplineObject(C, self.xi, d)
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
@@ -766,5 +767,5 @@ class SamplingMethod(DirectMethod):
             opti.set_value(hcat(self.P_control[i]), stage._param_value(p))
         for i, p in enumerate(stage.parameters['control+']):
             opti.set_value(hcat(self.P_control_plus[i]), stage._param_value(p))
-        for i, p in enumerate(stage.parameters['bspline']):
-            opti.set_value(self.P_spline_coeff[i], stage._param_value(p))
+        for p in stage.parameters['bspline']:
+            opti.set_value(self.splines[p].coeff, stage._param_value(p))

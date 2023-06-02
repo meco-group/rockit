@@ -293,7 +293,7 @@ ocp.set_der(v, a)
         assert refine==1
         # What scalarized variables are we dependent on?
         v = self.xu
-        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(stage.variables['bspline'])),ca.jacobian(expr,vvcat(stage.parameters['bspline']))])
+        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(self.splines.keys()))])
         Js = Jf(np.nan)
         for J in Js:
             assert J.sparsity().is_selection(True)
@@ -309,26 +309,12 @@ ocp.set_der(v, a)
             return self.t0+self.G[d]*self.T, Jmul @ coeffs
         elif has_entries[1]:
             deps = ca.sum1(Js[1].sparsity()).T.row()
-            vars = vvcat(stage.variables['bspline'])[deps]
+            vars = vvcat(self.splines.keys())[deps]
             Jmul = Js[1][:,deps]
-            i = [i for i,e in enumerate(stage.variables['bspline']) if e.__hash__()==vars.__hash__()][0]
-            coeffs = self.V_spline_coeff[i]
-            cat = stage._catalog[vars]
+            s = self.splines[vars]
             # Compute the degree and size of a BSpline coefficient needed
-            d = cat["order"]
-            G = get_greville_points(self.xi, d)
-            return self.t0+G*self.T, Jmul @ coeffs
-        elif has_entries[2]:
-            deps = ca.sum1(Js[2].sparsity()).T.row()
-            vars = vvcat(stage.parameters['bspline'])[deps]
-            Jmul = Js[2][:,deps]
-            i = [i for i,e in enumerate(stage.parameters['bspline']) if e.__hash__()==vars.__hash__()][0]
-            coeffs = self.P_spline_coeff[i]
-            cat = stage._catalog[vars]
-            # Compute the degree and size of a BSpline coefficient needed
-            d = cat["order"]
-            G = get_greville_points(self.xi, d)
-            return self.t0+G*self.T, Jmul @ coeffs
+            G = get_greville_points(self.xi, s.degree)
+            return self.t0+G*self.T, Jmul @ s.coeff
         
     def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         # What scalarized variables are we dependent on?
@@ -379,40 +365,22 @@ ocp.set_der(v, a)
         # End offset modifications
 
         fixed_parameters = MX(0, 1) if len(stage.parameters[''])==0 else vvcat(stage.parameters[''])
-        spline_parameters = MX(0, 1) if len(stage.parameters['bspline'])==0 else vvcat(stage.parameters['bspline'])
-        spline_parameters_traj = []
 
-        for i,p in enumerate(stage.parameters["bspline"]):
-            cat = stage._catalog[p]
+        spline_symbols = vvcat(self.splines.keys())
+        spline_traj = []
+        for p,v in self.splines.items():
             # Compute the degree and size of a BSpline coefficient needed
-            d = cat["order"]
-            s = self.N+d
+            s = self.N+v.degree
             assert p.size2()==1
-            C = self.P_spline_coeff[i]
-            [_,B] = eval_on_knots(self.xi,d,subsamples=refine-1)
-            spline_parameters_traj.append(C @ B)
-        spline_parameters_traj = vcat(spline_parameters_traj)
+            [_,B] = eval_on_knots(self.xi,v.degree,subsamples=refine-1)
+            spline_traj.append(v.coeff @ B)
+        spline_traj = vcat(spline_traj)
 
-        spline_variables = MX(0, 1) if len(stage.variables['bspline'])==0 else vvcat(stage.variables['bspline'])
-        spline_variables_traj = []
-
-        for i,p in enumerate(stage.variables["bspline"]):
-            cat = stage._catalog[p]
-            # Compute the degree and size of a BSpline coefficient needed
-            d = cat["order"]
-            s = self.N+d
-            assert p.size2()==1
-            C = self.V_spline_coeff[i]
-            [_,B] = eval_on_knots(self.xi,d,subsamples=refine-1)
-            spline_variables_traj.append(C @ B)
-        spline_variables_traj = vcat(spline_variables_traj)
-
-        f = ca.Function("f",v_symbols+[fixed_parameters,spline_parameters,spline_variables,stage.t],[expr])
-        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False,False,False])
-        results = F(*v_expressions,fixed_parameters,spline_parameters_traj,spline_variables_traj,time)
+        f = ca.Function("f",v_symbols+[fixed_parameters,spline_symbols,stage.t],[expr])
+        F = f.map(self.N*refine+1-max_offset+min_offset,len(v_symbols)*[False]+ [True,False,False])
+        results = F(*v_expressions,fixed_parameters,spline_traj,time)
 
         return time, self.eval(stage, results)
-
 
 
 
