@@ -627,7 +627,7 @@ class Stage:
                 return jtimes(expr, self.x, ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"])
 
 
-    def integral(self, expr, grid='inf'):
+    def integral(self, expr, grid='inf',refine=1):
         """Compute an integral or a sum
 
         Parameters
@@ -644,7 +644,7 @@ class Stage:
         if grid=='inf':
             return self._create_placeholder_expr(expr, 'integral')
         else:
-            return self._create_placeholder_expr(expr, 'integral_control')
+            return self._create_placeholder_expr(expr, 'integral_control', refine=refine)
 
     def sum(self, expr, grid='control', include_last=False):
         """Compute a sum
@@ -993,7 +993,7 @@ class Stage:
  
         return not depends_on(expr, vertcat(self.x, self.u, self.z, self.t, vcat(self.variables['']+self.variables['control']+self.variables['control+']+self.variables['states']), vvcat(self._inf_der.keys())))
 
-    def _create_placeholder_expr(self, expr, callback_name):
+    def _create_placeholder_expr(self, expr, callback_name, *args, **kwargs):
         """
         Placeholders are transcribed in two phases
            Phase 1: before any decision variables are created
@@ -1002,7 +1002,7 @@ class Stage:
 
         """
         r = MX.sym("r_" + callback_name, MX(expr).sparsity())
-        self._placeholders[r] = (callback_name, expr)
+        self._placeholders[r] = (callback_name, expr, args, kwargs)
         if self.master is not None:
             self.master._transcribed_placeholders.mark_dirty()
         return r
@@ -1028,7 +1028,7 @@ class Stage:
             return ret
 
         def do(tag=None):
-            ret = prefix(normalize(callback(phase, self, expr)),tag)
+            ret = prefix(normalize(callback(phase, self, expr, *args, **kwargs)),tag)
             if ret is not None:
                 placeholders[phase][symbol] = ret
                 if phase==2 and isinstance(expr,MX) and expr.is_symbolic() and symbol in placeholders[phase-1]:
@@ -1037,7 +1037,7 @@ class Stage:
         # Phase 1 may introduce extra placeholders
         while True:
             len_before = len(self._placeholders)
-            for symbol, (species,expr) in list(self._placeholders.items()):
+            for symbol, (species,expr,args,kwargs) in list(self._placeholders.items()):
                 if symbol not in placeholders[phase]:
                     callback = getattr(method, 'fill_placeholders_' + species)
                     if phase==2 and symbol in placeholders[phase-1]:
@@ -1390,6 +1390,10 @@ class Stage:
         >>> tx, xs = sol.sample(x, grid='control')
         """
         placeholders = self.master.placeholders_transcribed
+        time, res = self._sample(expr, grid=grid, **kwargs)
+        return placeholders(time), placeholders(res)
+    
+    def _sample(self, expr, grid='control', **kwargs):
         grid, include_first, include_last = self._parse_grid(grid)
         kwargs["include_first"] = include_first
         kwargs["include_last"] = include_last
@@ -1411,7 +1415,7 @@ class Stage:
             msg += "Options are: 'control' or 'integrator' with an optional extra refine=<int> argument."
             raise Exception(msg)
 
-        return placeholders(time), placeholders(res)
+        return time, res
 
     def _grid_gist(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         if hasattr(stage._method,"grid_gist"):

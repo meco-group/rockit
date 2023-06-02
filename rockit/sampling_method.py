@@ -487,8 +487,10 @@ class SamplingMethod(DirectMethod):
             opti.subject_to(self.eval_at_control(stage, c_spline, k), meta=meta)
         except IndexError:
             pass
-    def fill_placeholders_integral_control(self, phase, stage, expr, *args):
+    def fill_placeholders_integral_control(self, phase, stage, expr, refine=1):
         if phase==1: return
+        [ts,exprs] = stage._sample(expr,grid='control',refine=refine)
+        return ca.sum2(ca.diff(ts).T*exprs[:,:-1])
         r = 0
         for k in range(self.N):
             dt = self.control_grid[k + 1] - self.control_grid[k]
