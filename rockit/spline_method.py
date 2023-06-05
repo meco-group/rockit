@@ -293,7 +293,7 @@ ocp.set_der(v, a)
         assert refine==1
         # What scalarized variables are we dependent on?
         v = self.xu
-        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(self.splines.keys()))])
+        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(self.signals.keys()))])
         Js = Jf(np.nan)
         for J in Js:
             assert J.sparsity().is_selection(True)
@@ -309,9 +309,9 @@ ocp.set_der(v, a)
             return self.t0+self.G[d]*self.T, Jmul @ coeffs
         elif has_entries[1]:
             deps = ca.sum1(Js[1].sparsity()).T.row()
-            vars = vvcat(self.splines.keys())[deps]
+            vars = vvcat(self.signals.keys())[deps]
             Jmul = Js[1][:,deps]
-            s = self.splines[vars]
+            s = self.signals[vars]
             # Compute the degree and size of a BSpline coefficient needed
             G = get_greville_points(self.xi, s.degree)
             return self.t0+G*self.T, Jmul @ s.coeff
@@ -366,9 +366,9 @@ ocp.set_der(v, a)
 
         fixed_parameters = MX(0, 1) if len(stage.parameters[''])==0 else vvcat(stage.parameters[''])
 
-        spline_symbols = vvcat(self.splines.keys())
+        spline_symbols = vvcat(self.signals.keys())
         spline_traj = []
-        for p,v in self.splines.items():
+        for p,v in self.signals.items():
             # Compute the degree and size of a BSpline coefficient needed
             s = self.N+v.degree
             assert p.size2()==1

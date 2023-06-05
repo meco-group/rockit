@@ -44,13 +44,45 @@ class Grid:
     def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
         pass
 
-class BSplineObject:
-    def __init__(self, coeff, xi, degree):
+class BSplineSignal:
+    def __init__(self, coeff, xi, degree,T=1):
         self.coeff = coeff
         self.xi = xi
         self.degree = degree
         [_,self.B] = eval_on_knots(xi, degree)
         self.sampled = horzsplit(coeff @ self.B)
+        self.derivative = None
+        self.T = T
+
+        # Initialization delegated to register
+        self.peers = None
+        self.symbol = None
+
+    @property
+    def der(self):
+        if self.derivative is not None:
+            if self.degree==0:
+                raise Exception("Cannot differentiate " + self.symbol.name() + " any further.")
+            der_symbol = MX.sym("der_"+self.symbol.name(), self.symbol.sparsity())
+            self.derivative = self.get_der()
+            self.peers[der_symbol] = self.derivative
+        return self.derivative.symbol
+
+    def get_der(self):
+        return BSplineSignal(bspline_derivative(self.coeff,self.xi,self.degree)/self.T, self.xi, self.degree-1, T=self.T)
+
+    @staticmethod
+    def register(peers, symbol, stage, signal):
+        peers[symbol] = signal
+        signal.peers = peers
+        signal.symbol = symbol
+
+        # Register derivative if present in stage._signals
+        target = stage._signals[symbol]
+        if target.derivative is not None:
+            signal_der = signal.get_der()
+            signal.derivative = signal_der
+            BSplineSignal.register(peers, target.derivative.symbol, stage, signal_der)
 
 class FixedGrid(Grid):
     def __init__(self, localize_t0=False, localize_T=False, **kwargs):
@@ -269,7 +301,7 @@ class SamplingMethod(DirectMethod):
         self.V_states = []
         self.P_control = []
         self.P_control_plus = []
-        self.splines = HashOrderedDict()
+        self.signals = HashOrderedDict()
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
         self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
@@ -401,8 +433,9 @@ class SamplingMethod(DirectMethod):
 
         # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
         self.add_parameter(stage, opti)
-        self.set_parameter(stage, opti)
         self.add_variables(stage, opti)
+        self.add_parameter_signals(stage, opti)
+        self.set_parameter(stage, opti)
 
         self.integrator_grid = []
         for k in range(self.N):
@@ -533,6 +566,13 @@ class SamplingMethod(DirectMethod):
     def add_variables_V(self, stage, opti):
         DirectMethod.add_variables(self, stage, opti)
 
+        # Create time grid (might be symbolic)
+        self.T = self.eval(stage, stage._T)
+        self.t0 = self.eval(stage, stage._t0)
+
+        self.t0_local = [None]*(self.N+1)
+        self.T_local = [None]*self.N
+
         for p in stage.variables["bspline"]:
             cat = stage._catalog[p]
             # Compute the degree and size of a BSpline coefficient needed
@@ -540,14 +580,8 @@ class SamplingMethod(DirectMethod):
             s = self.N+d
             assert p.size2()==1
             C = opti.variable(p.size1(), s)
-            self.splines[p] = BSplineObject(C, self.xi, d)
+            BSplineSignal.register(self.signals, p, stage, BSplineSignal(C, self.xi, d, T=self.T))
 
-        # Create time grid (might be symbolic)
-        self.T = self.eval(stage, stage._T)
-        self.t0 = self.eval(stage, stage._t0)
-
-        self.t0_local = [None]*(self.N+1)
-        self.T_local = [None]*self.N
 
     def add_variables_V_control(self, stage, opti, k):
         if k==0:
@@ -590,7 +624,7 @@ class SamplingMethod(DirectMethod):
                 opti.subject_to(c,**kwargs)
 
     def get_p_bspline_at(self, stage, k=-1):
-        return veccat(*[self.splines[e].sampled[k] for e in stage.parameters["bspline"]])
+        return veccat(*[self.signals[e].sampled[k] for e in stage.parameters["bspline"]])
 
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[k] for p in self.P_control])
@@ -608,7 +642,7 @@ class SamplingMethod(DirectMethod):
         return veccat(*[v[k] for v in self.V_states])
 
     def get_v_bspline_at(self, stage, k=-1):
-        return veccat(*[self.splines[e].sampled[k] for e in stage.variables["bspline"]])
+        return veccat(*[self.signals[e].sampled[k] for e in stage.variables["bspline"]])
 
     def get_p_sys(self, stage, k):
         return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_v_bspline_at(stage, k))
@@ -741,9 +775,8 @@ class SamplingMethod(DirectMethod):
         for p in stage.parameters['bspline']:
             if is_equal(parameter, p):
                 found = True
-                opti.set_value(self.splines[p].coeff, value)
+                opti.set_value(self.signals[p].coeff, value)
         assert found, "You attempted to set the value of a non-parameter."
-
     def add_parameter(self, stage, opti):
         for p in stage.parameters['']:
             self.P.append(opti.parameter(p.shape[0], p.shape[1]))
@@ -751,6 +784,9 @@ class SamplingMethod(DirectMethod):
             self.P_control.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N)])
         for p in stage.parameters['control+']:
             self.P_control_plus.append([opti.parameter(p.shape[0], p.shape[1]) for i in range(self.N+1)])
+
+    def add_parameter_signals(self, stage, opti):
+        # These in general depend on self.T (at least derivatives), which is not yet available in add_parameter
         for p in stage.parameters["bspline"]:
             cat = stage._catalog[p]
             # Compute the degree and size of a BSpline coefficient needed
@@ -758,7 +794,7 @@ class SamplingMethod(DirectMethod):
             s = self.N+d
             assert p.size2()==1
             C = opti.parameter(p.size1(), s)
-            self.splines[p] = BSplineObject(C, self.xi, d)
+            BSplineSignal.register(self.signals, p, stage, BSplineSignal(C, self.xi, d, T = self.T))
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):
@@ -768,4 +804,4 @@ class SamplingMethod(DirectMethod):
         for i, p in enumerate(stage.parameters['control+']):
             opti.set_value(hcat(self.P_control_plus[i]), stage._param_value(p))
         for p in stage.parameters['bspline']:
-            opti.set_value(self.splines[p].coeff, stage._param_value(p))
+            opti.set_value(self.signals[p].coeff, stage._param_value(p))

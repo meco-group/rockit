@@ -22,6 +22,7 @@
 from casadi import MX, substitute, Function, vcat, depends_on, vertcat, jacobian, veccat, jtimes, hcat,\
                    linspace, DM, constpow, mtimes, low, floor, hcat, horzcat, DM, is_equal, \
                    Sparsity
+import casadi as ca
 from rockit.grouping_techniques import GroupingTechnique
 from .freetime import FreeTime
 from .direct_method import DirectMethod
@@ -42,6 +43,31 @@ def transcribed(func):
     function_wrapper._decorator_original = func
     function_wrapper.__doc__ = func.__doc__
     return function_wrapper
+
+class AbstractSignal:
+    def __init__(self, order):
+        self.order = order
+        self.derivative = None
+
+        # Initialization delegated to register
+        self.peers = None
+        self.symbol = None
+
+    @property
+    def der(self):
+        if self.derivative is None:
+            if self.order==0:
+                raise Exception("Cannot differentiate " + self.symbol.name() + " any further.")
+            der_symbol = MX.sym("der_"+self.symbol.name(), self.symbol.sparsity())
+            self.derivative = AbstractSignal(self.order-1)
+            AbstractSignal.register(self.peers, der_symbol, self.derivative)
+        return self.derivative.symbol
+    
+    @staticmethod
+    def register(peers, symbol, signal):
+        peers[symbol] = signal
+        signal.symbol = symbol
+        signal.peers = peers
 
 class Stage:
     """
@@ -81,6 +107,7 @@ class Stage:
         self.parameters = defaultdict(HashList)
         self.variables = defaultdict(HashList)
 
+
         self._master = parent.master if parent else None
         self.parent = parent
 
@@ -89,6 +116,7 @@ class Stage:
         self._var_original = None
         self._var_augmented = None
 
+        self._signals = HashOrderedDict()
         self._param_vals = HashDict()
         self._state_der = HashDict()
         self._scale_der = HashDict()
@@ -336,6 +364,8 @@ class Stage:
         if include_last:
             grid+="+"
         self.variables[grid].append(v)
+        if grid=='bspline':
+            AbstractSignal.register(self._signals, v, AbstractSignal(order))
         self._set_transcribed(False)
         return v
     
@@ -408,6 +438,8 @@ class Stage:
         if include_last:
             grid+="+"
         self.parameters[grid].append(p)
+        if grid=='bspline':
+            AbstractSignal.register(self._signals, p, AbstractSignal(order))
         self._set_transcribed(False)
         return p
 
@@ -615,11 +647,14 @@ class Stage:
         self._alg.append(constr/scale)
 
     def der(self, expr):
+        symbols = ca.symvar(expr)
+        nominal_symbols = [e for e in symbols if e in self._signals]
+        der_symbols = [self._signals[e].der for e in symbols if e in self._signals]
         if depends_on(expr, self.u):
             raise Exception("Dependency on controls not supported yet for stage.der")
         ode = self._ode()
-        if depends_on(expr,self.t):
-            return jtimes(expr, vertcat(self.x, self.t), vertcat(ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"], 1))
+        if depends_on(expr,self.t) or nominal_symbols:
+            return jtimes(expr, vertcat(self.x, self.t, *nominal_symbols), vertcat(ode(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t)["ode"], 1, *der_symbols))
         else:
             if expr in self.states:
                 return jtimes(expr, self.x, ode.call(dict(x=self.x, u=self.u, z=self.z, p=vertcat(self.p, self.v), t=self.t),True,False)["ode"])
@@ -980,7 +1015,7 @@ class Stage:
 
         """
  
-        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']+self.parameters['bspline']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']+self.variables['bspline']), vvcat(self._inf_der.keys())))
+        return depends_on(expr, vertcat(self.x, self.u, self.z, self.t, self.DT, self.DT_control, vcat(self.parameters['control']+self.parameters['control+']), vcat(self.variables['control']+self.variables['control+']+self.variables['states']),vvcat(self._signals.keys()), vvcat(self._inf_der.keys())))
 
     def is_parametric(self, expr):
         """Does the expression depend only on parameters?
