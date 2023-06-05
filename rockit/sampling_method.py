@@ -45,14 +45,31 @@ class Grid:
         pass
 
 class BSplineSignal:
-    def __init__(self, coeff, xi, degree,T=1):
+    def __init__(self, coeff, xi, degree,T=1,parametric=False):
+        """
+        Parameters
+        ----------
+        coeff : :obj:`casadi.MX`
+            Coefficients of the spline
+        xi : :obj:`casadi.MX`
+            Grid of the spline (no duplicates)
+        degree : int
+            Degree of the spline
+        T : float, optional
+            Time scaling of the spline
+            Default: 1
+        parametric : bool, optional
+            Whether the spline is ony dependant on parameters
+        """
         self.coeff = coeff
         self.xi = xi
         self.degree = degree
         [_,self.B] = eval_on_knots(xi, degree)
         self.sampled = horzsplit(coeff @ self.B)
         self.derivative = None
+        self.derivative_of = None
         self.T = T
+        self.parametric = parametric
 
         # Initialization delegated to register
         self.peers = None
@@ -65,6 +82,8 @@ class BSplineSignal:
                 raise Exception("Cannot differentiate " + self.symbol.name() + " any further.")
             der_symbol = MX.sym("der_"+self.symbol.name(), self.symbol.sparsity())
             self.derivative = self.get_der()
+            self.derivative.parametric = self.parametric
+            self.derivative.derivative_of = self
             self.peers[der_symbol] = self.derivative
         return self.derivative.symbol
 
@@ -82,6 +101,8 @@ class BSplineSignal:
         if target.derivative is not None:
             signal_der = signal.get_der()
             signal.derivative = signal_der
+            signal_der.parametric = signal.parametric
+            signal_der.derivative_of = signal
             BSplineSignal.register(peers, target.derivative.symbol, stage, signal_der)
 
 class FixedGrid(Grid):
@@ -417,6 +438,9 @@ class SamplingMethod(DirectMethod):
     def untranscribe(self, stage, phase=1,**kwargs):
         self.clean()
 
+    def transcribe_event_after_varpar(self, stage, phase=1, **kwargs):
+        pass
+
     def transcribe(self, stage, phase=1,**kwargs):
         """
         Transcription is the process of going from a continuous-time OCP to an NLP
@@ -437,6 +461,8 @@ class SamplingMethod(DirectMethod):
         self.add_parameter_signals(stage, opti)
         self.set_parameter(stage, opti)
 
+        self.transcribe_event_after_varpar(stage, phase=phase, **kwargs)
+
         self.integrator_grid = []
         for k in range(self.N):
             t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
@@ -445,7 +471,6 @@ class SamplingMethod(DirectMethod):
         self.add_constraints(stage, opti)
         self.add_constraints_after(stage, opti)
         self.add_objective(stage, opti)
-
 
 
         self.set_initial(stage, opti, stage._initial)
@@ -623,9 +648,6 @@ class SamplingMethod(DirectMethod):
             if not advanced.is_parametric(c):
                 opti.subject_to(c,**kwargs)
 
-    def get_p_bspline_at(self, stage, k=-1):
-        return veccat(*[self.signals[e].sampled[k] for e in stage.parameters["bspline"]])
-
     def get_p_control_at(self, stage, k=-1):
         return veccat(*[p[k] for p in self.P_control])
 
@@ -641,11 +663,11 @@ class SamplingMethod(DirectMethod):
     def get_v_states_at(self, stage, k=-1):
         return veccat(*[v[k] for v in self.V_states])
 
-    def get_v_bspline_at(self, stage, k=-1):
-        return veccat(*[self.signals[e].sampled[k] for e in stage.variables["bspline"]])
+    def get_signals_at(self, stage, k=-1):
+        return veccat(*[e.sampled[k] for e in self.signals.values()])
 
     def get_p_sys(self, stage, k):
-        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.get_p_bspline_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_v_bspline_at(stage, k))
+        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_signals_at(stage, k))
 
     def eval(self, stage, expr):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
@@ -678,7 +700,7 @@ class SamplingMethod(DirectMethod):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, self.M-1 if k==-1 else 0)
 
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), p_bspline=self.get_p_bspline_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), v_bspline=self.get_v_bspline_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), signals=(self.signals, self.get_signals_at(stage, k)), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
         expr = stage.master._method.eval_top(stage.master, expr)
         return expr
     
@@ -794,7 +816,7 @@ class SamplingMethod(DirectMethod):
             s = self.N+d
             assert p.size2()==1
             C = opti.parameter(p.size1(), s)
-            BSplineSignal.register(self.signals, p, stage, BSplineSignal(C, self.xi, d, T = self.T))
+            BSplineSignal.register(self.signals, p, stage, BSplineSignal(C, self.xi, d, T = self.T,parametric=True))
 
     def set_parameter(self, stage, opti):
         for i, p in enumerate(stage.parameters['']):

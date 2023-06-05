@@ -171,9 +171,11 @@ ocp.set_der(v, a)
         self.free_time = False
 
         self.constraint_inspector = ConstraintInspector(self, stage)
-        self.constraint_inspector.finalize()
 
         self.xu = ca.vertcat(stage.x,stage.u)
+
+    def transcribe_event_after_varpar(self, stage, phase=1, **kwargs):
+        self.constraint_inspector.finalize()
 
     def sample_xu(self, stage, refine):
         # Cache for B,tau and results
@@ -500,29 +502,40 @@ ocp.set_der(v, a)
         ub = ca.vcat(ubs)
         canon = ca.vcat(canons)
 
-        A, b = linear_coeffs(canon, v)
+        A, Asignal, b = linear_coeffs(canon, v, vvcat(self.signals.keys()))
         A = evalf(A)
+        Asignal = evalf(Asignal)
         b = evalf(b)
 
-        # Goal is to put constraints on coefficients instead of on v
-        # However, different entries of v have different widths of coefficients
-        # Hence, we will have to add separate constraints for each width
+        assert A.nnz()==0 or Asignal.nnz()==0
 
-        # Partition constraints into blocks per width
-        for w in self.unique_widths:
-            # Selector for specific width
-            Sw = np.nonzero(self.widths==w)[0]
-            Ablock = A[:,Sw]
-            coeffs_epxr_block = [self.coeffs_epxr[e] for e in Sw]
-            # Selector for nonempty rows
-            Sr = ca.sum2(Ablock.sparsity()).row()
-            # Selector for nonempty columns
-            Sc = ca.sum1(Ablock.sparsity()).T.row()
-            Ablock = Ablock[Sr,Sc]
-            C = ca.vcat([coeffs_epxr_block[e] for e in Sc])
+        if A.nnz():
 
-            if Sr:
-                self.opti.subject_to(self.eval(stage,lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr])))
+            # Goal is to put constraints on coefficients instead of on v
+            # However, different entries of v have different widths of coefficients
+            # Hence, we will have to add separate constraints for each width
+
+            # Partition constraints into blocks per width
+            for w in self.unique_widths:
+                # Selector for specific width
+                Sw = np.nonzero(self.widths==w)[0]
+                Ablock = A[:,Sw]
+                coeffs_epxr_block = [self.coeffs_epxr[e] for e in Sw]
+                # Selector for nonempty rows
+                Sr = ca.sum2(Ablock.sparsity()).row()
+                # Selector for nonempty columns
+                Sc = ca.sum1(Ablock.sparsity()).T.row()
+                Ablock = Ablock[Sr,Sc]
+                C = ca.vcat([coeffs_epxr_block[e] for e in Sc])
+
+                if Sr:
+                    self.opti.subject_to(self.eval(stage,lb[Sr] - b[Sr] <= (Ablock @ C <= ub[Sr]-b[Sr])))
+        else:
+            deps = ca.sum1(Asignal).T.row()
+            vars = vvcat(self.signals.keys())[deps]
+            Jmul = Asignal[:,deps]
+            s = self.signals[vars]
+            self.opti.subject_to(self.eval(stage,lb - b <= (Jmul @ s.coeff <= ub-b)))
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master

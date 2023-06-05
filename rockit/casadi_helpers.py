@@ -394,8 +394,25 @@ class ConstraintInspector:
         if method.free_time:
             self.raw += [stage.T]
             self.optivar += [self.T]
+
+        self.method = method
     
     def finalize(self):
+        if hasattr(self.method,'signals'):
+            # Need to a add signal derivative symbols
+            extra_vars = []
+            extra_pars = []
+            for k,v in self.method.signals.items():
+                if v.derivative_of is None: continue
+                if v.parametric:
+                    extra_pars.append(v.symbol)
+                else:
+                    extra_vars.append(v.symbol)
+            raw_var = vvcat(extra_vars)
+            raw_par = vvcat(extra_pars)
+            self.raw += [raw_var,raw_par]
+            self.optivar += [self.opti.variable(*raw_var.shape),self.opti.parameter(*raw_par.shape)]
+   
         self.opti_advanced = self.opti.advanced
 
     def canon(self,expr):

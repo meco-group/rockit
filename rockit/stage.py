@@ -1187,10 +1187,6 @@ class Stage:
             p = veccat(*self.parameters['control+'])
             subst_from.append(p)
             subst_to.append(kwargs["p_control_plus"])
-        if "p_bspline" in kwargs and self.parameters['bspline']:
-            p = veccat(*self.parameters['bspline'])
-            subst_from.append(p)
-            subst_to.append(kwargs["p_bspline"])
         if "v" in kwargs and self.variables['']:
             v = veccat(*self.variables[''])
             subst_from.append(v)
@@ -1207,10 +1203,12 @@ class Stage:
             v = veccat(*self.variables['states'])
             subst_from.append(v)
             subst_to.append(kwargs["v_states"])
-        if "v_bspline" in kwargs and self.variables['bspline']:
-            p = veccat(*self.variables['bspline'])
-            subst_from.append(p)
-            subst_to.append(kwargs["v_bspline"])
+        if "signals" in kwargs:
+            signals, values = kwargs["signals"]
+            if signals:
+                p = vvcat(signals.keys())
+                subst_from.append(p)
+                subst_to.append(values)
         return (subst_from, subst_to)
 
     _constr_apply = _expr_apply

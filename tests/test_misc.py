@@ -152,6 +152,24 @@ class MiscTests(unittest.TestCase):
         [_,xs] = ocp.sample(x, grid='gist')
         self.assertEqual(xs.shape[1], 10+order)
 
+    def test_der_signals(self):
+      for grid in [None,'inf']:
+        # Only variables
+        ocp = Ocp(T=1.3)
+
+        x = ocp.variable(grid='bspline',order=2)
+        ocp.subject_to(ocp.at_t0(x)==0)
+        ocp.add_objective(-ocp.at_tf(x))
+
+        ocp.subject_to(ocp.der(x)<=1.1,grid=grid)
+        ocp.solver('ipopt')
+        ocp.method(SplineMethod(N=10))
+        sol = ocp.solve()
+
+        assert_array_almost_equal(sol.sample(ocp.der(x),grid='gist')[1], 1.1)
+
+        self.assertAlmostEqual(sol.value(ocp.at_tf(x)),1.3*1.1)
+
     def test_p_bspline(self):
       ocp = Ocp(T=1)
       x = ocp.control(order=2)
