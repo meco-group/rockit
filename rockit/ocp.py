@@ -94,18 +94,22 @@ class Ocp(Stage):
         else:
             self._transcribe()
             return self
+        
+    def transcribe(self,**kwargs):
+        self._untranscribe()
+        self._transcribe(**kwargs)
 
-    def _transcribe(self):
+    def _transcribe(self,**kwargs):
         if not self.is_transcribed:
             self._transcribed_placeholders.clear()
-            self._transcribe_recurse(phase=0)
+            self._transcribe_recurse(phase=0,**kwargs)
             self._placeholders_transcribe_recurse(1,self._transcribed_placeholders)
-            self._transcribe_recurse(phase=1)
+            self._transcribe_recurse(phase=1,**kwargs)
             self._original._set_transcribed(True)
 
-            self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed)
+            self._transcribe_recurse(phase=2,placeholders=self.placeholders_transcribed,**kwargs)
     
-    def _untranscribe(self):
+    def _untranscribe(self,**kwargs):
         if self.is_transcribed:
             self._transcribed_placeholders.clear()
             self._untranscribe_recurse(phase=0)
