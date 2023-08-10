@@ -1321,6 +1321,7 @@ class Stage:
         ret._offsets = deepcopy(self._offsets)
         ret._param_vals = copy(self._param_vals)
         ret._state_der = copy(self._state_der)
+        ret._scale_der = copy(self._scale_der)
         ret._alg = copy(self._alg)
         ret._state_next = copy(self._state_next)
         constr_types = self._constraints.keys()
