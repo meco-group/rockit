@@ -420,6 +420,8 @@ class SamplingMethod(DirectMethod):
             if "number_of_finite_elements" not in options:
                 options["number_of_finite_elements"] = 1
         I = integrator('intg_'+self.intg, self.intg, data, options)
+        if I.size2_out("xf")!=1:
+            raise Exception("Integrator must only return outputs at a single timepoint. Did you specify a grid?")
         res = I.call({'x0': X, 'p': vertcat(U, DT, DT_control, P, t0)})
         return Function('F', [X, U, t0, DT, DT_control, P], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
 
