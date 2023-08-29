@@ -24,7 +24,7 @@ from casadi import integrator, Function, MX, hcat, vertcat, vcat, linspace, vecc
 import casadi as ca
 from .direct_method import DirectMethod
 from .splines import BSplineBasis, BSpline
-from .casadi_helpers import reinterpret_expr, HashOrderedDict, HashDict
+from .casadi_helpers import reinterpret_expr, HashOrderedDict, HashDict, is_numeric
 from numpy import nan, inf
 import numpy as np
 from collections import defaultdict
@@ -754,22 +754,21 @@ class SamplingMethod(DirectMethod):
             if is_equal(var, stage.t0):
                 var = self.t0
             opti_initial = opti.initial()
+            if is_numeric(expr):
+                value = ca.evalf(expr)
+            else:
+                expr = ca.hcat([self.eval_at_control(stage, expr, k) for k in list(range(self.N))+[-1]]) # HOT line
+                value = DM(opti.debug.value(expr, opti_initial))
+            # Row vector if vector
+            if value.is_column() and var.is_scalar(): value = value.T
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
-                value = DM(opti.debug.value(self.eval_at_control(stage, expr, k), opti_initial)) # HOT line
-                if target.numel()*(self.N)==value.numel():
-                    if repmat(target, self.N, 1).shape==value.shape:
-                        value = value[k,:]
-                    elif repmat(target, 1, self.N).shape==value.shape:
-                        value = value[:,k]
-
-                if target.numel()*(self.N+1)==value.numel():
-                    if repmat(target, self.N+1, 1).shape==value.shape:
-                        value = value[k,:]
-                    elif repmat(target, 1, self.N+1).shape==value.shape:
-                        value = value[:,k]
+                value_k = value
+                if target.numel()*(self.N)==value.numel() or target.numel()*(self.N+1)==value.numel():
+                    value_k = value[:,k]
                 try:
-                    opti.set_initial(target, value, cache_advanced=True)
+                    #print(target,value_k)
+                    opti.set_initial(target, value_k, cache_advanced=True)
                 except Exception as e:
                     # E.g for single shooting, set_initial of a state, for k>0
                     # Error message is usually "... arbitrary expression ..." but can also be

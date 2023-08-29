@@ -136,6 +136,16 @@ def reshape_number(target, value):
         value = cs.DM.ones(target.shape)*value
     return value
 
+def is_numeric(expr):
+    if isinstance(expr,cs.DM):
+        return True
+    elif isinstance(expr,np.ndarray):
+        return True
+    try:
+        expr = evalf(expr)
+        return True
+    except:
+        return False
 
 def DM2numpy(dm, expr_shape, tdim=None):
     if tdim is None:
