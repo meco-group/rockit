@@ -4,6 +4,7 @@ import unittest
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, DirectCollocation, SingleShooting, SplineMethod, UniformGrid, GeometricGrid, FreeGrid, LseGroup, rockit_pickle_context, rockit_unpickle_context
 from problems import integrator_control_problem, vdp, vdp_dae, bang_bang_problem
 from casadi import DM, jacobian, sum1, sum2, MX, rootfinder, evalf, sumsqr, symvar, vertcat
+import casadi as ca
 from numpy import sin, pi, linspace
 from numpy.testing import assert_array_almost_equal
 from rockit.splines.spline import Spline
@@ -848,13 +849,15 @@ class MiscTests(unittest.TestCase):
         ocp.solver("ipopt",{"ipopt.tol":1e-12,"dump_in":True})
       
  
+        DM.rng(1)
         
         alg0 = np.round(DM.rand(N+1,1),decimals=3)
         x0 = np.round(DM.rand(2,N+1),decimals=3)
 
 
         ocp.set_initial(alg, MX(alg0)[ocp.t])
-        ocp.set_initial(ocp.x, MX(x0)[:,ocp.t])
+        ocp.set_initial(ocp.x, MX(x0)[:,ca.floor(ocp.t)])
+
         sol = ocp.solve()
         x0_ref = DM.from_file("solver.000000.in.x0.mtx")
 
