@@ -40,6 +40,16 @@ classdef SplineMethod < rockit.DirectMethod
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = transcribe_event_after_varpar(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','phase','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.transcribe_event_after_varpar(args{:});
+      else
+        res = obj.parent.transcribe_event_after_varpar(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = sample_xu(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','refine'});

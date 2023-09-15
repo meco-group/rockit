@@ -11,7 +11,7 @@ classdef Stage < handle
   methods
     function obj = Stage(varargin)
       % Create an Optimal Control Problem stage.
-      % Arguments: parent=None, t0=0, T=1, clone=False
+      % Arguments: parent=None, t0=0, T=1, scale=1, clone=False
       %         
       %         Only call this constructer when you need abstract stages,
       %         ie stages that are not associated with an :obj:`~rockit.ocp.Ocp`.
@@ -28,6 +28,8 @@ classdef Stage < handle
       %         T : float or :obj:`~rockit.freetime.FreeTime`, optional
       %             Total horizon of the stage
       %             Default: 1
+      %         scale: float, optional
+      %                Typical time scale
       % 
       %         Examples
       %         --------
@@ -43,7 +45,7 @@ classdef Stage < handle
       if isempty(pythoncasadiinterface)
         pythoncasadiinterface = rockit.PythonCasadiInterface;
       end
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'parent','t0','T','clone'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'parent','t0','T','scale','clone'});
       if isempty(kwargs)
         obj.parent = py.rockit.Stage(args{:});
       else
@@ -111,6 +113,11 @@ classdef Stage < handle
       %             Default: 1
       %         n_cols : int, optional
       %             Number of columns
+      %             Default: 1
+      %         scale : float or :obj:`~casadi.DM`, optional
+      %             Provide a nominal value of the state for numerical scaling
+      %             In essence, this has the same effect as defining x = scale*ocp.state(),
+      %             except that set_initial(x, ...) keeps working
       %             Default: 1
       % 
       %         Returns
@@ -227,7 +234,7 @@ classdef Stage < handle
     end
     function varargout = variable(obj,varargin)
       % Create a variable
-      % Arguments: n_rows=1, n_cols=1, grid=, scale=1, include_last=False, meta=None
+      % Arguments: n_rows=1, n_cols=1, grid=, order=0, scale=1, include_last=False, meta=None
       % 
       %         Variables are unknowns in the Optimal Control problem
       %         for which we seek optimal values.
@@ -243,7 +250,11 @@ classdef Stage < handle
       %             over the whole optimal control horizon.
       %             For MultipleShooting, 'control' can be used to
       %             declare a variable that is unique to every control interval.
-      %             include_last determines if a unique entry is foreseen at the tf edge.
+      %             'bspline' indicates a bspline parametrization
+      %         order : int, optional
+      %             Relevant with grid='bspline'
+      %         include_last : bool, optional
+      %             Determines if a unique entry is foreseen at the tf edge.
       % 
       % 
       %         Returns
@@ -261,7 +272,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(v, 3)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','order','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -281,7 +292,7 @@ classdef Stage < handle
     end
     function varargout = register_variable(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','order','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -299,9 +310,19 @@ classdef Stage < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = signal_shape(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'s'});
+      if isempty(kwargs)
+        res = obj.parent.signal_shape(args{:});
+      else
+        res = obj.parent.signal_shape(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = parameter(obj,varargin)
       % Create a parameter
-      % Arguments: n_rows=1, n_cols=1, grid=, scale=1, include_last=False, meta=None
+      % Arguments: n_rows=1, n_cols=1, grid=, order=0, scale=1, include_last=False, meta=None
       % 
       %         Parameters are symbols of an Optimal COntrol problem
       %         that are externally imposed, but not hardcoded.
@@ -340,7 +361,7 @@ classdef Stage < handle
       %         >>> ocp.set_value(p, 3)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','order','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -360,7 +381,7 @@ classdef Stage < handle
     end
     function varargout = register_parameter(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p','grid','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'p','grid','order','scale','include_last','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -393,6 +414,11 @@ classdef Stage < handle
       %             Number of columns
       %         order : int, optional
       %             Order of polynomial. order=0 denotes a constant.
+      %         scale : float or :obj:`~casadi.DM`, optional
+      %             Provide a nominal value of the state for numerical scaling
+      %             In essence, this has the same effect as defining u = scale*ocp.control(),
+      %             except that set_initial(u, ...) keeps working
+      %             Default: 1
       %         Returns
       %         -------
       %         s : :obj:`~casadi.MX`
@@ -531,6 +557,7 @@ classdef Stage < handle
       %             May not be an indexed or sliced state
       %         der : `~casadi.MX`
       %             A CasADi symbolic expression of the same size as `state`
+      %         scale : extra scaling after scaling of state has been applied
       % 
       %         Examples
       %         --------
@@ -601,7 +628,7 @@ classdef Stage < handle
     end
     function varargout = integral(obj,varargin)
       % Compute an integral or a sum
-      % Arguments: expr, grid=inf
+      % Arguments: expr, grid=inf, refine=1
       % 
       %         Parameters
       %         ----------
@@ -615,7 +642,7 @@ classdef Stage < handle
       %                          Note that the final state is not included in this definition
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','grid'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'expr','grid','refine'});
       if isempty(kwargs)
         res = obj.parent.integral(args{:});
       else
@@ -742,7 +769,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc632052590>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc6320525d0>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7fc632052610>, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac339990>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac3399d0>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac339e90>, meta=None
       % 
       %         Parameters
       %         ----------
@@ -776,6 +803,12 @@ classdef Stage < handle
       %             Group vector-valued constraints along the vector dimension into a scalar constraint
       %         group_control : GroupTechnique, optional
       %             Group constraints together along the control grid
+      % 
+      %         scale : float or :obj:`~casadi.DM`, optional
+      %             Provide a nominal value for this constraint
+      %             In essence, this has the same effect as dividing all sides of the constraints by scale
+      %             Default: 1
+      % 
       %         Examples
       %         --------
       % 
@@ -1122,6 +1155,14 @@ classdef Stage < handle
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.tf);
     end
+    function out = DT(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.DT);
+    end
+    function out = DT_control(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.DT_control);
+    end
     function out = objective(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.objective);
@@ -1165,6 +1206,10 @@ classdef Stage < handle
     function out = np(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.np);
+    end
+    function out = nv(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.nv);
     end
     function out = gist(obj)
       % Obtain an expression packing all information needed to obtain value/sample

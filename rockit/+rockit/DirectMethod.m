@@ -24,6 +24,16 @@ classdef DirectMethod < handle
         obj.parent = py.rockit.DirectMethod(args{:},pyargs(kwargs{:}));
       end
     end
+    function varargout = clean(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{});
+      if isempty(kwargs)
+        res = obj.parent.clean(args{:});
+      else
+        res = obj.parent.clean(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = jacobian(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'with_label'});
@@ -84,6 +94,36 @@ classdef DirectMethod < handle
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
+    function varargout = add_parameters(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','opti'});
+      if isempty(kwargs)
+        res = obj.parent.add_parameters(args{:});
+      else
+        res = obj.parent.add_parameters(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = untranscribe(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','phase','kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.untranscribe(args{:});
+      else
+        res = obj.parent.untranscribe(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = untranscribe_placeholders(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'phase','stage'});
+      if isempty(kwargs)
+        res = obj.parent.untranscribe_placeholders(args{:});
+      else
+        res = obj.parent.untranscribe_placeholders(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
     function varargout = main_untranscribe(obj,varargin)
       global pythoncasadiinterface
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'stage','phase','kwargs'});
@@ -121,6 +161,26 @@ classdef DirectMethod < handle
         res = obj.parent.set_initial(args{:});
       else
         res = obj.parent.set_initial(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = set_parameter(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,2,{'stage','opti'});
+      if isempty(kwargs)
+        res = obj.parent.set_parameter(args{:});
+      else
+        res = obj.parent.set_parameter(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = set_value(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,4,{'stage','master','parameter','value'});
+      if isempty(kwargs)
+        res = obj.parent.set_value(args{:});
+      else
+        res = obj.parent.set_value(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
@@ -251,6 +311,26 @@ classdef DirectMethod < handle
         res = obj.parent.fill_placeholders_t(args{:});
       else
         res = obj.parent.fill_placeholders_t(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = fill_placeholders_DT(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_DT(args{:});
+      else
+        res = obj.parent.fill_placeholders_DT(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
+    end
+    function varargout = fill_placeholders_DT_control(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,inf,{'phase','stage','expr','args'});
+      if isempty(kwargs)
+        res = obj.parent.fill_placeholders_DT_control(args{:});
+      else
+        res = obj.parent.fill_placeholders_DT_control(args{:},pyargs(kwargs{:}));
       end
       varargout = pythoncasadiinterface.python2matlab_ret(res);
     end

@@ -4,7 +4,7 @@ classdef Ocp < rockit.Stage
   methods
     function obj = Ocp(varargin)
       % Create an Optimal Control Problem environment
-      % Arguments: t0=0, T=1, kwargs
+      % Arguments: t0=0, T=1, scale=1, kwargs
       % 
       %         Parameters
       %         ----------
@@ -14,6 +14,8 @@ classdef Ocp < rockit.Stage
       %         T : float or :obj:`~rockit.freetime.FreeTime`, optional
       %             Total horizon of the optimal control horizon
       %             Default: 1
+      %         scale: float, optional
+      %                Typical time scale
       % 
       %         Examples
       %         --------
@@ -30,7 +32,7 @@ classdef Ocp < rockit.Stage
       if isempty(pythoncasadiinterface)
         pythoncasadiinterface = rockit.PythonCasadiInterface;
       end
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'t0','T','kwargs'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'t0','T','scale','kwargs'});
       if isempty(kwargs)
         obj.parent = py.rockit.Ocp(args{:});
       else
@@ -68,6 +70,16 @@ classdef Ocp < rockit.Stage
        [H, titleH] = obj.hessian(true);
        spy(casadi.DM(H));
        title(titleH);
+    end
+    function varargout = transcribe(obj,varargin)
+      global pythoncasadiinterface
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'kwargs'});
+      if isempty(kwargs)
+        res = obj.parent.transcribe(args{:});
+      else
+        res = obj.parent.transcribe(args{:},pyargs(kwargs{:}));
+      end
+      varargout = pythoncasadiinterface.python2matlab_ret(res);
     end
     function varargout = solve(obj,varargin)
       global pythoncasadiinterface
