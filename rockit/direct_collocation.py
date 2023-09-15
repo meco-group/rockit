@@ -291,13 +291,13 @@ class DirectCollocation(SamplingMethod):
                         else:
                             # Other type of error: 
                             raise e
-        for a, v in list(initial_alg.items()):
+        for var, expr in list(initial_alg.items()):
             opti_initial = opti.initial()
             for k in range(self.N):
                 for i, e in enumerate(self.Zc[k]):
-                    e_shape = e[algs[a],:].shape
-                    value = DM(opti.debug.value(hcat([self.eval_at_integrator_root(stage, v, k, i, j) for j in range(e_shape[1])]), opti_initial))                    
-                    opti.set_initial(e[algs[a],:], value)
+                    e_shape = e[algs[var],:].shape
+                    value = DM(opti.debug.value(hcat([self.eval_at_integrator_root(stage, expr, k, i, j) for j in range(e_shape[1])]), opti_initial))                    
+                    opti.set_initial(e[algs[var],:], value)
 
     def to_function(self, stage, name, args, results, *margs):
         args = list(args)

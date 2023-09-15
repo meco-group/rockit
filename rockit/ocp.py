@@ -26,7 +26,7 @@ from .casadi_helpers import vvcat, rockit_pickle_context, rockit_unpickle_contex
 from .external.manager import external_method
 from .direct_method import DirectMethod
 class Ocp(Stage):
-    def __init__(self,  t0=0, T=1, **kwargs):
+    def __init__(self,  t0=0, T=1, scale=1, **kwargs):
         """Create an Optimal Control Problem environment
 
         Parameters
@@ -37,13 +37,15 @@ class Ocp(Stage):
         T : float or :obj:`~rockit.freetime.FreeTime`, optional
             Total horizon of the optimal control horizon
             Default: 1
+        scale: float, optional
+               Typical time scale
 
         Examples
         --------
 
         >>> ocp = Ocp()
         """
-        Stage.__init__(self,  t0=t0, T=T, **kwargs)
+        Stage.__init__(self,  t0=t0, T=T, scale=scale, **kwargs)
         self._master = self
         # Flag to make solve() faster when solving a second time
         # (e.g. with different parameter values)

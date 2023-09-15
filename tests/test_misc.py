@@ -1021,6 +1021,97 @@ class MiscTests(unittest.TestCase):
       with self.assertRaisesRegex(Exception, "You attempted to set the initial value of an unknown symbol"):
         ocp.set_initial(y, 3)
 
+    def test_set_initial_alg(self):
+    
+      for method in [SingleShooting(N=10,intg='idas'),MultipleShooting(N=10,intg='idas'),DirectCollocation(N=10)]:
+        ocp = Ocp()
+        x = ocp.state()
+        zx = ocp.algebraic()
+        y = ocp.state()
+        zy = ocp.algebraic()
+        
+        ocp.add_alg(sin(zx))
+        ocp.add_alg(ca.cos(zy))
+        
+        u = ocp.control()
+        
+        ocp.set_der(x, u/zx)
+        ocp.set_der(y, u/zy)
+        
+        ocp.subject_to(ocp.at_t0(x)==0)
+        ocp.subject_to(ocp.at_t0(y)==0)
+        
+        ocp.add_objective(ocp.sum(u**2))
+        
+        ocp.subject_to(ocp.at_tf(x)==1)
+        
+        ocp.method(method)
+        ocp.solver("ipopt")
+        
+        with self.assertRaises(Exception):
+        	sol = ocp.solve()
+        
+        ocp.set_initial(zy, pi/2-0.1)
+        ocp.set_initial(zx, pi-0.1)
+        
+        sol = ocp.solve()
+        
+        np.testing.assert_allclose(sol.sample(zy,grid='control')[1],pi/2)
+        np.testing.assert_allclose(sol.sample(zx,grid='control')[1],pi)
+      
+      for method in [MultipleShooting(N=4,intg='idas'),SingleShooting(N=4,intg='idas'),DirectCollocation(N=4,scheme='legendre')]:
+        ocp = Ocp(T=4)
+        x = ocp.state()
+        zx = ocp.algebraic()
+        y = ocp.state()
+        zy = ocp.algebraic()
+        
+        ocp.add_alg(sin(zx))
+        ocp.add_alg(ca.cos(zy))
+        
+        ocp.set_initial(zy, pi/2+pi*ca.floor(ocp.t))
+        ocp.set_initial(zx, pi+pi*ca.floor(ocp.t))
+        
+        u = ocp.control()
+        
+        ocp.set_der(x, u/zx)
+        ocp.set_der(y, u/zy)
+        
+        ocp.subject_to(ocp.at_t0(x)==0)
+        ocp.subject_to(ocp.at_t0(y)==0)
+        
+        ocp.add_objective(ocp.sum(u**2))
+        
+        ocp.subject_to(ocp.at_tf(x)==1)
+        
+        ocp.method(method)
+        ocp.solver("ipopt")
+        
+        sol = ocp.solve()
+        
+        print(sol.sample(zy,grid='control')[1])
+        print(sol.sample(zx,grid='control')[1])
+        print(pi/2+pi*np.linspace(0,4,4+1))
+
+        if "MultipleShooting" in str(method):
+          # Note the first sample of z is based on discrete_system Zi[0] and Zi is the collection of integrator outputs zf.
+          # So for M=1, sampled z is same for k=0 and k=1.
+          
+
+          # Furthermore, the first zf here gets initial guess (pi/2), leading to pi/2 solution
+          np.testing.assert_allclose(sol.sample(zy,grid='control')[1],[pi/2,pi/2,pi/2+pi,pi/2+2*pi,pi/2+3*pi])
+          np.testing.assert_allclose(sol.sample(zx,grid='control')[1],[pi,pi,pi+pi,pi+2*pi,pi+3*pi])
+        elif "SingleShooting" in str(method):
+          # In single shooting, only the initial guess (pi/2) is used
+          np.testing.assert_allclose(sol.sample(zy,grid='control')[1],pi/2)
+          np.testing.assert_allclose(sol.sample(zx,grid='control')[1],pi)
+        elif "DirectCollocation" in str(method):
+          legendre = [pi/2]*4+[pi/2+pi]*4+[pi/2+2*pi]*4+[pi/2+3*pi]*4
+          np.testing.assert_allclose(sol.sample(zy,grid='integrator_roots')[1],legendre)
+          # Note sure if the answer below is desirable
+          np.testing.assert_allclose(sol.sample(zy,grid='control')[1],[pi/2,pi/2+pi,pi/2+2*pi,pi/2+3*pi,pi/2+3*pi])
+
+      
     def test_control_set_der(self):
       ocp = Ocp()
       x = ocp.state()

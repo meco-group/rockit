@@ -28,6 +28,17 @@ class SingleShooting(SamplingMethod):
     def __init__(self, **kwargs):
         SamplingMethod.__init__(self, **kwargs)
 
+    def add_parameter(self, stage, opti):
+        SamplingMethod.add_parameter(self, stage, opti)
+        self.Z0 = []
+        es = []
+        for s in stage.algebraics:
+            e = opti.parameter(s.numel())
+            opti.set_value(e, 0)
+            es.append(e)
+        self.Z0.append(vcat(es))
+        self.Z0 += [None]*(self.N-1)
+
     def add_variables(self,stage,opti):
         scale_x = stage._scale_x
         scale_u = stage._scale_u
@@ -55,11 +66,13 @@ class SingleShooting(SamplingMethod):
         if F.numel_out("poly_coeff_z")==0:
             self.poly_coeff_z = None
 
+        Z0 = self.Z0[0]
+
         FFs = []
         # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k))
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k), z0=Z0)
             self.X[k + 1] = FF["xf"]
             poly_coeff_temp = FF["poly_coeff"]
             poly_coeff_z_temp = FF["poly_coeff_z"]

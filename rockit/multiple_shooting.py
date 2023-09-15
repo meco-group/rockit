@@ -30,6 +30,17 @@ class MultipleShooting(SamplingMethod):
     def __init__(self, **kwargs):
         SamplingMethod.__init__(self, **kwargs)
 
+    def add_parameter(self, stage, opti):
+        SamplingMethod.add_parameter(self, stage, opti)
+        self.Z0 = []
+        for k in range(self.N):
+            es = []
+            for s in stage.algebraics:
+                e = opti.parameter(s.numel())
+                opti.set_value(e, 0)
+                es.append(e)
+            self.Z0.append(vcat(es))
+
     def add_variables(self, stage, opti):
         # We are creating variables in a special order such that the resulting constraint Jacobian
         # is block-sparse
@@ -59,7 +70,7 @@ class MultipleShooting(SamplingMethod):
         # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
-                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k))
+                   T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k), z0=self.Z0[k])
             FFs.append(FF)
             # Save intermediate info
             poly_coeff_temp = FF["poly_coeff"]

@@ -29,6 +29,7 @@ from numpy import nan, inf
 import numpy as np
 from collections import defaultdict
 from .splines.micro_spline import bspline_derivative, eval_on_knots, get_greville_points
+from .casadi_helpers import get_ranges_dict
 
 # Agnostic about free or fixed start or end point: 
 
@@ -349,6 +350,8 @@ class SamplingMethod(DirectMethod):
         P = MX.sym("p", stage.np+stage.v.shape[0])
         Z = MX.sym("z", stage.nz)
 
+        Z0 = MX.sym("Z0", stage.nz)
+
         X = [X0]
         Zs = []
 
@@ -365,17 +368,19 @@ class SamplingMethod(DirectMethod):
         if intg.has_free():
             raise Exception("Free variables found: %s" % str(intg.get_free()))
     
+        Z0_current = Z0
         for j in range(self.M):
-            intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, DT_control=T, p=P)
+            intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, DT_control=T, p=P, z0=Z0_current)
             X.append(intg_res["xf"])
             Zs.append(intg_res["zf"])
             quad = quad + intg_res["qf"]
             poly_coeffs.append(intg_res["poly_coeff"])
             poly_coeffs_z.append(intg_res["poly_coeff_z"])
             t0_local += DT
+            Z0_current = intg_res["zf"]
 
-        ret = Function('F', [X0, U, T, t0, P], [X[-1], hcat(X), hcat(poly_coeffs), quad, Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
-                       ['x0', 'u', 'T', 't0', 'p'], ['xf', 'Xi', 'poly_coeff', 'qf', 'zf', 'Zi', 'poly_coeff_z'])
+        ret = Function('F', [X0, U, T, t0, P, Z0], [X[-1], hcat(X), hcat(poly_coeffs), quad, Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
+                       ['x0', 'u', 'T', 't0', 'p', 'z0'], ['xf', 'Xi', 'poly_coeff', 'qf', 'zf', 'Zi', 'poly_coeff_z'])
         assert not ret.has_free()
         return ret
 
@@ -384,6 +389,7 @@ class SamplingMethod(DirectMethod):
         DT = MX.sym("DT")
         DT_control = MX.sym("DT_control")
         t0 = MX.sym("t0")
+        Z0 = MX.sym("z0", 0, 1)
         # A single Runge-Kutta 4 step
         k1 = f(x=X, u=U, p=P, t=t0)
         k2 = f(x=X + DT / 2 * k1["ode"], u=U, p=P, t=t0+DT/2)
@@ -395,16 +401,17 @@ class SamplingMethod(DirectMethod):
         f2 = 4/DT**2*(k3["ode"]-k2["ode"])/6
         f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
-        return Function('F', [X, U, t0, DT, DT_control, P], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
 
     def intg_expl_euler(self, f, X, U, P, Z):
         assert Z.is_empty()
         DT = MX.sym("DT")
         DT_control = MX.sym("DT_control")
         t0 = MX.sym("t0")
+        Z0 = MX.sym("z0", 0, 1)
         k = f(x=X, u=U, p=P, t=t0)
         poly_coeff = hcat([X, k["ode"]])
-        return Function('F', [X, U, t0, DT, DT_control, P], [X + DT * k["ode"], poly_coeff, DT * k["quad"], MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT * k["ode"], poly_coeff, DT * k["quad"], MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
 
     def intg_builtin(self, f, X, U, P, Z):
         # A single CVODES step
@@ -412,6 +419,7 @@ class SamplingMethod(DirectMethod):
         DT_control = MX.sym("DT_control")
         t = MX.sym("t")
         t0 = MX.sym("t0")
+        Z0 = MX.sym("Z0", Z.sparsity())
         res = f(x=X, u=U, p=P, t=t0+t*DT, z=Z)
         data = {'x': X, 'p': vertcat(U, DT, DT_control, P, t0), 'z': Z, 't': t, 'ode': DT * res["ode"], 'quad': DT * res["quad"], 'alg': res["alg"]}
         options = dict(self.intg_options)
@@ -422,8 +430,8 @@ class SamplingMethod(DirectMethod):
         I = integrator('intg_'+self.intg, self.intg, data, options)
         if I.size2_out("xf")!=1:
             raise Exception("Integrator must only return outputs at a single timepoint. Did you specify a grid?")
-        res = I.call({'x0': X, 'p': vertcat(U, DT, DT_control, P, t0)})
-        return Function('F', [X, U, t0, DT, DT_control, P], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
+        res = I.call({'x0': X, 'p': vertcat(U, DT, DT_control, P, t0), 'z0': Z0})
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
 
     def untranscribe_placeholders(self, phase, stage):
         pass
@@ -748,6 +756,13 @@ class SamplingMethod(DirectMethod):
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
         opti.cache_advanced()
+        initial = HashOrderedDict(initial)
+        algs = get_ranges_dict(stage.algebraics)
+        initial_alg = HashDict()
+        for a, v in list(initial.items()):
+            if a in algs:
+                initial_alg[a] = v
+                del initial[a]
         for var, expr in initial.items():
             if is_equal(var, stage.T):
                 var = self.T
@@ -761,6 +776,7 @@ class SamplingMethod(DirectMethod):
                 value = DM(opti.debug.value(expr, opti_initial))
             # Row vector if vector
             if value.is_column() and var.is_scalar(): value = value.T
+            print(var,value)
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
                 value_k = value
@@ -779,6 +795,27 @@ class SamplingMethod(DirectMethod):
                     else:
                         # Other type of error: 
                         raise e
+        for var, expr in initial_alg.items():
+            opti_initial = opti.initial()
+            if is_numeric(expr):
+                value = ca.evalf(expr)
+            else:
+                expr = ca.hcat([self.eval_at_control(stage, expr, k) for k in range(self.N)]) # HOT line
+                value = DM(opti.debug.value(expr, opti_initial))
+
+            # Row vector if vector
+            if value.is_column() and var.is_scalar(): value = value.T
+
+
+            print("value",value)
+            for k in range(self.N):
+                value_k = value
+                z0 = self.Z0[k]
+                if z0 is None: break
+                target = z0[algs[var]]
+                if target.numel()*(self.N)==value.numel() or target.numel()*(self.N+1)==value.numel():
+                    value_k = value[:,k]
+                opti.set_value(target, value_k)
 
     def set_value(self, stage, master, parameter, value):
         opti = master.opti if hasattr(master, 'opti') else master

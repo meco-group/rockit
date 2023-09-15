@@ -76,7 +76,7 @@ class Stage:
 
         Each stage has a transcription method associated with it.
     """
-    def __init__(self, parent=None, t0=0, T=1, clone=False):
+    def __init__(self, parent=None, t0=0, T=1, scale=1, clone=False):
         """Create an Optimal Control Problem stage.
         
         Only call this constructer when you need abstract stages,
@@ -94,6 +94,8 @@ class Stage:
         T : float or :obj:`~rockit.freetime.FreeTime`, optional
             Total horizon of the stage
             Default: 1
+        scale: float, optional
+               Typical time scale
 
         Examples
         --------
@@ -142,6 +144,7 @@ class Stage:
         self._tf = self.T + self.t0
         self._public_DT = self._create_placeholder_expr(0, 'DT')
         self._public_DT_control = self._create_placeholder_expr(0, 'DT_control')
+        self._T_scale = scale
 
     @property
     def master(self):
@@ -596,6 +599,7 @@ class Stage:
             May not be an indexed or sliced state
         der : `~casadi.MX`
             A CasADi symbolic expression of the same size as `state`
+        scale : extra scaling after scaling of state has been applied
 
         Examples
         --------
@@ -1131,7 +1135,7 @@ class Stage:
         t = self.t
         if not depends_on(vertcat(next,quad), self.t):
             t = MX.sym('t', Sparsity(1, 1))
-        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
+        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control, MX(0,1)], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control","z0"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
         """
@@ -1356,6 +1360,7 @@ class Stage:
         ret._catalog = self._catalog
 
         ret._var_is_transcribed = False
+        ret._T_scale = self._T_scale
         return ret
 
     def __deepcopy__(self, memo):
@@ -1436,7 +1441,7 @@ class Stage:
         elif grid == 'control-':
             time, res = self._grid_control(self, expr, grid, include_last=False, **kwargs)
         elif grid == 'integrator':
-            if 'refine' in kwargs:
+            if 'refine' in kwargs and kwargs["refine"] is not None:
                 time, res = self._grid_intg_fine(self, expr, grid, **kwargs)
             else:
                 time, res = self._grid_integrator(self, expr, grid, **kwargs)
