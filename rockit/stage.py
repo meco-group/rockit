@@ -218,7 +218,7 @@ class Stage:
             return scale
 
     def state(self, n_rows=1, n_cols=1, quad=False, scale=1, meta=None):
-        """Create a state.
+        r"""Create a state.
         You must supply a derivative for the state with :obj:`~rockit.stage.Stage.set_der`
 
         Parameters
@@ -587,7 +587,7 @@ class Stage:
             self._method.set_initial(self._augmented, self.master._method, self._initial)
 
     def set_der(self, state, der, scale=1):
-        """Assign a right-hand side to a state derivative
+        r"""Assign a right-hand side to a state derivative
 
         Parameters
         ----------
