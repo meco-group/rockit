@@ -163,6 +163,19 @@ class DirectCollocation(SamplingMethod):
                 tr.append([self.integrator_grid[k][i]+dt*self.tau[j] for j in range(self.degree)])        
             self.tr.append(tr)
 
+        # Handle Bspline signals
+        subgrid = []
+        for i in range(self.M):
+            subgrid+=list((i+np.array(self.tau))/self.M)
+
+        v_sampled_store = []
+        for e in self.signals.values():
+            v_sampled = ca.horzsplit(e.sample(subgrid=subgrid,include_edges=False))
+            v_sampled_store.append(v_sampled)
+        signals_sampled = []
+        for i in range(len(subgrid*self.N)):
+            signals_sampled.append(ca.vertcat(*[e[i] for e in v_sampled_store]))
+
         dts = []
         # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
@@ -179,13 +192,16 @@ class DirectCollocation(SamplingMethod):
 
         self.Z.append(mtimes(self.Zc[-1][-1],sum2(poly_z)))
 
+        count_f_eval = 0
         for k in range(self.N):
             dt = dts[k]
-            p = self.get_p_sys(stage,k)
+            p = self.get_p_sys(stage,k,include_signals=False)
             for i in range(self.M):
                 for j in range(self.degree):
                     Pidot_j = mtimes(self.Xc[k][i],self.C[:,j])/ dt
-                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=p, t=self.tr[k][i][j])
+                    p_total = vertcat(p, signals_sampled[count_f_eval])
+                    res = f(x=self.Xc[k][i][:, j+1], u=self.U[k], z=self.Zc[k][i][:,j], p=p_total, t=self.tr[k][i][j])
+                    count_f_eval += 1
                     # Collocation constraints
                     opti.subject_to(Pidot_j == res["ode"], scale=scale_der_x)
                     self.q = self.q + res["quad"]*dt*self.B[j]

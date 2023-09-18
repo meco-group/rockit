@@ -1516,6 +1516,96 @@ class MiscTests(unittest.TestCase):
         np.testing.assert_allclose(tr, t2,atol=1e-16)
         np.testing.assert_allclose(xr, x2,atol=1e-16)
 
+    def test_variable_bspline(self):
+        
+        N = 3
+        M = 2
+        
+        for grid in [UniformGrid(),  GeometricGrid(2)]:
+          for degree in [1,2,0]:
+            ocp = Ocp(T=10)
+
+            # Define 2 states
+            x1 = ocp.state()
+            x2 = ocp.state()
+
+            # Define 1 control
+            u = ocp.control(order=degree)
+
+            # Specify ODE
+            ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+            ocp.set_der(x2, x1)
+
+            # Lagrange objective
+            ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+
+            # Path constraints
+            ocp.subject_to(-1 <= (u <= 1))
+            ocp.subject_to(x1 >= -0.25, grid='integrator')
+
+            # Initial constraints
+            ocp.subject_to(ocp.at_t0(x1) == 0)
+            ocp.subject_to(ocp.at_t0(x2) == 1)
+
+            # Pick an NLP solver backend
+            ocp.solver('ipopt')
+
+            # Pick a solution method
+            ocp.method(DirectCollocation(N=N,M=M,grid=grid))
+            
+            sol = ocp.solve()
+
+            [_,urefsol_control] = sol.sample(u,grid='control')
+            [_,urefsol_integrator] = sol.sample(u,grid='integrator')
+            [_,urefsol_integrator_refine] = sol.sample(u,grid='integrator',refine=7)
+            [_,urefsol_integrator_roots] = sol.sample(u,grid='integrator_roots')
+
+
+            ocp = Ocp(T=10)
+
+            # Define 2 states
+            x1 = ocp.state()
+            x2 = ocp.state()
+
+            # Define 1 control
+            u = ocp.variable(grid='bspline',order=degree)
+
+            # Specify ODE
+            ocp.set_der(x1, (1 - x2**2) * x1 - x2 + u)
+            ocp.set_der(x2, x1)
+
+            # Lagrange objective
+            ocp.add_objective(ocp.integral(x1**2 + x2**2 + u**2))
+
+            # Path constraints
+            ocp.subject_to(-1 <= (u <= 1))
+            ocp.subject_to(x1 >= -0.25, grid='integrator')
+
+            # Initial constraints
+            ocp.subject_to(ocp.at_t0(x1) == 0)
+            ocp.subject_to(ocp.at_t0(x2) == 1)
+
+            # Pick an NLP solver backend
+            ocp.solver('ipopt')
+
+            # Pick a solution method
+            ocp.method(DirectCollocation(N=N,M=M,grid=grid))
+            
+            sol = ocp.solve()
+
+            [_,usol_control] = sol.sample(u,grid='control')
+            #[_,usol_integrator] = sol.sample(u,grid='integrator')
+            [_,usol_integrator_refine] = sol.sample(u,grid='integrator',refine=7)
+            #[_,usol_integrator_roots] = sol.sample(u,grid='integrator_roots')
+
+            assert_array_almost_equal(urefsol_control,usol_control)
+            #assert_array_almost_equal(urefsol_integrator,usol_integrator)
+            assert_array_almost_equal(urefsol_integrator_refine,usol_integrator_refine)
+            #assert_array_almost_equal(urefsol_integrator_roots,usol_integrator_roots)
+            # Set initial
+
+
+
 if __name__ == '__main__':
     unittest.main()
 

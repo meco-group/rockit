@@ -27,15 +27,15 @@ def eval_basis_knotindex(ind, knots, d):
         basis[d-e:d-e+L] += dbg_ref2
     return basis
 
-
-def eval_basis_knotindex_subsampled(ind, N, knots, d):
+def eval_basis_knotindex_subgrid(ind, tau, knots, d):
     if knots.is_row():
       knots = knots.T
+    tau = cs.vec(tau).T
+    N = tau.numel()
     basis = [0.0]*knots.numel()
     basis[min(ind+d,knots.numel()-d-2)] = 1.0+np.finfo(np.float64).eps # Workaround #2913
     basis = vcat(basis)
     basis = sparsify(repmat(basis,1,N))
-    tau = cs.linspace(DM(0),1,N+2)[1:-1].T
     x = knots[ind+d]*(1-tau)+tau*knots[ind+d+1]
     for e in range(1, d + 1):
         i = DM(list(range(d-e+1,knots.numel() - d - 1)))
@@ -53,19 +53,31 @@ def eval_basis_knotindex_subsampled(ind, N, knots, d):
           
     return basis
 
-def eval_on_knots(xi,d,subsamples=0):
+def eval_basis_knotindex_subsampled(ind, N, knots, d):
+    return eval_basis_knotindex_subgrid(ind, cs.linspace(DM(0),1,N+2)[1:-1].T, knots, d)
+
+
+def eval_on_knots(xi,d,subgrid=None,subsamples=None,include_edges=True):
   knots = horzcat(repmat(xi[0],1,d),xi,repmat(xi[-1],1,d))
   basis = []
   k = []
-  tau = cs.linspace(DM(0),1,subsamples+2)[1:-1].T
+  if subgrid is None:
+    if subsamples is None: subsamples = 0
+    tau = cs.linspace(DM(0),1,subsamples+2)[1:-1].T
+  else:
+    assert subsamples is None
+    tau = cs.vec(subgrid).T
+    subsamples = tau.numel()
+
   for i in range(knots.numel()-2*d):
-    basis.append(eval_basis_knotindex(i, knots, d ))
-    k.append(xi[i])
+    if include_edges:
+      basis.append(eval_basis_knotindex(i, knots, d ))
+      k.append(xi[i])
     if subsamples>0 and i<knots.numel()-2*d-1:
       k_current = xi[i]
       k_next = xi[i+1]
       k.append(k_current*(1-tau)+tau*k_next)
-      basis.append(eval_basis_knotindex_subsampled(i, subsamples, knots, d))
+      basis.append(eval_basis_knotindex_subgrid(i, tau, knots, d))
   basis = hcat(basis)
   k = hcat(k)
   try:

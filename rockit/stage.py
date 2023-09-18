@@ -1521,9 +1521,26 @@ class Stage:
         expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u, vertcat(stage.p, stage.v), stage.t0, stage.T], [expr])
         assert not expr_f.has_free(), str(expr_f.free_mx())
 
+
+        # Handle Bspline signals
+        subgrid = list(np.linspace(0, 1, M*refine+1))[:-1]
+
+        v_sampled_store = []
+        for e in stage._method.signals.values():
+            v_sampled = ca.horzsplit(e.sample(subgrid=subgrid,include_edges=False), refine)
+            v_sampled_store.append(v_sampled)
+        
+        signals_sampled = []
+        for i in range(M*N):
+            if stage._method.signals:
+                signals_sampled.append(ca.vertcat(*[e[i] for e in v_sampled_store]))
+            else:
+                signals_sampled.append(ca.DM(0,refine))
+
         time = stage._method.control_grid
         total_time = []
         sub_expr = []
+        count_blocks = 0
         for k in range(N):
             t0 = time[k]
             dt = (time[k+1]-time[k])/M
@@ -1542,9 +1559,12 @@ class Stage:
                 else:
                     z = nan
 
-                pv = stage._method.get_p_sys(stage,k)
+                pv = stage._method.get_p_sys(stage,k,include_signals=False)
+                if stage._method.signals:
+                    pv = ca.vertcat(ca.repmat(pv,1,refine),signals_sampled[count_blocks])
                 sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k], pv, stage._method.t0, stage._method.T), k, l))
                 t0+=dt
+                count_blocks+=1
 
         ts = tlocal[-1,:]
         total_time.append(time[k+1])

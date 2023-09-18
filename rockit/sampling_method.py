@@ -75,6 +75,10 @@ class BSplineSignal:
         # Initialization delegated to register
         self.peers = None
         self.symbol = None
+    
+    def sample(self,**kwargs):
+        [_,B] = eval_on_knots(self.xi, self.degree, **kwargs)
+        return self.coeff @ B
 
     @property
     def der(self):
@@ -463,7 +467,7 @@ class SamplingMethod(DirectMethod):
         self.transcribe_start(stage, opti)
 
         # Grid for B-spline
-        self.xi = DM(self.time_grid(0, 1, self.N)).T
+        self.xi = ca.vec(DM(self.time_grid(0, 1, self.N))).T
 
         # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
         self.add_parameter(stage, opti)
@@ -608,7 +612,7 @@ class SamplingMethod(DirectMethod):
         self.t0_local = [None]*(self.N+1)
         self.T_local = [None]*self.N
 
-        for p in stage.variables["bspline"]:
+        for p in stage.variables['bspline']:
             cat = stage._catalog[p]
             # Compute the degree and size of a BSpline coefficient needed
             d = cat["order"]
@@ -676,8 +680,15 @@ class SamplingMethod(DirectMethod):
     def get_signals_at(self, stage, k=-1):
         return veccat(*[e.sampled[k] for e in self.signals.values()])
 
-    def get_p_sys(self, stage, k):
-        return vertcat(vvcat(self.P), self.get_p_control_at(stage, k), self.get_p_control_plus_at(stage, k), self.V, self.get_v_control_at(stage, k), self.get_v_control_plus_at(stage, k), self.get_signals_at(stage, k))
+    def get_p_sys(self, stage, k, include_signals=True):
+        args = [vvcat(self.P),
+                self.get_p_control_at(stage, k),
+                self.get_p_control_plus_at(stage, k),
+                self.V, self.get_v_control_at(stage, k),
+                self.get_v_control_plus_at(stage, k)]
+        if include_signals:
+            args.append(self.get_signals_at(stage, k))
+        return vcat(args)
 
     def eval(self, stage, expr):
         return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
