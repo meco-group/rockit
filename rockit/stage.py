@@ -820,8 +820,7 @@ class Stage:
             if grid == 'point':
                 raise Exception("Got a signal expression for grid 'point'.")
         else:
-            if grid != 'point': 
-                raise Exception("Expected signal expression since grid '" + grid + "' was given.")
+            grid = 'point'
         
         scale = self._parse_scale(constr, scale)
         args = {"grid": grid, "include_last": include_last, "include_first": include_first, "scale": scale, "refine": refine, "group_refine": group_refine, "group_dim": group_dim, "group_control": group_control}
