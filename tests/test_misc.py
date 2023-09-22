@@ -1516,6 +1516,38 @@ class MiscTests(unittest.TestCase):
         np.testing.assert_allclose(tr, t2,atol=1e-16)
         np.testing.assert_allclose(xr, x2,atol=1e-16)
 
+    def test_set_initial_bspline_variable(self):
+
+        ocp = Ocp(T=10)
+
+        def R_compress(R):
+            return ca.vec(R)
+
+
+        def R_decompress(Rc):
+            return ca.reshape(Rc,3,3)
+
+
+        Rc = ocp.variable(9, grid='bspline', order=4)
+        R = R_decompress(Rc)
+
+
+        ocp.subject_to(ocp.at_t0(R)==ca.DM.eye(3))
+
+        #ocp.subject_to(ca.vec(R.T @ R-ca.DM.eye(3))==0)
+
+        ocp.method(SplineMethod(N=5))
+
+        ocp.solver("ipopt",{"ipopt.max_iter":0})
+
+        print(ca.densify(R_compress(ca.DM.eye(3))))
+        ocp.set_initial(Rc,ca.densify(R_compress(ca.DM.eye(3))))
+
+        sol = ocp.solve_limited()
+
+        for Rc_sol in ca.vertsplit(sol.sample(Rc,grid='control')[1]):
+          assert_array_almost_equal(R_decompress(Rc_sol),DM.eye(3))
+
     def test_variable_bspline(self):
         
         N = 3

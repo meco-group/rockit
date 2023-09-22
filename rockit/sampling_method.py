@@ -460,50 +460,51 @@ class SamplingMethod(DirectMethod):
         Transcription is the process of going from a continuous-time OCP to an NLP
         """
         if phase==0: return
-        if phase>1: return
         opti = stage.master._method.opti
-        DM.set_precision(14)
+        if phase==1:
 
-        self.transcribe_start(stage, opti)
+            DM.set_precision(14)
 
-        # Grid for B-spline
-        self.xi = ca.vec(DM(self.time_grid(0, 1, self.N))).T
+            self.transcribe_start(stage, opti)
 
-        # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
-        self.add_parameter(stage, opti)
-        self.add_variables(stage, opti)
-        self.add_parameter_signals(stage, opti)
-        self.set_parameter(stage, opti)
+            # Grid for B-spline
+            self.xi = ca.vec(DM(self.time_grid(0, 1, self.N))).T
 
-        self.transcribe_event_after_varpar(stage, phase=phase, **kwargs)
+            # Parameters needed before variables because of self.T = self.eval(stage, stage._T)
+            self.add_parameter(stage, opti)
+            self.add_variables(stage, opti)
+            self.add_parameter_signals(stage, opti)
+            self.set_parameter(stage, opti)
 
-        self.integrator_grid = []
-        for k in range(self.N):
-            t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
-            self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
-        self.add_constraints_before(stage, opti)
-        self.add_constraints(stage, opti)
-        self.add_constraints_after(stage, opti)
-        self.add_objective(stage, opti)
+            self.transcribe_event_after_varpar(stage, phase=phase, **kwargs)
 
+            self.integrator_grid = []
+            for k in range(self.N):
+                t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
+                self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
+            self.add_constraints_before(stage, opti)
+            self.add_constraints(stage, opti)
+            self.add_constraints_after(stage, opti)
+            self.add_objective(stage, opti)
+        if phase==2:
 
-        self.set_initial(stage, opti, stage._initial)
-        T_init = opti.debug.value(self.T, opti.initial())
-        t0_init = opti.debug.value(self.t0, opti.initial())
+            self.set_initial(stage, opti, stage._initial)
+            T_init = opti.debug.value(self.T, opti.initial())
+            t0_init = opti.debug.value(self.t0, opti.initial())
 
-        initial = HashOrderedDict()
-        # How to get initial value -> ask opti?
-        control_grid_init = self.time_grid(t0_init, T_init, self.N)
-        if self.time_grid.localize_t0:
-            for k in range(1, self.N):
-                initial[self.t0_local[k]] = control_grid_init[k]
-            initial[self.t0_local[self.N]] = control_grid_init[self.N]
-        if self.time_grid.localize_T:
-            for k in range(not isinstance(self.time_grid, FreeGrid), self.N):
-                initial[self.T_local[k]] = control_grid_init[k+1]-control_grid_init[k]
+            initial = HashOrderedDict()
+            # How to get initial value -> ask opti?
+            control_grid_init = self.time_grid(t0_init, T_init, self.N)
+            if self.time_grid.localize_t0:
+                for k in range(1, self.N):
+                    initial[self.t0_local[k]] = control_grid_init[k]
+                initial[self.t0_local[self.N]] = control_grid_init[self.N]
+            if self.time_grid.localize_T:
+                for k in range(not isinstance(self.time_grid, FreeGrid), self.N):
+                    initial[self.T_local[k]] = control_grid_init[k+1]-control_grid_init[k]
 
-        self.set_initial(stage, opti, initial)
-        self.set_parameter(stage, opti)
+            self.set_initial(stage, opti, initial)
+            self.set_parameter(stage, opti)
 
 
     def add_constraints_before(self, stage, opti):
@@ -787,7 +788,9 @@ class SamplingMethod(DirectMethod):
                 value = DM(opti.debug.value(expr, opti_initial))
             # Row vector if vector
             if value.is_column() and var.is_scalar(): value = value.T
-            print(var,value)
+            if var in self.signals:
+                target = stage.sample(var,'gist')[1]
+                opti.set_initial(target, ca.repmat(value,1,target.shape[1]), cache_advanced=True)
             for k in list(range(self.N))+[-1]:
                 target = self.eval_at_control(stage, var, k)
                 value_k = value
