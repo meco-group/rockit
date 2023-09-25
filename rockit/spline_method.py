@@ -295,8 +295,14 @@ ocp.set_der(v, a)
         assert refine==1
         # What scalarized variables are we dependent on?
         v = self.xu
-        Jf = ca.Function('Jf',[vvcat(stage.parameters[''])],[ca.jacobian(expr,v),ca.jacobian(expr,vvcat(self.signals.keys()))])
-        Js = Jf(np.nan)
+        arg1 = v
+        arg2 = vvcat(self.signals.keys())
+        arg = ca.vertcat(arg1,arg2)
+        assert ca.is_linear(expr,arg)
+        Jf = ca.Function('Jf',[vvcat(stage.parameters['']),v],ca.linear_coeff(expr,ca.vertcat(arg1,arg2)))
+        res = Jf(np.nan,np.nan)
+        Js = ca.horzsplit(res[0],[0,arg1.numel(),arg.numel()])
+        bs = res[1]
         for J in Js:
             assert J.sparsity().is_selection(True)
         has_entries = [e.nnz()>0 for e in Js]
@@ -308,7 +314,7 @@ ocp.set_der(v, a)
             assert len(widths)==1
             coeffs = ca.vcat([self.coeffs_epxr[i] for i in deps])
             d = self.origins[deps[0]]["d"]
-            return self.t0+self.G[d]*self.T, Jmul @ coeffs
+            return self.t0+self.G[d]*self.T, (Jmul @ coeffs)+bs
         elif has_entries[1]:
             deps = ca.sum1(Js[1].sparsity()).T.row()
             vars = vvcat(self.signals.keys())[deps]
@@ -316,7 +322,7 @@ ocp.set_der(v, a)
             s = self.signals[vars]
             # Compute the degree and size of a BSpline coefficient needed
             G = get_greville_points(self.xi, s.degree)
-            return self.t0+G*self.T, Jmul @ s.coeff
+            return self.t0+G*self.T, (Jmul @ s.coeff)+bs
         
     def grid_control(self, stage, expr, grid, include_first=True, include_last=True, transpose=False, refine=1):
         # What scalarized variables are we dependent on?

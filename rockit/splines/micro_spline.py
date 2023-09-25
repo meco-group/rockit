@@ -117,6 +117,31 @@ def get_greville_points(xi,d):
     np.testing.assert_allclose(cs.sum1(S), 1, atol=1e-12)
     return xi @ S
   
+def eval_basis(x, knots, degree):
+    x = np.array(x)
+    k = knots
+    basis = [[ind(i, x, knots, degree) * 1.0 for i in range(len(k) - 1)]]
+    for d in range(1, degree + 1):
+        basis.append([])
+        for i in range(len(k) - d - 1):
+            b = 0 * x
+            bottom = k[i + d] - k[i]
+            if bottom != 0:
+                b = (x - k[i]) * basis[d - 1][i] / bottom
+            bottom = k[i + d + 1] - k[i + 1]
+            if bottom != 0:
+                b += (k[i + d + 1] - x) * basis[d - 1][i + 1] / bottom
+            basis[-1].append(b)
+    # Consider sparse matrices?
+    return basis[-1]
+    
+    
+def eval_on_greville(xi,d):
+    knots = horzcat(repmat(xi[0],1,d),xi,repmat(xi[-1],1,d))
+    greville = np.array(get_greville_points(xi,d)).squeeze()
+    return greville, hcat(eval_basis(list(greville), list(np.array(knots).squeeze()), d)).T
+
+
 if __name__ == "__main__":
     d = 3
     n = 10
