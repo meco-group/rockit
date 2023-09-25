@@ -299,8 +299,8 @@ ocp.set_der(v, a)
         arg2 = vvcat(self.signals.keys())
         arg = ca.vertcat(arg1,arg2)
         assert ca.is_linear(expr,arg)
-        Jf = ca.Function('Jf',[vvcat(stage.parameters['']),v],ca.linear_coeff(expr,ca.vertcat(arg1,arg2)))
-        res = Jf(np.nan,np.nan)
+        Jf = ca.Function('Jf',[],ca.linear_coeff(expr,ca.vertcat(arg1,arg2)))
+        res = Jf.call([],False,False)
         Js = ca.horzsplit(res[0],[0,arg1.numel(),arg.numel()])
         bs = res[1]
         for J in Js:
