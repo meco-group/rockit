@@ -41,7 +41,7 @@ from .spline_method import SplineMethod
 
 from .single_shooting import SingleShooting
 from .freetime import FreeTime
-from .sampling_method import FreeGrid, UniformGrid, GeometricGrid
+from .sampling_method import FreeGrid, UniformGrid, GeometricGrid, DensityGrid, DenseEdgesGrid
 from .grouping_techniques import LseGroup
 from .solution import OcpSolution
 from .external.manager import external_method

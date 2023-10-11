@@ -216,6 +216,48 @@ class UniformGrid(FixedGrid):
     def normalized(self, N):
         return list(np.linspace(0.0, 1.0, N+1))
 
+
+class DensityGrid(FixedGrid):
+    def __init__(self, density, integrator='cvodes',integrator_options=None,**kwargs):
+        """
+        Expression in one symbolic variable (dimensionless time) that describes the density of the grid
+        """
+        self.density = density
+        self.t = symvar(density)[0]
+
+        self.integrator_options = {} if integrator_options is None else integrator_options
+        self.integrator = integrator
+        self.cache = {}
+
+        FixedGrid.__init__(self, **kwargs)
+
+    def __call__(self, t0, T, N):
+        n = self.normalized(N)
+        return t0 + hcat(n)*T
+
+    def normalized(self, N):
+        if N in self.cache: return self.cache[N]
+        import scipy
+        import scipy.optimize
+        x = MX.sym("x")
+        scale = MX.sym("scale")
+        ode = {"x": x, "ode": scale*ca.substitute(self.density,self.t,self.t*scale), "p": scale, "t":self.t}
+        intg = integrator('intg', self.integrator, ode, 0, 1, self.integrator_options)
+        I = float(intg(x0=0,p=1)["xf"])
+        res = [0]
+        for v in list(np.linspace(0.0, 1.0, N+1)[1:-1]*I):
+            r = scipy.optimize.root_scalar(lambda tau: float(intg(x0=0,p=tau)["xf"]-v), method='bisect', bracket=[0,1])
+            res.append(r.root)
+        res.append(1.0)
+        self.cache[N] = res
+        return res
+    
+class DenseEdgesGrid(DensityGrid):
+    def __init__(self, multiplier=10, edge_frac=0.1, **kwargs):
+        interp = ca.interpolant('interp','bspline',[[0.0,edge_frac,1-edge_frac,1.0]],[multiplier,1.0,1.0,multiplier],{"algorithm":"smooth_linear"})
+        tau = ca.MX.sym("tau")
+        DensityGrid.__init__(self, interp(tau), **kwargs)
+
 class GeometricGrid(FixedGrid):
     """Specify a geometrically growing grid
     
