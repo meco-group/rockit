@@ -957,6 +957,10 @@ class Stage:
         return self.x.numel()
 
     @property
+    def nxq(self):
+        return self.xq.numel()
+
+    @property
     def nz(self):
         return self.z.numel()
 
@@ -1134,7 +1138,7 @@ class Stage:
         t = self.t
         if not depends_on(vertcat(next,quad), self.t):
             t = MX.sym('t', Sparsity(1, 1))
-        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control, MX(0,1)], [next, MX(), quad, MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control","z0"], ["xf","poly_coeff","qf","zf","poly_coeff_z"])
+        return Function('diffeq', [self.x, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control, MX(0,1)], [next, MX(), quad, MX(), MX(0, 1), MX()], ["x0", "u", "p", "t0", "DT", "DT_control","z0"], ["xf","poly_coeff","qf","poly_coeff_q","zf","poly_coeff_z"])
 
     def _expr_apply(self, expr, **kwargs):
         """
@@ -1512,12 +1516,15 @@ class Stage:
         """Evaluate expression at extra fine integrator discretization points."""
         assert include_first
         assert include_last
-        if stage._method.poly_coeff is None:
+        if depends_on(expr,stage.x) and stage._method.poly_coeff is None:
             msg = "No polynomal coefficients for the {} integration method".format(stage._method.intg)
+            raise Exception(msg)
+        if depends_on(expr,stage.xq) and stage._method.poly_coeff_q is None:
+            msg = "No quadrature polynomal coefficients for the {} integration method".format(stage._method.intg)
             raise Exception(msg)
         N, M = stage._method.N, stage._method.M
 
-        expr_f = Function('expr', [stage.t, stage.x, stage.z, stage.u, vertcat(stage.p, stage.v), stage.t0, stage.T], [expr])
+        expr_f = Function('expr', [stage.t, stage.x, stage.xq, stage.z, stage.u, vertcat(stage.p, stage.v), stage.t0, stage.T], [expr])
         assert not expr_f.has_free(), str(expr_f.free_mx())
 
 
@@ -1540,6 +1547,7 @@ class Stage:
         total_time = []
         sub_expr = []
         count_blocks = 0
+        q_start = 0
         for k in range(N):
             t0 = time[k]
             dt = (time[k+1]-time[k])/M
@@ -1549,8 +1557,10 @@ class Stage:
             for l in range(M):
                 local_t = t0+tlocal[:-1]
                 total_time.append(local_t)
-                coeff = stage._method.poly_coeff[k * M + l]
-                tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
+                coeff = None if stage._method.poly_coeff is None else stage._method.poly_coeff[k * M + l]
+                coeff_q = None if stage._method.poly_coeff_q is None else horzcat(stage._method.xqk[k * M + l], stage._method.poly_coeff_q[k * M + l])
+                either_coeff = coeff_q if coeff is None else coeff
+                tpower = None if either_coeff is None else hcat([constpow(ts,i) for i in range(either_coeff.shape[1])]).T
                 if stage._method.poly_coeff_z:
                     coeff_z = stage._method.poly_coeff_z[k * M + l]
                     tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
@@ -1561,13 +1571,15 @@ class Stage:
                 pv = stage._method.get_p_sys(stage,k,include_signals=False)
                 if stage._method.signals:
                     pv = ca.vertcat(ca.repmat(pv,1,refine),signals_sampled[count_blocks])
-                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, mtimes(coeff,tpower), z, stage._method.U[k], pv, stage._method.t0, stage._method.T), k, l))
+                sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(local_t.T, nan if coeff is None else mtimes(coeff,tpower), nan if coeff_q is None else mtimes(coeff_q,tpower), z, stage._method.U[k], pv, stage._method.t0, stage._method.T), k, l))
                 t0+=dt
                 count_blocks+=1
+            q_start += stage._method.xqk[k]
 
         ts = tlocal[-1,:]
         total_time.append(time[k+1])
-        tpower = hcat([constpow(ts,i) for i in range(coeff.shape[1])]).T
+        either_coeff = coeff_q if coeff is None else coeff
+        tpower = None if either_coeff is None else hcat([constpow(ts,i) for i in range(either_coeff.shape[1])]).T
         if stage._method.poly_coeff_z:
             tpower_z = hcat([constpow(ts,i) for i in range(coeff_z.shape[1])]).T
             z = mtimes(coeff_z,tpower_z)
@@ -1575,7 +1587,7 @@ class Stage:
             z = nan
 
         pv = stage._method.get_p_sys(stage,-1)
-        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], mtimes(stage._method.poly_coeff[-1],tpower), z, stage._method.U[-1], pv, stage._method.t0, stage._method.T), k, l))
+        sub_expr.append(stage._method.eval_at_integrator(stage, expr_f(time[k+1], nan if coeff is None else mtimes(stage._method.poly_coeff[-1],tpower), nan if coeff_q is None else mtimes(horzcat(stage._method.xqk[-2],stage._method.poly_coeff_q[-1]),tpower), z, stage._method.U[-1], pv, stage._method.t0, stage._method.T), k, l))
 
         return vcat(total_time), hcat(sub_expr)
 

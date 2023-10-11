@@ -48,6 +48,7 @@ class SplineMethod(SamplingMethod):
         self.widths = None
         self.origins = None
         self.opti_advanced = None
+        self.Q = None
 
     def transcribe_start(self, stage, opti):
         # Inspect system

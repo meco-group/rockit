@@ -595,6 +595,46 @@ class MiscTests(unittest.TestCase):
 
             assert_array_almost_equal(xs[-1],x_ref)
 
+    def test_quad(self):
+    
+    
+        for M in [1,2]:
+            methods = [SingleShooting(N=3,M=M),
+                           MultipleShooting(N=3,M=M),
+                           DirectCollocation(N=3,M=M)]
+        
+            for method in methods:
+                ocp = Ocp(T=6)
+                
+                u = ocp.control()
+                q = ocp.state(quad=True)
+                q2 = ocp.state(quad=True)
+                ocp.set_der(q, u)
+                ocp.set_der(q2, u**2)
+
+                ocp.add_objective(ocp.integral(sumsqr(u-sin(ocp.t)))+ocp.at_tf(q2)**2)
+                ocp.subject_to(ocp.at_tf(q)==2)
+                ocp.solver('ipopt')
+                ocp.method(method)
+                sol = ocp.solve()
+                
+                for kwargs in [{"grid":"control"},{"grid":"integrator"},{"grid":"integrator","refine":4}]:
+                    refine = kwargs["refine"] if "refine" in kwargs else None
+                    
+                    if isinstance(method,DirectCollocation):
+                        continue
+          
+                    [_,usol] = sol.sample(u,**kwargs)
+                    [_,qsol] = sol.sample(q,**kwargs)
+                    
+                    q_ref = np.array(vertcat(0,2*np.cumsum(usol[:-1]))).squeeze()
+                    if refine is not None:
+                        q_ref = q_ref/refine
+                    if kwargs["grid"]=="integrator":
+                        q_ref = q_ref/M
+
+                    assert_array_almost_equal(qsol,q_ref)
+
     def test_collocation_equivalence(self):
 
       for problem in [vdp, vdp_dae]:

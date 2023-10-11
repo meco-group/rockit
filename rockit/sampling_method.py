@@ -314,6 +314,7 @@ class SamplingMethod(DirectMethod):
 
     def clean(self):
         self.X = []  # List that will hold N+1 decision variables for state vector
+        self.Q = []  # List that will hold N+1 expressions for quadrature states
         self.U = []  # List that will hold N decision variables for control vector
         self.Z = []  # Algebraic vars
 
@@ -331,7 +332,9 @@ class SamplingMethod(DirectMethod):
 
         self.poly_coeff = []  # Optional list to save the coefficients for a polynomial
         self.poly_coeff_z = []  # Optional list to save the coefficients for a polynomial
+        self.poly_coeff_q = []  # Optional list to save the coefficients for a polynomial
         self.xk = []  # List for intermediate integrator states
+        self.xqk = []
         self.zk = []
         self.xr = []
         self.zr = []
@@ -343,6 +346,7 @@ class SamplingMethod(DirectMethod):
         # nstates x (4 * M)
         poly_coeffs = []
         poly_coeffs_z = []
+        poly_coeffs_q = []
 
         t0 = MX.sym('t0')
         T = MX.sym('T')
@@ -361,7 +365,8 @@ class SamplingMethod(DirectMethod):
 
         # Compute local start time
         t0_local = t0
-        quad = 0
+        quad = DM.zeros(stage.nxq)
+        Q = []
 
         if stage._state_next:
             intg = stage._diffeq()
@@ -377,14 +382,16 @@ class SamplingMethod(DirectMethod):
             intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, DT_control=T, p=P, z0=Z0_current)
             X.append(intg_res["xf"])
             Zs.append(intg_res["zf"])
-            quad = quad + intg_res["qf"]
             poly_coeffs.append(intg_res["poly_coeff"])
             poly_coeffs_z.append(intg_res["poly_coeff_z"])
+            poly_coeffs_q.append(intg_res["poly_coeff_q"])
+            quad = quad + intg_res["qf"]
+            Q.append(quad)
             t0_local += DT
             Z0_current = intg_res["zf"]
-
-        ret = Function('F', [X0, U, T, t0, P, Z0], [X[-1], hcat(X), hcat(poly_coeffs), quad, Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
-                       ['x0', 'u', 'T', 't0', 'p', 'z0'], ['xf', 'Xi', 'poly_coeff', 'qf', 'zf', 'Zi', 'poly_coeff_z'])
+        
+        ret = Function('F', [X0, U, T, t0, P, Z0], [X[-1], hcat(X), hcat(poly_coeffs), quad, hcat(Q), hcat(poly_coeffs_q), Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
+                       ['x0', 'u', 'T', 't0', 'p', 'z0'], ['xf', 'Xi', 'poly_coeff', 'qf', 'Qi', 'poly_coeff_q', 'zf', 'Zi', 'poly_coeff_z'])
         assert not ret.has_free()
         return ret
 
@@ -405,7 +412,14 @@ class SamplingMethod(DirectMethod):
         f2 = 4/DT**2*(k3["ode"]-k2["ode"])/6
         f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
         poly_coeff = hcat([X, f0, f1, f2, f3])
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
+
+        f0 = k1["quad"]
+        f1 = 2/DT*(k2["quad"]-k1["quad"])/2
+        f2 = 4/DT**2*(k3["quad"]-k2["quad"])/6
+        f3 = 4*(k4["quad"]-2*k3["quad"]+k1["quad"])/DT**3/24
+        poly_coeff_q = hcat([f0, f1, f2, f3])
+
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), poly_coeff_q, MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
 
     def intg_expl_euler(self, f, X, U, P, Z):
         assert Z.is_empty()
@@ -415,7 +429,9 @@ class SamplingMethod(DirectMethod):
         Z0 = MX.sym("z0", 0, 1)
         k = f(x=X, u=U, p=P, t=t0)
         poly_coeff = hcat([X, k["ode"]])
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT * k["ode"], poly_coeff, DT * k["quad"], MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'zf', 'poly_coeff_z'])
+        poly_coeff_q = k["quad"]
+
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT * k["ode"], poly_coeff, DT * k["quad"], poly_coeff_q, MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
 
     def intg_builtin(self, f, X, U, P, Z):
         # A single CVODES step
@@ -435,7 +451,7 @@ class SamplingMethod(DirectMethod):
         if I.size2_out("xf")!=1:
             raise Exception("Integrator must only return outputs at a single timepoint. Did you specify a grid?")
         res = I.call({'x0': X, 'p': vertcat(U, DT, DT_control, P, t0), 'z0': Z0})
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [res["xf"], MX(), res["qf"], res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff','qf','zf','poly_coeff_z'])
+        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [res["xf"], MX(), res["qf"], MX(), res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff','qf','poly_coeff_q','zf','poly_coeff_z'])
 
     def untranscribe_placeholders(self, phase, stage):
         pass
@@ -721,8 +737,14 @@ class SamplingMethod(DirectMethod):
 
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, self.M-1 if k==-1 else 0)
-
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=self.q if k==-1 else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), signals=(self.signals, self.get_signals_at(stage, k)), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
+        if self.Q:
+            xq = self.Q[k]
+        else:
+            if k==-1:
+                xq = self.q
+            else:
+                xq = nan
+        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=xq, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), signals=(self.signals, self.get_signals_at(stage, k)), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
         expr = stage.master._method.eval_top(stage.master, expr)
         return expr
     
@@ -740,6 +762,13 @@ class SamplingMethod(DirectMethod):
 
     def _eval_at_control(self, stage, expr, k):
         x = self.X[k]
+        if self.Q:
+            xq = self.Q[k]
+        else:
+            if k==-1:
+                xq = self.q
+            else:
+                xq = nan
         z = self.Z[k] if self.Z else nan
         u = self.U[-1] if k==len(self.U) else self.U[k] # Would be fixed if we remove the (k=-1 case)
         p_control = self.get_p_control_at(stage, k) if k!=len(self.U) else self.get_p_control_at(stage, k-1)
@@ -753,12 +782,12 @@ class SamplingMethod(DirectMethod):
             DT = self.get_DT_at(len(self.integrator_grid)-1, self.M-1)
         else:
             DT = self.get_DT_at(k, 0)
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=self.q if k==-1 else nan, u=u, p_control=p_control, p_control_plus=p_control_plus, v=self.V, p=veccat(*self.P), v_control=v_control, v_control_plus=v_control_plus, v_states=v_states, t=t, DT=DT, DT_control=DT_control)
+        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=xq, u=u, p_control=p_control, p_control_plus=p_control_plus, v=self.V, p=veccat(*self.P), v_control=v_control, v_control_plus=v_control_plus, v_states=v_states, t=t, DT=DT, DT_control=DT_control)
 
     def eval_at_integrator(self, stage, expr, k, i):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, i)
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i], DT=DT, DT_control=DT_control))
+        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], xq=self.xqk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i], DT=DT, DT_control=DT_control))
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
         DT_control = self.get_DT_control_at(k)

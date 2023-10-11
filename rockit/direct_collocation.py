@@ -81,6 +81,7 @@ class DirectCollocation(SamplingMethod):
         # is block-sparse
         x = opti.variable(stage.nx, scale=scale_x)
         self.X.append(x)
+        self.Q.append(DM.zeros(stage.nxq))
         self.add_variables_V(stage, opti)
         z = opti.variable(stage.nz, scale=scale_z)
         self.Zc_vars_base.append(z)
@@ -113,6 +114,7 @@ class DirectCollocation(SamplingMethod):
             self.Zc.append(Zc)
             x = opti.variable(stage.nx, scale=scale_x)
             self.X.append(x)
+            self.Q.append(None)
             z = opti.variable(stage.nz, scale=scale_z)
             self.Zc_vars_base.append(z)
             self.add_variables_V_control(stage, opti, k)
@@ -129,6 +131,8 @@ class DirectCollocation(SamplingMethod):
         scale_x = stage._scale_x
         scale_der_x = stage._scale_der_x
         scale_z = stage._scale_z
+        self.poly_coeff_q = None
+
         # Obtain the discretised system
         f = stage._ode()
 
@@ -192,6 +196,7 @@ class DirectCollocation(SamplingMethod):
 
         self.Z.append(mtimes(self.Zc[-1][-1],sum2(poly_z)))
 
+        self.xqk.append(DM.zeros(stage.nxq))
         count_f_eval = 0
         for k in range(self.N):
             dt = dts[k]
@@ -219,7 +224,7 @@ class DirectCollocation(SamplingMethod):
                     opti.subject_to(self.eval_at_integrator(stage, c, k, i), scale=args["scale"], meta=meta)
                 for c, meta, _ in stage._constraints["inf"]:
                     self.add_inf_constraints(stage, opti, c, k, i, meta)
-
+                self.xqk.append(self.q)
             for c, meta, args in stage._constraints["control"]:  # for each constraint expression
                 if k==0 and not args["include_first"]: continue
                 # Add it to the optimizer, but first make x,u concrete.
@@ -227,7 +232,7 @@ class DirectCollocation(SamplingMethod):
                     opti.subject_to(self.eval_at_control(stage, c, k), scale=args["scale"], meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
-
+            self.Q[k+1] = self.q
         for c, meta, args in stage._constraints["control"]:  # for each constraint expression
             if not args["include_last"]: continue
             # Add it to the optimizer, but first make x,u concrete.

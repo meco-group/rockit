@@ -21,7 +21,7 @@
 #
 
 from .sampling_method import SamplingMethod
-from casadi import sumsqr, vertcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vcat, vec
+from casadi import sumsqr, horzcat, linspace, substitute, MX, evalf, vcat, horzsplit, veccat, DM, repmat, vvcat, vcat, vec
 import numpy as np
 
 class SingleShooting(SamplingMethod):
@@ -47,10 +47,12 @@ class SingleShooting(SamplingMethod):
         # is block-sparse
         self.X.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.states]))
         self.add_variables_V(stage, opti)
+        self.Q.append(DM.zeros(stage.nxq))
 
         for k in range(self.N):
             self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.X.append(None)
+            self.Q.append(None)
             self.add_variables_V_control(stage, opti, k)
 
         self.add_variables_V_control_finalize(stage, opti)
@@ -59,45 +61,52 @@ class SingleShooting(SamplingMethod):
         # Obtain the discretised system
         F = self.discrete_system(stage)
 
-        self.q = 0
         # we only save polynomal coeffs for runge-kutta4
         if F.numel_out("poly_coeff")==0:
             self.poly_coeff = None
         if F.numel_out("poly_coeff_z")==0:
             self.poly_coeff_z = None
+        if F.numel_out("poly_coeff_q")==0:
+            self.poly_coeff_q = None
 
         Z0 = self.Z0[0]
 
+        self.q = DM.zeros(stage.nxq)
         FFs = []
+        self.xqk.append(DM.zeros(stage.nxq))
         # Fill in Z variables up-front, since they might be needed in constraints with ocp.next
         for k in range(self.N):
             FF = F(x0=self.X[k], u=self.U[k], t0=self.control_grid[k],
                    T=self.control_grid[k + 1] - self.control_grid[k], p=self.get_p_sys(stage, k), z0=Z0)
-            self.X[k + 1] = FF["xf"]
+            self.X[k+1] = FF["xf"]
             poly_coeff_temp = FF["poly_coeff"]
             poly_coeff_z_temp = FF["poly_coeff_z"]
+            poly_coeff_q_temp = FF["poly_coeff_q"]
             xk_temp = FF["Xi"]
+            xqk_temp = self.q + FF["Qi"]
             zk_temp = FF["Zi"]
             # we cannot return a list from a casadi function
             self.xk.extend([xk_temp[:, i] for i in range(self.M)])
+            self.xqk.extend([xqk_temp[:, i] for i in range(self.M)])
             self.zk.extend([zk_temp[:, i] for i in range(self.M)])
             if k==0:
                 self.Z.append(zk_temp[:, 0])
             self.Z.append(FF["zf"])
             if self.poly_coeff is not None:
                 self.poly_coeff.extend(horzsplit(poly_coeff_temp, poly_coeff_temp.shape[1]//self.M))
+            if self.poly_coeff_q is not None:
+                self.poly_coeff_q.extend(horzsplit(poly_coeff_q_temp, poly_coeff_q_temp.shape[1]//self.M))
             if self.poly_coeff_z is not None:
                 self.poly_coeff_z.extend(horzsplit(poly_coeff_z_temp, poly_coeff_z_temp.shape[1]//self.M))
             FFs.append(FF)
+            self.q = self.q + FF["qf"]
+            self.Q[k+1] = self.q
 
         self.xk.append(self.X[-1])
         self.zk.append(self.zk[-1])
 
         for k in range(self.N):
             FF = FFs[k]
-
-            # Save intermediate info
-            self.q = self.q + FF["qf"]
 
             for l in range(self.M):
                 for c, meta, args in stage._constraints["integrator"]:
