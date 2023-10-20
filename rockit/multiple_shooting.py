@@ -49,8 +49,8 @@ class MultipleShooting(SamplingMethod):
         self.Q.append(DM.zeros(stage.nxq))
 
         for k in range(self.N):
-            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.add_variables_V_control(stage, opti, k)
+            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.X.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.states]))
             self.Q.append(None)
 
@@ -110,6 +110,11 @@ class MultipleShooting(SamplingMethod):
             # Dynamic constraints a.k.a. gap-closing constraints
             opti.subject_to(self.X[k + 1] == FF["xf"], scale=scale_x)
 
+            self.add_coupling_constraints(stage, opti, k)
+
+            if k==0:
+                self.add_constraints_before(stage, opti)
+
 
             for l in range(self.M):
                 for c, meta, args in stage._constraints["integrator"]:
@@ -124,8 +129,8 @@ class MultipleShooting(SamplingMethod):
                     opti.subject_to(self.eval_at_control(stage, c, k), scale=args["scale"], meta=meta)
                 except IndexError:
                     pass # Can be caused by ocp.offset -> drop constraint
+            
 
-            self.add_coupling_constraints(stage, opti, k)
 
         for c, meta, args in stage._constraints["control"]+stage._constraints["integrator"]:  # for each constraint expression
             if not args["include_last"]: continue

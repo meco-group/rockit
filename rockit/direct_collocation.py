@@ -128,6 +128,7 @@ class DirectCollocation(SamplingMethod):
         self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self, stage, opti):
+        self.add_constraints_before(stage, opti)
         scale_x = stage._scale_x
         scale_der_x = stage._scale_der_x
         scale_z = stage._scale_z

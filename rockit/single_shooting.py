@@ -58,6 +58,7 @@ class SingleShooting(SamplingMethod):
         self.add_variables_V_control_finalize(stage, opti)
 
     def add_constraints(self,stage,opti):
+        self.add_constraints_before(stage, opti)
         # Obtain the discretised system
         F = self.discrete_system(stage)
 

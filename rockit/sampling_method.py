@@ -169,7 +169,7 @@ class FreeGrid(FixedGrid):
 
     def bounds_T(self, T_local, t0_local, k, T, N):
         yield (self.min <= (T_local[k] <= self.max),{})
-        for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
+        for i,e in enumerate(FixedGrid.bounds_T(self, T_local, t0_local, k, T, N)):
             yield e
 
     def bounds_finalize(self, opti, control_grid, t0_local, tf, N):
@@ -202,16 +202,17 @@ class UniformGrid(FixedGrid):
         return 1.0/N
 
     def bounds_T(self, T_local, t0_local, k, T, N):
-        if k==0:
-            if self.localize_T:
-                yield (self.min <= (T_local[0] <= self.max), {})
-            else:
-                if self.min==0 and self.max==inf:
-                    pass
-                else:
-                    yield (self.min <= (T/N <= self.max), {})
-        for e in FixedGrid.bounds_T(self, T_local, t0_local, k, T, N):
+
+        for i,e in enumerate(FixedGrid.bounds_T(self, T_local, t0_local, k, T, N)):
             yield e
+            if i==0 and k==0:
+                if self.localize_T:
+                    yield (self.min <= (T_local[0] <= self.max), {})
+                else:
+                    if self.min==0 and self.max==inf:
+                        pass
+                    else:
+                        yield (self.min <= (T/N <= self.max), {})
 
     def normalized(self, N):
         return list(np.linspace(0.0, 1.0, N+1))
@@ -540,7 +541,7 @@ class SamplingMethod(DirectMethod):
             for k in range(self.N):
                 t_local = linspace(self.control_grid[k], self.control_grid[k+1], self.M+1)
                 self.integrator_grid.append(t_local[:-1] if k<self.N-1 else t_local)
-            self.add_constraints_before(stage, opti)
+            #self.add_constraints_before(stage, opti)
             self.add_constraints(stage, opti)
             self.add_constraints_after(stage, opti)
             self.add_objective(stage, opti)

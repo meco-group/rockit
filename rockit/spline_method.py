@@ -394,6 +394,7 @@ ocp.set_der(v, a)
 
 
     def add_constraints(self, stage, opti):
+        self.add_constraints_before(stage, opti)
         assert "integrator" not in stage._constraints
 
         self.opti_advanced = self.opti.advanced
