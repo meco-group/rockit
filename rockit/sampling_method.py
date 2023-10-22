@@ -751,7 +751,12 @@ class SamplingMethod(DirectMethod):
         return vcat(args)
 
     def eval(self, stage, expr):
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, p=veccat(*self.P), v=self.V, t0=stage.t0, T=stage.T))
+        return stage.master._method.eval_top(stage.master,
+                                             stage._expr_apply(expr,
+                                                               p=veccat(*self.P),
+                                                               v=self.V,
+                                                               t0=stage.t0,
+                                                               T=stage.T))
 
     def eval_at_control(self, stage, expr, k):
         try:
@@ -787,7 +792,24 @@ class SamplingMethod(DirectMethod):
                 xq = self.q
             else:
                 xq = nan
-        expr = stage._expr_apply(expr, sub=(subst_from, subst_to), t0=self.t0, T=self.T, x=self.X[k], z=self.Z[k] if self.Z else nan, xq=xq, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k),  v_control_plus=self.get_v_control_plus_at(stage, k), signals=(self.signals, self.get_signals_at(stage, k)), v_states=self.get_v_states_at(stage, k), t=self.control_grid[k], DT=DT, DT_control=DT_control)
+        expr = stage._expr_apply(expr,
+                                 sub=(subst_from, subst_to),
+                                 t0=self.t0,
+                                 T=self.T,
+                                 x=self.X[k],
+                                 z=self.Z[k] if self.Z else nan,
+                                 xq=xq,
+                                 u=self.U[k],
+                                 p_control=self.get_p_control_at(stage, k),
+                                 p_control_plus=self.get_p_control_plus_at(stage, k),
+                                 v=self.V, p=veccat(*self.P),
+                                 v_control=self.get_v_control_at(stage, k),
+                                 v_control_plus=self.get_v_control_plus_at(stage, k),
+                                 signals=(self.signals, self.get_signals_at(stage, k)),
+                                 v_states=self.get_v_states_at(stage, k),
+                                 t=self.control_grid[k],
+                                 DT=DT,
+                                 DT_control=DT_control)
         expr = stage.master._method.eval_top(stage.master, expr)
         return expr
     
@@ -825,17 +847,61 @@ class SamplingMethod(DirectMethod):
             DT = self.get_DT_at(len(self.integrator_grid)-1, self.M-1)
         else:
             DT = self.get_DT_at(k, 0)
-        return stage._expr_apply(expr, t0=self.t0, T=self.T, x=x, z=z, xq=xq, u=u, p_control=p_control, p_control_plus=p_control_plus, v=self.V, p=veccat(*self.P), v_control=v_control, v_control_plus=v_control_plus, v_states=v_states, t=t, DT=DT, DT_control=DT_control)
+        return stage._expr_apply(expr,
+                                 t0=self.t0,
+                                 T=self.T,
+                                 x=x,
+                                 z=z,
+                                 xq=xq,
+                                 u=u,
+                                 p_control=p_control,
+                                 p_control_plus=p_control_plus,
+                                 v=self.V, p=veccat(*self.P),
+                                 v_control=v_control,
+                                 v_control_plus=v_control_plus,
+                                 v_states=v_states,
+                                 t=t,
+                                 DT=DT,
+                                 DT_control=DT_control)
 
     def eval_at_integrator(self, stage, expr, k, i):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, i)
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xk[k*self.M + i], xq=self.xqk[k*self.M + i], z=self.zk[k*self.M + i] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k), v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k), v_states=self.get_v_states_at(stage, k), t=self.integrator_grid[k][i], DT=DT, DT_control=DT_control))
+        return stage.master._method.eval_top(stage.master,
+                                             stage._expr_apply(expr,
+                                                               t0=self.t0,
+                                                               T=self.T,
+                                                               x=self.xk[k*self.M + i],
+                                                               xq=self.xqk[k*self.M + i],
+                                                               z=self.zk[k*self.M + i] if self.zk else nan,
+                                                               u=self.U[k], p_control=self.get_p_control_at(stage, k),
+                                                               p_control_plus=self.get_p_control_plus_at(stage, k),
+                                                               v=self.V, p=veccat(*self.P),
+                                                               v_control=self.get_v_control_at(stage, k),
+                                                               v_control_plus=self.get_v_control_plus_at(stage, k),
+                                                               v_states=self.get_v_states_at(stage, k),
+                                                               t=self.integrator_grid[k][i],
+                                                               DT=DT,
+                                                               DT_control=DT_control))
 
     def eval_at_integrator_root(self, stage, expr, k, i, j):
         DT_control = self.get_DT_control_at(k)
         DT = self.get_DT_at(k, i)
-        return stage.master._method.eval_top(stage.master, stage._expr_apply(expr, t0=self.t0, T=self.T, x=self.xr[k][i][:,j], z=self.zr[k][i][:,j] if self.zk else nan, u=self.U[k], p_control=self.get_p_control_at(stage, k), p_control_plus=self.get_p_control_plus_at(stage, k),v=self.V, p=veccat(*self.P), v_control=self.get_v_control_at(stage, k), v_control_plus=self.get_v_control_plus_at(stage, k),t=self.tr[k][i][j], DT=DT, DT_control=DT_control))
+        return stage.master._method.eval_top(stage.master,
+                                             stage._expr_apply(expr,
+                                                               t0=self.t0,
+                                                               T=self.T,
+                                                               x=self.xr[k][i][:,j],
+                                                               z=self.zr[k][i][:,j] if self.zk else nan,
+                                                               u=self.U[k],
+                                                               p_control=self.get_p_control_at(stage, k),
+                                                               p_control_plus=self.get_p_control_plus_at(stage, k),
+                                                               v=self.V, p=veccat(*self.P),
+                                                               v_control=self.get_v_control_at(stage, k),
+                                                               v_control_plus=self.get_v_control_plus_at(stage, k),
+                                                               t=self.tr[k][i][j],
+                                                               DT=DT,
+                                                               DT_control=DT_control))
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
