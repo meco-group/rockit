@@ -953,6 +953,78 @@ class Stage:
         return MX(0, 1) if len(arg)==0 else vvcat(arg)
 
     @property
+    def p_global_list(self): return self.parameters['']
+
+    @property
+    def p_control_list(self): return self.parameters['control']+self.parameters['control+']
+
+    @property
+    def p_integrator_list(self): return self.parameters['integrator']+self.parameters['integrator+']
+
+    @property
+    def p_integrator_roots_list(self): return self.parameters['bspline']
+    
+    @property
+    def v_global_list(self): return self.variables['']
+
+    @property
+    def v_control_list(self): return self.variables['control']+self.variables['control+']
+
+    @property
+    def v_integrator_list(self): return self.variables['integrator']+self.variables['integrator+']
+
+    @property
+    def v_integrator_roots_list(self): return self.variables['bspline']
+
+    @property
+    def p_global(self): return MX(0, 1) if len(self.p_global_list)==0 else vvcat(self.p_global_list)
+
+    @property
+    def p_control(self): return MX(0, 1) if len(self.p_control_list)==0 else vvcat(self.p_control_list)
+    
+    @property
+    def p_integrator(self): return MX(0, 1) if len(self.p_integrator_list)==0 else vvcat(self.p_integrator_list)
+
+    @property
+    def p_integrator_roots(self): return MX(0, 1) if len(self.p_integrator_roots_list)==0 else vvcat(self.p_integrator_roots_list)
+
+    @property
+    def v_global(self): return MX(0, 1) if len(self.v_global_list)==0 else vvcat(self.v_global_list)
+
+    @property
+    def v_control(self): return MX(0, 1) if len(self.v_control_list)==0 else vvcat(self.v_control_list)
+    
+    @property
+    def v_integrator(self): return MX(0, 1) if len(self.v_integrator_list)==0 else vvcat(self.v_integrator_list)
+
+    @property
+    def v_integrator_roots(self): return MX(0, 1) if len(self.v_integrator_roots_list)==0 else vvcat(self.v_integrator_roots_list)
+    
+    @property
+    def pv_global(self): return ca.vertcat(self.p_global, self.v_global)
+
+    @property
+    def pv_control(self): return ca.vertcat(self.p_control, self.v_control)
+
+    @property
+    def pv_integrator(self): return ca.vertcat(self.p_integrator, self.v_integrator)
+
+    @property
+    def pv_integrator_roots(self): return ca.vertcat(self.p_integrator_roots, self.v_integrator_roots)
+
+    @property
+    def npv_global(self): return self.pv_global.numel()
+
+    @property
+    def npv_control(self): return self.pv_control.numel()
+
+    @property
+    def npv_integrator(self): return self.pv_integrator.numel()
+
+    @property
+    def npv_integrator_roots(self): return self.pv_integrator_roots.numel()
+
+    @property
     def nx(self):
         return self.x.numel()
 
