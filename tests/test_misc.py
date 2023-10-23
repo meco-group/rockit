@@ -502,7 +502,7 @@ class MiscTests(unittest.TestCase):
         ocp.set_der(x, 0)
         ocp.subject_to(ocp.at_t0(x)==0)
 
-        ts = linspace(0, 10, N)
+        ts = linspace(0, 10, N+1)[:-1]
 
         ocp.add_objective(ocp.integral(sin(v-p)**2,grid='control'))
         ocp.method(MultipleShooting(N=N))
