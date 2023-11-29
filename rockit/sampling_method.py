@@ -218,6 +218,22 @@ class UniformGrid(FixedGrid):
         return list(np.linspace(0.0, 1.0, N+1))
 
 
+class FunctionGrid(FixedGrid):
+    def __init__(self, normalized_fun, **kwargs):
+        """
+        Inputs:
+            normalized: function that takes N and returns a list of N+1 normalized grid points
+
+        """
+        self.normalized_fun = normalized_fun
+        FixedGrid.__init__(self, **kwargs)
+
+    def __call__(self, t0, T, N):
+        n = self.normalized(N)
+        return t0 + hcat(n)*T
+
+    def normalized(self, N):
+        return self.normalized_fun(N)
 class DensityGrid(FixedGrid):
     def __init__(self, density, integrator='cvodes',integrator_options=None,**kwargs):
         """
