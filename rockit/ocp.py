@@ -264,9 +264,13 @@ class Ocp(Stage):
         dae["ode"] = dt*ode
         dae["alg"] = alg
         dae["p"] = vertcat(self.u, t0, dt, p)
-        intg_options["t0"] = 0
-        intg_options["tf"] = 1
-        intg = integrator('intg',intg,dae,intg_options)
+
+        try:
+            intg = integrator('intg',intg,dae,0,1,intg_options)
+        except:
+            intg_options["t0"] = 0
+            intg_options["tf"] = 1
+            intg = integrator('intg',intg,dae,intg_options)
 
         z_initial_guess = MX.sym("z",self.z.sparsity()) if self.nz>0 else MX(0,1)
         
