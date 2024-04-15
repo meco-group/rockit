@@ -238,6 +238,19 @@ class DensityGrid(FixedGrid):
     def __init__(self, density, integrator='cvodes',integrator_options=None,**kwargs):
         """
         Expression in one symbolic variable (dimensionless time) that describes the density of the grid
+
+        e.g. t**2
+
+        We first compute the definite integral of the density over the interval [0,1]:        
+        I = integral_0^t density dt
+
+        
+        Next, we inspect the function
+        
+        E(t) := 1/I*integral_0^t density dt
+        
+        The grid points t_i are the computed such that E(t_i) is a uniform parition of [0,1]
+
         """
         self.density = density
         self.t = symvar(density)[0]
