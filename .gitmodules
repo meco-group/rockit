@@ -4,3 +4,6 @@
 [submodule "rockit/external/fatrop"]
 	path = rockit/external/fatrop
 	url = https://gitlab.kuleuven.be/u0110259/rockit_fatrop_plugin.git
+[submodule "rockit/external/acados/external"]
+	path = rockit/external/acados/external
+	url = https://github.com/acados/acados.git

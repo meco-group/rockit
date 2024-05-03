@@ -32,7 +32,9 @@ from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify,
 import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
-
+import os
+import shutil
+import subprocess
 import casadi as ca
 
 INF = 1e5
@@ -59,6 +61,7 @@ def legit_Js(J):
 class AcadosMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
+        self.build_dir_abs = "./foobar"
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -739,11 +742,17 @@ class AcadosMethod(ExternalMethod):
             ocp.model.con_h_expr_0 = export_expr(h_0)
             m["lh_0"] = export_vec(lh_0)
             m["uh_0"] = export_vec(uh_0)
-        
+        else:
+            m["lh_0"] = export_vec(MX.zeros(0,1))
+            m["uh_0"] =export_vec( MX.zeros(0,1))
+
         if h_e:
             ocp.model.con_h_expr_e = export_expr(h_e)
             m["lh_e"] = export_vec(lh_e)
             m["uh_e"] = export_vec(uh_e)
+        else:
+            m["lh_e"] = export_vec(MX.zeros(0,1))
+            m["uh_e"] =export_vec( MX.zeros(0,1))
 
 
         self.ocp.constraints.Jbx_e = export_num(Jbx_e)
@@ -783,7 +792,27 @@ class AcadosMethod(ExternalMethod):
         m["ubx_0"] = export_vec(ubx_0)
 
         args = [v[0] for v in m.values()]
-        self.mmap = Function('mmap',[stage.p,stage.t],args,['p','t'],list(m.keys()))
+        outputs = list(m.keys())
+        self.mmap = Function('mmap',[stage.p,stage.t],args,['p','t'],outputs)
+
+        tgrid = ca.MX.sym("tgrid",1,self.N+1)
+        resv = [self.mmap(p=stage.p,t=t) for t in ca.horzsplit(tgrid)]
+
+        res = {}
+
+        for k in m.keys():
+            if k.endswith("_0"):
+                res[k] = resv[0][k]
+            elif k.endswith("_e"):
+                res[k] = resv[-1][k]
+            else:
+                res[k] = ca.hcat([r[k] for r in resv])
+
+        for k in m.keys():
+            res[k] = ca.fmax(ca.fmin(res[k], INF),-INF)
+
+        self.mmap_horizon = Function('mmap_horizon',[stage.p,tgrid],[res[k] for k in outputs],['p','t'],outputs)
+        print(self.mmap_horizon)
 
         for k,v in stage._param_vals.items():
             self.set_value(stage, self, k, v)
@@ -814,12 +843,48 @@ class AcadosMethod(ExternalMethod):
         # By-pass acados's heuristic to check lbx==ubx numerically
         ocp.dims.nbxe_0 = self.ocp.constraints.idxbxe_0.shape[0]
 
-        self.ocp_solver = AcadosOcpSolver(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
+        #self.ocp_solver = AcadosOcpSolver(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
 
-        #self.ocp_solver.options_set("step_length", 0.1)
-        #self.ocp_solver.options_set("globalization", "fixed_step") # fixed_step, merit_backtracking
-        if self.linesearch:
-            self.ocp_solver.options_set("globalization", "merit_backtracking")
+        AcadosOcpSolver.generate(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
+
+        c_generated_code = os.path.join(os.getcwd(), "c_generated_code")
+
+        if not os.path.exists(os.path.join(self.build_dir_abs,"build")):
+            # copy acados
+            try:
+                shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "external",os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
+            except:
+                pass
+
+        shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs,dirs_exist_ok=True)
+        shutil.copytree(c_generated_code,self.build_dir_abs,dirs_exist_ok=True)
+
+        with open(os.path.join(self.build_dir_abs,"rockit_config.h"),"w") as out:
+
+            for i in range(self.mmap_horizon.n_out()):
+                k = self.mmap_horizon.name_out(i)
+                if (k.endswith("_0") or k.endswith("_e")) and self.m[k][1]:
+                    out.write(f"#define MMAP_{k.upper()}_SIZE {self.mmap_horizon.numel_out(i)}\n")
+                else:
+                    out.write(f"#define MMAP_{k.upper()}_SIZE1 {self.mmap_horizon.size1_out(i)}\n")
+                    out.write(f"#define MMAP_{k.upper()}_SIZE2 {self.mmap_horizon.size2_out(i)}\n")
+                    # Same but uppercase
+            out.write(f"#define ROCKIT_N {self.N}\n")
+            out.write(f"#define ROCKIT_X_SIZE1 {stage.nx}\n")
+            out.write(f"#define ROCKIT_X_SIZE2 {self.N+1}\n")
+            out.write(f"#define ROCKIT_U_SIZE1 {stage.nu}\n")
+            out.write(f"#define ROCKIT_U_SIZE2 {self.N}\n")
+
+        with open(os.path.join(self.build_dir_abs,"after_init.c.in"), "w") as after_init:
+            if self.linesearch:
+                after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
+            after_init.write(f"""int print_level=0;ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "print_level",&print_level);\n""")
+            
+        assert subprocess.run(["cmake","-S", ".","-B", os.path.join(self.build_dir_abs,"build"),"-DCMAKE_BUILD_TYPE=Debug"], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","--build",os.path.join(self.build_dir_abs,"build"),"--config","Debug"], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","--install",os.path.join(self.build_dir_abs,"build"),"--prefix","."], cwd=self.build_dir_abs).returncode==0
+        
+        self.acados_driver = ca.external("acados_driver", self.build_dir_abs + "/lib/libacados_driver.so")
 
         X0 = DM.zeros(ocp.dims.nx, self.N+1)
         U0 = DM.zeros(ocp.dims.nu, self.N)
@@ -853,66 +918,47 @@ class AcadosMethod(ExternalMethod):
                 for k in range(self.N):
                     U0[Ju.sparsity().get_col(),k] = expr[Ju.row(),k if is_matrix else 0]
 
-        X0 = np.array(X0)
-        U0 = np.array(U0)
+        self.X0 = np.array(X0)
+        self.U0 = np.array(U0)
 
-        for k in range(self.N+1):
-            self.ocp_solver.set(k, "x", X0[:,k])
+    def to_function(self, stage, name, args, results, *margs):
+        """
+        args = [stage.value(a) for a in args]
+            
+        controls = ca.hcat(self.U_gist)
+        states = ca.hcat(self.X_gist)
+        p_stage = ca.hcat(self.P_stage_gist)
+        p_global = self.P_global_gist
 
-        for k in range(self.N):
-            self.ocp_solver.set(k, "u", U0[:,k])
+        gist_list = self.U_gist+self.X_gist+self.P_stage_gist+[self.P_global_gist,self.T_gist]
 
-    def set_matrices(self):
-        self.ocp.parameter_values = np.array(self.P0).reshape((-1))
+        try:
+            helper0 = Function("helper0", args, gist_list, {"allow_free":True})
+        except:
+            helper0 = Function("helper0", args, gist_list)
 
-        res = self.mmap(p=self.P0,t=self.normalized_time_grid.T)
-        # Set matrices
-        for k, (_,is_vec) in self.m.items():
-            v = np.array(res[k])
-            v[v==-inf] = -INF
-            v[v==inf] = INF
-            if k=="lbx_e":
-                self.ocp_solver.constraints_set(self.N, "lbx", v[:,-1])
-            elif k=="ubx_e":
-                self.ocp_solver.constraints_set(self.N, "ubx", v[:,-1])
-            elif k=="C_e":
-                if v.shape[0]*v.shape[1]>0:
-                    self.ocp_solver.constraints_set(self.N, "C", v[:,:self.mmap.size2_out("C_e")])
-            elif k=="lg_e":
-                self.ocp_solver.constraints_set(self.N, "lg", v[:,-1])
-            elif k=="ug_e":
-                self.ocp_solver.constraints_set(self.N, "ug", v[:,-1])
-            elif k=="lh_e":
-                self.ocp_solver.constraints_set(self.N, "lh", v[:,-1])
-            elif k=="uh_e":
-                self.ocp_solver.constraints_set(self.N, "uh", v[:,-1])
-            elif k=="lh_0":
-                self.ocp_solver.constraints_set(0, "lh", v[:,-1])
-            elif k=="uh_0":
-                self.ocp_solver.constraints_set(0, "uh", v[:,-1])
-            elif k=="lbx_0":
-                self.ocp_solver.constraints_set(0, "lbx", v[:,0])
-            elif k=="ubx_0":
-                self.ocp_solver.constraints_set(0, "ubx", v[:,0])
-            else:
-                for i in range(self.N):
-                    if i==0 and k in ["lbx","ubx","lh","uh"]: continue
-                    stride = self.mmap.size2_out(k)
-                    if v.shape[0]>0:
-                        e = v[:,i*stride:(i+1)*stride]
-                        if is_vec:
-                            e = e.reshape((-1))
-                        print(i,k,e,e.shape)
-                        if e.size>0:
-                            self.ocp_solver.constraints_set(i, k, e, api='new')
+
+        if helper0.has_free():
+            helper0_free = helper0.free_mx()
+            print("test",helper0_free, self.initial_value(stage, helper0_free))
+            [controls, states, p_stage, p_global, T_gist] = cs.substitute([controls, states, p_stage, p_global, self.T_gist], helper0_free, self.initial_value(stage, helper0_free))
+        res = self.acados_driver(densify(p_global.monitor("p_global")), densify(p_stage.monitor("p_stage")), densify(states), densify(controls))
+
+
+        ret = Function(name, args, cs.substitute(results, gist_list, cs.horzsplit(res_u)+cs.horzsplit(res_x)+cs.horzsplit(p_stage)+[p_global,T_gist]) , *margs)
+        assert not ret.has_free()
+        return ret
+        """
+        pass
 
     def solve(self, stage):
-        self.set_matrices()
-        status = self.ocp_solver.solve()
-        self.ocp_solver.print_statistics()
-        x = [self.ocp_solver.get(i, "x") for i in range(self.N+1)]
-        u = [self.ocp_solver.get(i, "u") for i in range(self.N)]
-        return OcpSolution(SolWrapper(self, vcat(x), vcat(u)), stage)
+        res = self.mmap_horizon(p=self.P0,t=self.normalized_time_grid.T)
+        res["x0"] = self.X0
+        res["u0"] = self.U0
+        ret = self.acados_driver(**res)
+        print(ret)
+
+        return OcpSolution(SolWrapper(self, ca.vec(ret["x"]), ca.vec(ret["u"])), stage)
 
     def eval(self, stage, expr):
         return expr
