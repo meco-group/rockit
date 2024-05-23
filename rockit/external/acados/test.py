@@ -1,13 +1,11 @@
 from pylab import *
 import unittest
 
-from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage
+from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage, external_method
 import numpy as np
 from casadi import kron, DM
 
-from .method import AcadosMethod
-
-from ...casadi_helpers import AutoBrancher
+from rockit.casadi_helpers import AutoBrancher
 
 class AcadosTests(unittest.TestCase):
 
@@ -80,7 +78,7 @@ class AcadosTests(unittest.TestCase):
 
         [ref_t,_] = sol.sample(signals[0][1],grid='control')
 
-        for method in [AcadosMethod(N=N,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=N,tol=1e-8)]:
+        for method in [external_method('acados', N=N,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=N,tol=1e-8)]:
 
 
 
@@ -117,8 +115,8 @@ class AcadosTests(unittest.TestCase):
             np.testing.assert_allclose(sold[k], ref[k], atol=tolerance)
           np.testing.assert_allclose(sol_t, ref_t, atol=tolerance)
 
-    def test_modes(self):
 
+    def test_modes(self):
       for ab in AutoBrancher():
 
         ocp = Ocp(T=1.0)
@@ -167,7 +165,7 @@ class AcadosTests(unittest.TestCase):
         print(ref)
 
 
-        for method in [AcadosMethod(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4,tol=1e-8)]:
+        for method in [external_method('acados',N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4,tol=1e-8)]:
 
           ocp.method(method)
           sol = ocp.solve()
@@ -289,7 +287,7 @@ class AcadosTests(unittest.TestCase):
 
         #raise Exception("")
 
-        for method in [AcadosMethod(N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4)]:
+        for method in [external_method('acados',N=4,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=2000,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=4)]:
 
           ocp.method(method)
           sol = ocp.solve()
