@@ -76,9 +76,19 @@ class AcadosMethod(ExternalMethod):
         self.opti = Opti()
 
 
+        self.X_gist = [ca.vvcat([MX.sym("Xg", s.size1(), s.size2()) for s in stage.states]) for k in range(self.N+1)]
+        self.U_gist = [ca.vvcat([MX.sym("Ug", s.size1(), s.size2()) for s in stage.controls]) for k in range(self.N)]
+        self.P_stage_gist = [ca.vvcat([MX.sym("stage_param%d" % k, s.size1(), s.size2()) for s in  self.p_local]) for k in range(self.N+1)]
+        self.P_global_gist = ca.vvcat([MX.sym("Vg", s.size1(), s.size2()) for s in stage.parameters['']])
+        self.T_gist = MX.sym("Tg")
 
-        self.X_gist = [MX.sym("X", stage.nx) for k in range(self.N+1)]
-        self.U_gist = [MX.sym("U", stage.nu) for k in range(self.N)]
+
+        self.gist_parts = []
+        self.gist_parts.append((self.X_gist, stage.x, "local"))
+        self.gist_parts.append((self.U_gist, stage.u, "local"))
+        self.gist_parts.append((self.P_global_gist, self.p_global_cat, "global"))
+        self.gist_parts.append((self.P_stage_gist, self.p_local_cat, "local"))
+        self.gist_parts.append((self.T_gist, stage.T, "global"))
 
         import gc
         gc.collect()
@@ -169,6 +179,8 @@ class AcadosMethod(ExternalMethod):
         inits = []
         inits.append((stage.T, stage._T.T_init if isinstance(stage._T, FreeTime) else stage._T))
         inits.append((stage.t0, stage._t0.T_init if isinstance(stage._t0, FreeTime) else stage._t0))
+
+        self.inits = inits
 
         self.control_grid_init = evalf(substitute([self.control_grid], [a for a,b in inits],[b for a,b in inits])[0])
 
@@ -793,10 +805,11 @@ class AcadosMethod(ExternalMethod):
 
         args = [v[0] for v in m.values()]
         outputs = list(m.keys())
-        self.mmap = Function('mmap',[stage.p,stage.t],args,['p','t'],outputs)
+        self.mmap = Function('mmap',[self.p_global_cat,self.p_local_cat,stage.t],args,['p_global','p_local','t'],outputs)
 
         tgrid = ca.MX.sym("tgrid",1,self.N+1)
-        resv = [self.mmap(p=stage.p,t=t) for t in ca.horzsplit(tgrid)]
+        P_local = [ca.MX.sym("P_local",self.p_local_cat.shape[0]) for i in range(self.N+1)]
+        resv = [self.mmap(p_global=self.p_global_cat,p_local=p_local,t=t) for t,p_local in zip(ca.horzsplit(tgrid),P_local)]
 
         res = {}
 
@@ -811,15 +824,16 @@ class AcadosMethod(ExternalMethod):
         for k in m.keys():
             res[k] = ca.fmax(ca.fmin(res[k], INF),-INF)
 
-        self.mmap_horizon = Function('mmap_horizon',[stage.p,tgrid],[res[k] for k in outputs],['p','t'],outputs)
+        self.mmap_horizon = Function('mmap_horizon',[self.p_global_cat,ca.hcat(P_local),tgrid],[res[k] for k in outputs],['p_global','p_local','t'],outputs)
         print(self.mmap_horizon)
 
         for k,v in stage._param_vals.items():
             self.set_value(stage, self, k, v)
 
-        self.ocp.parameter_values = np.array(self.P0).reshape((-1))
+        self.ocp.parameter_values = np.zeros(stage.p.shape[0])
 
-        res = self.mmap(p=self.P0,t=0)
+        res = self.mmap(p_global=self.p_global_value,p_local=self.p_local_value[:,0],t=0)
+        print(res)
         # Set matrices
         for k, (_,is_vec) in self.m.items():
             v = np.array(res[k])
@@ -874,6 +888,10 @@ class AcadosMethod(ExternalMethod):
             out.write(f"#define ROCKIT_X_SIZE2 {self.N+1}\n")
             out.write(f"#define ROCKIT_U_SIZE1 {stage.nu}\n")
             out.write(f"#define ROCKIT_U_SIZE2 {self.N}\n")
+            out.write(f"#define ROCKIT_P_LOCAL_SIZE1 {self.p_local_cat.shape[0]}\n")
+            out.write(f"#define ROCKIT_P_LOCAL_SIZE2 {self.N+1}\n")
+            out.write(f"#define ROCKIT_P_GLOBAL_SIZE1 {self.p_global_cat.shape[0]}\n")
+            out.write(f"#define ROCKIT_P_GLOBAL_SIZE2 {self.p_global_cat.shape[1]}\n")
 
         with open(os.path.join(self.build_dir_abs,"after_init.c.in"), "w") as after_init:
             if self.linesearch:
@@ -921,65 +939,80 @@ class AcadosMethod(ExternalMethod):
         self.X0 = np.array(X0)
         self.U0 = np.array(U0)
 
+
     def to_function(self, stage, name, args, results, *margs):
-        """
+
         args = [stage.value(a) for a in args]
-            
+
         controls = ca.hcat(self.U_gist)
         states = ca.hcat(self.X_gist)
         p_stage = ca.hcat(self.P_stage_gist)
         p_global = self.P_global_gist
 
         gist_list = self.U_gist+self.X_gist+self.P_stage_gist+[self.P_global_gist,self.T_gist]
-
         try:
             helper0 = Function("helper0", args, gist_list, {"allow_free":True})
         except:
             helper0 = Function("helper0", args, gist_list)
-
-
         if helper0.has_free():
             helper0_free = helper0.free_mx()
-            print("test",helper0_free, self.initial_value(stage, helper0_free))
-            [controls, states, p_stage, p_global, T_gist] = cs.substitute([controls, states, p_stage, p_global, self.T_gist], helper0_free, self.initial_value(stage, helper0_free))
-        res = self.acados_driver(densify(p_global.monitor("p_global")), densify(p_stage.monitor("p_stage")), densify(states), densify(controls))
+            [controls, states, p_stage, p_global, T_gist] = ca.substitute([controls, states, p_stage, p_global, self.T_gist], helper0_free, self.initial_value(stage, helper0_free))
 
+        res = self.mmap_horizon(p_local=p_stage,p_global=p_global,t=self.normalized_time_grid.T)
 
-        ret = Function(name, args, cs.substitute(results, gist_list, cs.horzsplit(res_u)+cs.horzsplit(res_x)+cs.horzsplit(p_stage)+[p_global,T_gist]) , *margs)
+        res["x0"] = states
+        res["u0"] = controls
+
+        res["p_local"] = p_stage
+        res["p_global"] = p_global
+
+        res = self.acados_driver(**res)
+
+        arg_in = ca.substitute(results,gist_list, ca.horzsplit(res["u"])+ca.horzsplit(res["x"])+ca.horzsplit(p_stage)+[p_global,T_gist])
+
+        ret = Function(name, args, arg_in, *margs)
         assert not ret.has_free()
         return ret
-        """
-        pass
-
+    
     def solve(self, stage):
-        res = self.mmap_horizon(p=self.P0,t=self.normalized_time_grid.T)
+        print("P0",self.P0)
+        res = self.mmap_horizon(p_global=self.p_global_value,p_local=self.p_local_value,t=self.normalized_time_grid.T)
+
+        res["p_local"] = self.p_local_value
+        res["p_global"] = self.p_global_value
+    
         res["x0"] = self.X0
         res["u0"] = self.U0
         ret = self.acados_driver(**res)
-        print(ret)
 
-        return OcpSolution(SolWrapper(self, ca.vec(ret["x"]), ca.vec(ret["u"])), stage)
+        return OcpSolution(SolWrapper(self, ca.vec(ret["x"]), ca.vec(ret["u"]), 0, self.p_global_value, self.p_local_value), stage)
 
-    def eval(self, stage, expr):
-        return expr
-        
-    def eval_at_control(self, stage, expr, k):
-        placeholders = stage.placeholders_transcribed
-        expr = placeholders(expr,max_phase=1)
-        ks = [stage.x,stage.u]
-        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)]]
-        if not self.t_state:
-            ks += [stage.t]
-            vs += [self.control_grid[k]]
-        return substitute([expr],ks,vs)[0]
+    def initial_value(self, stage, expr):
+        # check if expr is a list
+        lst = isinstance(expr, list) 
+        if not lst:
+            expr = [expr]
+        # expr = stage.value(expr)
+        [_,states] = stage.sample(stage.x,grid='control')
+        [_,controls] = stage.sample(stage.u,grid='control-')
+        variables = stage.value(veccat(stage.variables['']))
 
+        helper_in = [self.P_global_gist,ca.horzcat(*self.P_stage_gist),states,controls,variables,self.T_gist]
+        helper = Function("helper", helper_in, expr)
+        ret = [s.toarray(simplify=True) for s in helper.call([self.p_global_value, self.p_local_value, self.X0, self.U0, 0, self.inits[0][1]])]
+        if not lst :
+            return ret[0]
+        return ret
 class SolWrapper:
-    def __init__(self, method, x, u):
+    def __init__(self, method, x, u, T, P_global, P_stage):
         self.method = method
         self.x = x
         self.u = u
+        self.P_global = P_global
+        self.P_stage = P_stage
+        self.T = T
 
     def value(self, expr, *args,**kwargs):
         placeholders = self.method.stage.placeholders_transcribed
-        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[vertcat(self.x, self.u)])[0])
+        ret = evalf(substitute([placeholders(expr)],[self.method.gist],[veccat(self.x, self.u, self.P_global, self.P_stage, self.T)])[0])
         return ret.toarray(simplify=True)

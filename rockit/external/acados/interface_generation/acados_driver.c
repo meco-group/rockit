@@ -90,6 +90,8 @@ extern "C"
         IN_UBX_0,
         IN_X0,
         IN_U0,
+        IN_P_GLOBAL,
+        IN_P_LOCAL,
         IN_N
     };
     enum OUTPUTS {
@@ -196,6 +198,14 @@ extern "C"
                 ocp_nlp_out_set(nlp_config, nlp_dims, nlp_out, i, "u", (void*) (arg[IN_U0]+i*ROCKIT_U_SIZE1));
             }
         }
+
+        double *p = w;
+        for (int k=0;k<ROCKIT_P_GLOBAL_SIZE1;++k) p[k] = arg[IN_P_GLOBAL][k];
+        for (int i=0;i<ROCKIT_N+1;++i) {
+            for (int k=0;k<ROCKIT_P_LOCAL_SIZE1;++k) p[ROCKIT_P_GLOBAL_SIZE1+k] = arg[IN_P_LOCAL][k+i*ROCKIT_P_LOCAL_SIZE1];
+            rockit_model_acados_update_params(&m->capsule, i, p, ROCKIT_P_GLOBAL_SIZE1+ROCKIT_P_LOCAL_SIZE1);
+            //printf("params: %e %e\n", p[0], p[1]);
+        }
         //int rti_phase = 0;
 
         //ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "rti_phase", &rti_phase);
@@ -208,11 +218,12 @@ extern "C"
                 ocp_nlp_out_get(nlp_config, nlp_dims, nlp_out, i, "x",res[OUT_X]+i*ROCKIT_X_SIZE1);
             }
         }
-        if (arg[OUT_U]) {
+        if (res[OUT_U]) {
             for (int i=0;i<ROCKIT_N;++i) {
                 ocp_nlp_out_get(nlp_config, nlp_dims, nlp_out, i, "u",res[OUT_U]+i*ROCKIT_U_SIZE1);
             }
         }
+
 
         return 0;
     }
@@ -342,7 +353,16 @@ extern "C"
             DENSE_SPARSITY_FMT(ROCKIT_U_SIZE1, ROCKIT_N)
             return fmt;
         }
-
+        case IN_P_GLOBAL:
+        {
+            DENSE_SPARSITY_FMT(ROCKIT_P_GLOBAL_SIZE1, ROCKIT_P_GLOBAL_SIZE2)
+            return fmt;
+        }
+        case IN_P_LOCAL:
+        {
+            DENSE_SPARSITY_FMT(ROCKIT_P_LOCAL_SIZE1, ROCKIT_P_LOCAL_SIZE2)
+            return fmt;
+        }
         default:
             return 0;
         }
@@ -390,6 +410,8 @@ extern "C"
         case IN_UBX_0: return "ubx_0";
         case IN_X0: return "x0";
         case IN_U0: return "u0";
+        case IN_P_LOCAL: return "p_local";
+        case IN_P_GLOBAL: return "p_global";
         default:
             return 0;
         }
@@ -408,6 +430,8 @@ extern "C"
     CASADI_SYMBOL_EXPORT int acados_driver_work(casadi_int *sz_arg, casadi_int *sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
 
         *sz_arg = 0, *sz_res = 0, *sz_iw = 0, *sz_w = 0;
+
+        *sz_w += ROCKIT_P_GLOBAL_SIZE1+ROCKIT_P_LOCAL_SIZE1;
 
         return 0;
     }

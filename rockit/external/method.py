@@ -30,6 +30,7 @@ from casadi import SX, Sparsity, MX, vcat, veccat, symvar, substitute, sparsify,
 import casadi
 import numpy as np
 import scipy
+import casadi as ca
 
 INF = 1e5
 
@@ -67,6 +68,27 @@ def check_Js(J):
     assert np.all(np.array(sum2(J))<=1), "Each constraint can only depend on one slack at most"
     assert np.all(np.array(sum1(J))<=1), "Each constraint must depend on a unique slack, if any"
 
+def fill_in(var, expr,value, array, k):
+    value = evalf(value)
+    J, r = linear_coeffs(var,expr)
+    J = evalf(J)
+    r = evalf(r)
+    assert r.is_zero()
+    check_Js(J)
+    expr = reshape_number(var, expr)
+    if J.sparsity().get_col():
+        array[J.sparsity().get_col(), k] = value[J.row()]
+def fill_in_array(var, expr, value, array, numeric = True):
+    if numeric:
+        value = evalf(value)
+    J, r = linear_coeffs(var[:,0],expr)
+    J = evalf(J)
+    r = evalf(r)
+    assert r.is_zero()
+    check_Js(J)
+    expr = reshape_number(var, expr)
+    if J.sparsity().get_col():
+        array[J.sparsity().get_col(), :] = value[J.row(), :]
 
 class ExternalMethod:
     def __init__(self,supported=None,N=20,grid=UniformGrid(),linesearch=True,expand=False,**args):
@@ -213,14 +235,42 @@ class ExternalMethod:
             return
 
         if phase==1:
+
+            self.p_global = stage.parameters['']
+            self.p_local = stage.parameters['control']+stage.parameters['control+']
+
+            self.p_global_cat = ca.vvcat(self.p_global)
+            self.p_local_cat = ca.vvcat(self.p_local)
+
+
+            self.p_global_value = DM.zeros(ca.vvcat(self.p_global).sparsity())
+            self.p_local_value = DM.zeros(ca.vvcat(self.p_local).numel(), self.N+1)
+
             self.transcribe_phase1(stage, **kwargs)
         else:
             self.transcribe_phase2(stage, **kwargs)
 
     def set_value(self, stage, master, parameter, value):
-            J = jacobian(parameter, stage.p)
-            v = reshape_number(parameter, value)
-            self.P0[J.sparsity().get_col()] = v[J.row()]
+            value = evalf(value)
+            if parameter in self.p_global:
+                p = ca.vec(parameter)
+                fill_in(p, self.p_global_cat, value, self.p_global_value,0)
+            elif parameter in self.p_local:
+                p = ca.vec(parameter)
+                # for k in list(range(self.N)):
+                if p.numel()==value.numel():
+                    if(value.shape[1] == p.shape[0]):
+                        value = value.T
+                    value = ca.repmat(value,  1, self.N+1)
+                if p.numel()*(self.N)==value.numel() or p.numel()*(self.N+1)== value.numel():
+                    if(value.shape[1] == p.shape[0]):
+                        value = value.T
+                assert(value.shape[0] == p.shape[0])
+                if p.numel()*(self.N)== value.numel():
+                    value = ca.horzcat(value, value[:,-1])
+                fill_in_array(p, self.p_local_cat, value, self.p_local_value)
+            else:
+                raise Exception("Parameter not found")
 
     @property
     def gist(self):
@@ -233,20 +283,43 @@ class ExternalMethod:
         :obj:`~casadi.MX` column vector
 
         """
-        return vertcat(vcat(self.X_gist), vcat(self.U_gist))
+        ret = []
+        for e,_,_ in self.gist_parts:
+            if isinstance(e, list):
+                ret.append(vcat(e))
+            else:
+                ret.append(e)
+        return vcat(ret)
+    
 
     def eval(self, stage, expr):
-        return expr
-        
+        placeholders = stage.placeholders_transcribed
+        expr = placeholders(expr,max_phase=1)
+        ks = []
+        vs = []
+        for g,s,mode in self.gist_parts:
+            if mode=="global":
+                ks.append(s)
+                vs.append(g)
+        ret = substitute([expr],ks,vs)[0]
+        return ret
+
     def eval_at_control(self, stage, expr, k):
         placeholders = stage.placeholders_transcribed
         expr = placeholders(expr,max_phase=1)
-        ks = [stage.x,stage.u]
-        vs = [self.X_gist[k], self.U_gist[min(k, self.N-1)]]
+        ks = []
+        vs = []
+        for g,s,mode in self.gist_parts:
+           ks.append(s)
+           if isinstance(g, list):
+               g = g[min(k,len(g)-1)]
+           vs.append(g)
         if not self.t_state:
             ks += [stage.t]
             vs += [self.control_grid[k]]
-        return substitute([expr],ks,vs)[0]
+        ret = substitute([expr],ks,vs)[0]
+        return ret
+
 
 class SolWrapper:
     def __init__(self, method, x, u):
