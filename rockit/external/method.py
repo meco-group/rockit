@@ -208,7 +208,7 @@ class ExternalMethod:
                 return False 
                   
             # Do we need to introduce a helper state for t?
-            f = stage._diffeq() if stage._state_next else stage._ode()
+            f = stage._hybrid()[0]
             if not stage._state_next:
                 if f.sparsity_in('t').nnz()>0:
                     self.t_state = True

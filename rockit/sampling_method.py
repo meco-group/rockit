@@ -416,9 +416,11 @@ class SamplingMethod(DirectMethod):
     def discrete_system(self, stage):
         # Coefficient matrix from RK4 to reconstruct 4th order polynomial (k1,k2,k3,k4)
         # nstates x (4 * M)
-        poly_coeffs = []
+        poly_coeffs_c = []
         poly_coeffs_z = []
-        poly_coeffs_q = []
+        poly_coeffs_c_q = []
+        poly_coeffs_d = []
+        poly_coeffs_d_q = []
 
         t0 = MX.sym('t0')
         T = MX.sym('T')
@@ -432,58 +434,110 @@ class SamplingMethod(DirectMethod):
 
         Z0 = MX.sym("Z0", stage.nz)
 
-        X = [X0]
+
         Zs = []
 
         # Compute local start time
         t0_local = t0
-        quad = DM.zeros(stage.nxq)
-        Q = []
 
-        if stage._state_next:
-            intg = stage._diffeq()
-        elif hasattr(self, 'intg_' + self.intg):
-            intg = getattr(self, "intg_" + self.intg)(stage._ode(), X0, U, P, Z)
+        Qc = []
+        Qd = []
+
+        ode, diffeq, partition, composition, qpartition, qcomposition = stage._hybrid()
+
+        quad_c = DM.zeros(qpartition.numel_out(0))
+        quad_d = DM.zeros(qpartition.numel_out(1))
+        Xc0, Xd0 = partition(X0)
+
+        Xc0_sym = MX.sym('Xc0', Xc0.shape)
+        Xd0_sym = MX.sym('Xd0', Xd0.shape)
+
+
+        if hasattr(self, 'intg_' + self.intg):
+            intg = getattr(self, "intg_" + self.intg)(ode, Xc0_sym, Xd0_sym, U, P, Z)
         else:
-            intg = self.intg_builtin(stage._ode(), X0, U, P, Z)
-        if intg.has_free():
-            raise Exception("Free variables found: %s" % str(intg.get_free()))
-    
+            intg = self.intg_builtin(ode, Xc0_sym, Xd0_sym, U, P, Z)
+
+        Xc = [Xc0]
+        Xd = [Xd0]
+
         Z0_current = Z0
+
         for j in range(self.M):
-            intg_res = intg(x0=X[-1], u=U, t0=t0_local, DT=DT, DT_control=T, p=P, z0=Z0_current)
-            X.append(intg_res["xf"])
+            intg_res = intg(x_c0=Xc[-1], x_d=Xd[-1], u=U, t0=t0_local, DT=DT, DT_control=T, p=P, z0=Z0_current)
+            diffeq_res = diffeq(x_c=Xc[-1], x_d=Xd[-1], u=U, p=P, t0=t0_local, DT=DT, DT_control=T)
+            Xc.append(intg_res["xf"])
+            Xd.append(diffeq_res["xf"])
             Zs.append(intg_res["zf"])
-            poly_coeffs.append(intg_res["poly_coeff"])
+            poly_coeffs_c.append(intg_res["poly_coeff"])
             poly_coeffs_z.append(intg_res["poly_coeff_z"])
-            poly_coeffs_q.append(intg_res["poly_coeff_q"])
-            quad = quad + intg_res["qf"]
-            Q.append(quad)
+            poly_coeffs_c_q.append(intg_res["poly_coeff_q"])
+            # If the integrator for continuous states does not support polynomial output
+            if poly_coeffs_c[0].shape==(0,0):
+                # Forget about the polynomial output for discrete states too
+                poly_coeffs_d.append(MX())
+            else:
+                # Create a fixed-value polynomial for discrete states
+                poly_coeffs_d.append(horzcat(diffeq_res["xf"], DM.zeros(diffeq_res["xf"].shape[0],poly_coeffs_c[0].shape[1]-1)))
+            if poly_coeffs_d[0].shape==(0,0):
+                poly_coeffs_d_q.append(MX())
+            else:
+                poly_coeffs_d_q.append(horzcat(diffeq_res["qf"], DM.zeros(diffeq_res["qf"].shape[0],poly_coeffs_c_q[0].shape[1]-1)))
+
+            quad_c = quad_c + intg_res["qf"]
+            quad_d = quad_d + diffeq_res["qf"]
+            Qc.append(quad_c)
+            Qd.append(quad_d)
+
             t0_local += DT
             Z0_current = intg_res["zf"]
-        
-        ret = Function('F', [X0, U, T, t0, P, Z0], [X[-1], hcat(X), hcat(poly_coeffs), quad, hcat(Q), hcat(poly_coeffs_q), Zs[-1], hcat(Zs), hcat(poly_coeffs_z)],
+
+        Qi = qcomposition(hcat(Qc),hcat(Qd))
+        if Qi.shape==(0,1):
+            Qi = MX.zeros(0,self.M)
+        Xi = composition(hcat(Xc),hcat(Xd))
+        if Xi.shape==(0,1):
+            Xi = MX.zeros(0,self.M)
+
+        poly_coeffs = composition(hcat(poly_coeffs_c),hcat(poly_coeffs_d))
+        if hcat(poly_coeffs_c).shape==(0,0) and hcat(poly_coeffs_d).shape==(0,0):
+            poly_coeffs = MX.zeros(0,0)
+            
+        poly_coeffs_q = qcomposition(hcat(poly_coeffs_c_q),hcat(poly_coeffs_d_q))
+        if hcat(poly_coeffs_c_q).shape==(0,0) and hcat(poly_coeffs_d_q).shape==(0,0):
+            poly_coeffs_q = MX.zeros(0,0)
+
+        ret = Function('F', [X0, U, T, t0, P, Z0], [
+                        composition(Xc[-1],Xd[-1]),
+                        Xi,
+                        poly_coeffs,
+                        qcomposition(quad_c,quad_d),
+                        Qi,
+                        poly_coeffs_q,
+                        Zs[-1],
+                        hcat(Zs),
+                        hcat(poly_coeffs_z)],
                        ['x0', 'u', 'T', 't0', 'p', 'z0'], ['xf', 'Xi', 'poly_coeff', 'qf', 'Qi', 'poly_coeff_q', 'zf', 'Zi', 'poly_coeff_z'])
         assert not ret.has_free()
         return ret
 
-    def intg_rk(self, f, X, U, P, Z):
+    def intg_rk(self, f, X_c, X_d, U, P, Z):
         assert Z.is_empty()
         DT = MX.sym("DT")
         DT_control = MX.sym("DT_control")
         t0 = MX.sym("t0")
         Z0 = MX.sym("z0", 0, 1)
         # A single Runge-Kutta 4 step
-        k1 = f(x=X, u=U, p=P, t=t0)
-        k2 = f(x=X + DT / 2 * k1["ode"], u=U, p=P, t=t0+DT/2)
-        k3 = f(x=X + DT / 2 * k2["ode"], u=U, p=P, t=t0+DT/2)
-        k4 = f(x=X + DT * k3["ode"], u=U, p=P, t=t0+DT)
+        k1 = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0)
+        k2 = f(x_c=X_c + DT / 2 * k1["ode"], x_d=X_d, u=U, p=P, t=t0+DT/2)
+        k3 = f(x_c=X_c + DT / 2 * k2["ode"], x_d=X_d, u=U, p=P, t=t0+DT/2)
+        k4 = f(x_c=X_c + DT * k3["ode"], x_d=X_d, u=U, p=P, t=t0+DT)
 
         f0 = k1["ode"]
         f1 = 2/DT*(k2["ode"]-k1["ode"])/2
         f2 = 4/DT**2*(k3["ode"]-k2["ode"])/6
         f3 = 4*(k4["ode"]-2*k3["ode"]+k1["ode"])/DT**3/24
-        poly_coeff = hcat([X, f0, f1, f2, f3])
+        poly_coeff = hcat([X_c, f0, f1, f2, f3])
 
         f0 = k1["quad"]
         f1 = 2/DT*(k2["quad"]-k1["quad"])/2
@@ -491,29 +545,29 @@ class SamplingMethod(DirectMethod):
         f3 = 4*(k4["quad"]-2*k3["quad"]+k1["quad"])/DT**3/24
         poly_coeff_q = hcat([f0, f1, f2, f3])
 
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), poly_coeff_q, MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
+        return Function('F', [X_c, X_d, U, t0, DT, DT_control, P, Z0], [X_c + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), poly_coeff_q, MX(0, 1), MX()], ['x_c0', 'x_d', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
 
-    def intg_expl_euler(self, f, X, U, P, Z):
+    def intg_expl_euler(self, f, X_c, X_d, U, P, Z):
         assert Z.is_empty()
         DT = MX.sym("DT")
         DT_control = MX.sym("DT_control")
         t0 = MX.sym("t0")
         Z0 = MX.sym("z0", 0, 1)
-        k = f(x=X, u=U, p=P, t=t0)
-        poly_coeff = hcat([X, k["ode"]])
+        k = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0)
+        poly_coeff = hcat([X_c, k["ode"]])
         poly_coeff_q = k["quad"]
 
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [X + DT * k["ode"], poly_coeff, DT * k["quad"], poly_coeff_q, MX(0, 1), MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
+        return Function('F', [X_c, X_d, U, t0, DT, DT_control, P, Z0], [X_c + DT * k["ode"], poly_coeff, DT * k["quad"], poly_coeff_q, MX(0, 1), MX()], ['x_c0', 'x_d', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
 
-    def intg_builtin(self, f, X, U, P, Z):
+    def intg_builtin(self, f, X_c, X_d, U, P, Z):
         # A single CVODES step
         DT = MX.sym("DT")
         DT_control = MX.sym("DT_control")
         t = MX.sym("t")
         t0 = MX.sym("t0")
         Z0 = MX.sym("Z0", Z.sparsity())
-        res = f(x=X, u=U, p=P, t=t0+t*DT, z=Z)
-        data = {'x': X, 'p': vertcat(U, DT, DT_control, P, t0), 'z': Z, 't': t, 'ode': DT * res["ode"], 'quad': DT * res["quad"], 'alg': res["alg"]}
+        res = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0+t*DT, z=Z)
+        data = {'x': X_c, 'p': vertcat(U, DT, DT_control, P, t0, X_d), 'z': Z, 't': t, 'ode': DT * res["ode"], 'quad': DT * res["quad"], 'alg': res["alg"]}
         options = dict(self.intg_options)
         if self.intg in ["collocation"]:
             # In rockit, M replaces number_of_finite_elements on a higher level
@@ -522,8 +576,8 @@ class SamplingMethod(DirectMethod):
         I = integrator('intg_'+self.intg, self.intg, data, options)
         if I.size2_out("xf")!=1:
             raise Exception("Integrator must only return outputs at a single timepoint. Did you specify a grid?")
-        res = I.call({'x0': X, 'p': vertcat(U, DT, DT_control, P, t0), 'z0': Z0})
-        return Function('F', [X, U, t0, DT, DT_control, P, Z0], [res["xf"], MX(), res["qf"], MX(), res["zf"], MX()], ['x0', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff','qf','poly_coeff_q','zf','poly_coeff_z'])
+        res = I.call({'x0': X_c, 'p': vertcat(U, DT, DT_control, P, t0, X_d), 'z0': Z0})
+        return Function('F', [X_c, X_d, U, t0, DT, DT_control, P, Z0], [res["xf"], MX(), res["qf"], MX(), res["zf"], MX()], ['x_c0', 'x_d', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff','qf','poly_coeff_q','zf','poly_coeff_z'])
 
     def untranscribe_placeholders(self, phase, stage):
         pass

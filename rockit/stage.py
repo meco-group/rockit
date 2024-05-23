@@ -647,7 +647,7 @@ class Stage:
         def action(state, next):
             self._state_next[state] = next
         for_all_primitives(state, next, action, "First argument to set_next must be a state or a simple concatenation of states")
-        assert not self._state_der
+        #assert not self._state_der
 
     def add_alg(self, constr, scale=1):
         self._set_transcribed(False)
@@ -1166,6 +1166,61 @@ class Stage:
 
             len_after = len(self._placeholders)
             if len_before==len_after: break
+
+    # Internal methods
+    def _hybrid(self):
+        der = []
+        next = []
+        x_c = []
+        x_d = []
+        qder = []
+        qnext = []
+        qx_c = []
+        qx_d = []
+        for k in self.states:
+            if k in self._state_der:
+                der.append(self._state_der[k])
+                x_c.append(k)
+            elif k in self._state_next:
+                next.append(self._state_next[k])
+                x_d.append(k)
+            else:
+                raise Exception("ocp.set_der/set_next missing for state defined at " + str(self._meta[k]))
+        for k in self.qstates:
+            if k in self._state_der:
+                qder.append(self._state_der[k])
+                qx_c.append(k)
+            elif k in self._state_next:
+                qnext.append(self._state_next[k])
+                qx_d.append(k)
+            else:
+                raise Exception("ocp.set_der/set_next missing for state defined at " + str(self._meta[k]))
+            
+
+        x_c = veccat(*x_c)
+        x_d = veccat(*x_d)
+        qx_c = veccat(*qx_c)
+        qx_d = veccat(*qx_d)
+        ode = veccat(*der)
+        qode = veccat(*qder)
+        next = veccat(*next)
+        qnext = veccat(*qnext)
+        t = self.t
+        alg = veccat(*self._alg)
+        expr = vertcat(ode,alg,qode)
+
+
+        assert not depends_on(expr,self.DT), "Your ODE right-hand-side depends on DT; not supported."
+        assert not depends_on(expr,self.DT_control), "Your ODE right-hand-side depends on DT_control; not supported."
+   
+        ode = Function('ode', [x_c, x_d, self.u, self.z, vertcat(self.p, self.v), t], [ode, alg, qode], ["x_c", "x_d", "u", "z", "p", "t"], ["ode","alg","quad"])
+        diffeq = Function('diffeq', [x_c, x_d, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control], [next, qnext], ["x_c", "x_d", "u", "p", "t0", "DT", "DT_control"], ["xf","qf"])
+
+        partition = Function('partition',[veccat(*self.states)],[x_c, x_d])
+        composition = Function('composition',[x_c, x_d],[veccat(*self.states)])
+        qpartition = Function('qpartition',[veccat(*self.qstates)],[qx_c, qx_d])
+        qcomposition = Function('qcomposition',[qx_c, qx_d],[veccat(*self.qstates)])
+        return ode, diffeq, partition, composition, qpartition, qcomposition
 
     # Internal methods
     def _ode(self):
