@@ -221,7 +221,7 @@ class AcadosMethod(ExternalMethod):
         ocp = self.ocp
 
         # At the moment, we don't detect any structure in cost...
-        ocp.cost.cost_type_0 = 'EXTERNAL'
+        #ocp.cost.cost_type_0 = 'EXTERNAL'
         ocp.cost.cost_type = 'EXTERNAL'
         ocp.cost.cost_type_e = 'EXTERNAL'
 
@@ -246,7 +246,7 @@ class AcadosMethod(ExternalMethod):
         assert not depends_on(veccat(Qs, bs, Qs_0, bs_0, Qs_e, bs_e), vertcat(stage.x, stage.u, self.slack, self.slack_0, self.slack_e)), \
             "Slack part of objective must be quadratic in slacks and depend only on parameters"
 
-        ocp.model.cost_expr_ext_cost_0 = mayer0
+        #ocp.model.cost_expr_ext_cost_0 = mayer0
         ocp.model.cost_expr_ext_cost = lagrange
         ocp.model.cost_expr_ext_cost_e = mayer
 
