@@ -232,7 +232,7 @@ class AcadosTests(unittest.TestCase):
           constraints.append((lambda e: ocp.at_tf(x+0.01*v) + e>=5.0,False,{})) # boundary constraint on state
         elif constr_type=="nonlinear":
           constraints.append((lambda e: F <= 15+e,True,{})) # simple
-          constraints.append((lambda e: v+0.01*x**2 <= 7+e,True,dict(include_first=True,include_last=False)))  # include_first=True induces failure
+          constraints.append((lambda e: v+0.01*x**2 <= 7+e,True,dict(include_first=False,include_last=False)))  # include_first=True induces failure
           constraints.append((lambda e: ocp.at_tf(x+0.01*v**2) + e>=5.0,False,{}))
 
 

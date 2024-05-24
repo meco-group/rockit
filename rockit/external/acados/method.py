@@ -125,16 +125,16 @@ class AcadosMethod(ExternalMethod):
             case_0 = np.any(["_t0" in e.name() for e in sv])
             case_e = np.any(["_tf" in e.name() for e in sv])
             print(c)
-            assert case_0 or case_e, "Point constraints must be either at t0 or tf"
+            assert not (case_0 and case_e), "Point constraints must be either at t0 or tf"
 
             for i,s_b in enumerate(slack_bounds):
-                if s_b in sv:
+                if np.any([ca.is_equal(s_b,e) for e in sv]):
                     if case_0:
                         assert i not in slack_0_index, "Slack can only be used once in a point constraint"
-                        slack_0_index.append(i)
+                        slack_0_index.add(i)
                     elif case_e:
                         assert i not in slack_e_index, "Slack can only be used once in a point constraint"
-                        slack_e_index.append(i)
+                        slack_e_index.add(i)
         slack_0 = [slack_bounds[i] for i in sorted(slack_0_index)]
         slack_e = [slack_bounds[i] for i in sorted(slack_e_index)]
 
@@ -426,8 +426,8 @@ class AcadosMethod(ExternalMethod):
                         h_0.append(c)
                         lh_0.append(lb)
                         uh_0.append(ub)
-                    if not args["include_first"]:
-                        raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=True.\n" + str(meta))                            
+                    if args["include_first"]:
+                        raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=False.\n" + str(meta))                            
                     if Js.nnz()>0:
                         assert mc.type in [casadi.OPTI_INEQUALITY, casadi.OPTI_GENERIC_INEQUALITY]
                     if not ub_inf: Js *= -1
@@ -465,6 +465,12 @@ class AcadosMethod(ExternalMethod):
         gi = Jsg.sparsity().get_col()
         hi = Jsh.sparsity().get_col()
         ni = bui+bxi+gi+hi
+
+        ni0 = bui+gi
+        Zl0 = Zl[ni0,ni0]
+        Zu0 = Zu[ni0,ni0]
+        zl0 = zl[ni0,0]
+        zu0 = zu[ni0,0]
 
         # Re-order slacks according to (bu,bx,g,h)
         Zl = Zl[ni,ni]
@@ -528,21 +534,27 @@ class AcadosMethod(ExternalMethod):
 
                 if has_t0:
                     assert not depends_on(canon, self.slack_e), "Initial constraints may not have final slacks."
-                    slack = self.slack_0
-                    slack_has_pos_const = slack_0_has_pos_const
                 if has_tf:
                     assert not depends_on(canon, self.slack_0), "Initial constraints may not have initial slacks."
-                    slack = self.slack_e
-                    slack_has_pos_const = slack_e_has_pos_const
 
-                # Slack positivity constraint
-                if depends_on(canon, slack) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
-                    J,c = linear_coeff(canon, slack)
-                    is_perm = legit_Js(J)
-                    lb_zero = np.all(np.array(evalf(lb-c)==0))
-                    assert is_perm and lb_zero and ub_inf, "Only constraints allowed on slacks are '>=0'"
-                    slack_has_pos_const[J.sparsity().get_col()] = 1
-                    continue
+                skip = False
+                for slack, slack_has_pos_const in zip([self.slack_0,self.slack_e],[slack_0_has_pos_const,slack_e_has_pos_const]):
+                    # Slack positivity constraint
+                    if depends_on(canon, slack) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
+                        J,c = linear_coeff(canon, slack)
+                        is_perm = legit_Js(J)
+                        lb_zero = np.all(np.array(evalf(lb-c)==0))
+                        assert is_perm and lb_zero and ub_inf, "Only constraints allowed on slacks are '>=0'"
+                        slack_has_pos_const[J.sparsity().get_col()] = 1
+                        skip = True
+                # Do not process these further
+                if skip: continue
+
+                if has_t0:
+                    slack = self.slack_0
+                if has_tf:
+                    slack = self.slack_e
+
                 
                 assert is_linear(canon, slack), "slacks can only enter linearly in constraints"
 
@@ -682,10 +694,16 @@ class AcadosMethod(ExternalMethod):
         zl = zl[ni]
         zu = zu[ni]
 
+        Zl = ca.diagcat(Zl0,Zl)
+        Zu = ca.diagcat(Zu0,Zu)
+        zl = ca.vertcat(zl0,zl)
+        zu = ca.vertcat(zu0,zu)
+
         assert np.all(np.array(slack_0_has_pos_const)), "Only variables allowed are slacks (and they need '>=0' constraints)"
 
         # After re-ordering slacks, Js* become unit matrices interwoven with zero rows
         # But let's just work with idxs* directly
+
         self.ocp.constraints.idxsh_0 = np.array(Jsh_0.sparsity().row())
 
         # These should become parametric
