@@ -33,6 +33,7 @@ import casadi
 from ...casadi_helpers import DM2numpy, reshape_number
 from collections import OrderedDict
 
+import casadi as ca
 
 INF = 1e5
 
@@ -114,21 +115,46 @@ class AcadosMethod(ExternalMethod):
         self.P0 = DM.zeros(stage.np)
 
         slack = MX(0, 1) if len(stage.variables['control'])==0 else vvcat(stage.variables['control'])
-        slack_e = MX(0, 1) if len(stage.variables[''])==0 else vvcat(stage.variables[''])
+
+        slack_bounds = stage.variables['']
+        slack_0_index = set()
+        slack_e_index = set()
+
+        for c, meta, _ in stage._constraints["point"]:
+            sv = symvar(c)
+            case_0 = np.any(["_t0" in e.name() for e in sv])
+            case_e = np.any(["_tf" in e.name() for e in sv])
+            print(c)
+            assert case_0 or case_e, "Point constraints must be either at t0 or tf"
+
+            for i,s_b in enumerate(slack_bounds):
+                if s_b in sv:
+                    if case_0:
+                        assert i not in slack_0_index, "Slack can only be used once in a point constraint"
+                        slack_0_index.append(i)
+                    elif case_e:
+                        assert i not in slack_e_index, "Slack can only be used once in a point constraint"
+                        slack_e_index.append(i)
+        slack_0 = [slack_bounds[i] for i in sorted(slack_0_index)]
+        slack_e = [slack_bounds[i] for i in sorted(slack_e_index)]
+
+        slack_0 = MX(0, 1) if len(slack_0)==0 else vvcat(slack_0)
+        slack_e = MX(0, 1) if len(slack_e)==0 else vvcat(slack_e)
 
         self.slack = slack
+        self.slack_0 = slack_0
         self.slack_e = slack_e
-        self.slacks = vertcat(slack, slack_e)
 
         self.X = self.opti.variable(*stage.x.shape)
         self.U = self.opti.variable(*stage.u.shape)
         self.P = self.opti.parameter(*stage.p.shape)
         self.S = self.opti.variable(*slack.shape)
         self.Se = self.opti.variable(*slack_e.shape)
+        self.S0 = self.opti.variable(*slack_0.shape)
         self.t = self.opti.parameter()
 
-        self.raw = [stage.x,stage.u,stage.p,slack,slack_e,stage.t]
-        self.optivar = [self.X, self.U, self.P, self.S, self.Se, self.t]
+        self.raw = [stage.x,stage.u,stage.p,slack,slack_0,slack_e,stage.t]
+        self.optivar = [self.X, self.U, self.P, self.S, self.S0, self.Se, self.t]
 
         #self.time_grid = self.grid(stage._t0, stage._T, self.N)
         self.normalized_time_grid = self.grid(0.0, 1.0, self.N)
@@ -152,20 +178,30 @@ class AcadosMethod(ExternalMethod):
         # set dimensions
         ocp.dims.N = self.N
 
-        var_lagrange = []
-        var_mayer = []
-        obj = MX(stage._objective)
-        for e in symvar(obj):
-            if "sum_control" in e.name():
-                var_lagrange.append(e)
-            else:#elif "at_tf" in e.name():
-                var_mayer.append(e)
-            #else:
-            #    raise Exception("Unknown element in objective: %s" % str(e))
+        lagrange = MX(0)
+        mayer = MX(0)
+        mayer0 = MX(0)
+        
+        def split_sum(e):
+            if e.op()==ca.OP_ADD:
+                for p in split_sum(e.dep(0)):
+                    yield p
+                for p in split_sum(e.dep(1)):
+                    yield p
+            else:
+                yield e
 
-        self.lagrange = substitute([obj], var_mayer, [DM.zeros(e.shape) for e in var_mayer])[0]
-        self.mayer = substitute([obj], var_lagrange, [DM.zeros(e.shape) for e in var_lagrange])[0]
+        for obj in split_sum(MX(stage._objective)):
+            if "sum_control" in str(obj):
+                lagrange += obj
+            elif ca.depends_on(obj,slack_0) or "_at_t0" in str(obj):
+                mayer0 += obj
+            else:
+                mayer += obj
 
+        self.lagrange = lagrange
+        self.mayer = mayer
+        self.mayer0 = mayer0
 
         self.initial_conditions = []
         self.final_conditions = []
@@ -178,18 +214,24 @@ class AcadosMethod(ExternalMethod):
         lagrange = placeholders(self.lagrange,preference=['expose'])*self.N
         # Total Mayer term
         mayer = placeholders(self.mayer,preference=['expose'])
+        mayer0 = placeholders(self.mayer0,preference=['expose'])
 
         assert not depends_on(mayer, stage.u), "Mayer term of objective may not depend on controls"
 
         ocp = self.ocp
 
         # At the moment, we don't detect any structure in cost...
+        ocp.cost.cost_type_0 = 'EXTERNAL'
         ocp.cost.cost_type = 'EXTERNAL'
         ocp.cost.cost_type_e = 'EXTERNAL'
 
         # .. except for slacks
-        assert not depends_on(lagrange, self.slack_e), "Lagrange term may not depend on a non-signal slack"
+        assert not depends_on(lagrange, vertcat(self.slack_0,self.slack_e)), "Lagrange term may not depend on a non-signal slack"
         assert not depends_on(mayer, self.slack), "Mayer term may not depend on a signal slack"
+        assert not depends_on(mayer0, self.slack), "Mayer0 term may not depend on a signal slack"
+        assert not depends_on(mayer, self.slack_0), "Mayer term may not depend on a slack_0"
+        assert not depends_on(mayer0, self.slack_e), "Mayer0 term may not depend on a slack_e"
+
         Qs, bs, lagrange = quadratic_coeff(lagrange, self.slack)
         Qs += DM.zeros(Sparsity.diag(Qs.shape[0]))
         assert Qs.sparsity().is_diag(), "Slacks cannot be mixed in Lagrange objective"
@@ -197,9 +239,14 @@ class AcadosMethod(ExternalMethod):
         Qs_e += DM.zeros(Sparsity.diag(Qs_e.shape[0]))
         assert Qs_e.sparsity().is_diag(), "Slacks cannot be mixed in Mayer objective"
 
-        assert not depends_on(veccat(Qs, bs, Qs_e, bs_e), vertcat(stage.x, stage.u, self.slack, self.slack_e)), \
+        Qs_0, bs_0, mayer0 = quadratic_coeff(mayer0, vertcat(self.slack,self.slack_0))
+        Qs_0 += DM.zeros(Sparsity.diag(Qs_0.shape[0]))
+        assert Qs_0.sparsity().is_diag(), "Slacks cannot be mixed in Mayer0 objective"
+
+        assert not depends_on(veccat(Qs, bs, Qs_0, bs_0, Qs_e, bs_e), vertcat(stage.x, stage.u, self.slack, self.slack_0, self.slack_e)), \
             "Slack part of objective must be quadratic in slacks and depend only on parameters"
 
+        ocp.model.cost_expr_ext_cost_0 = mayer0
         ocp.model.cost_expr_ext_cost = lagrange
         ocp.model.cost_expr_ext_cost_e = mayer
 
@@ -215,6 +262,7 @@ class AcadosMethod(ExternalMethod):
         h = []; lh = []; uh = []; Jsh = []
 
         h_e = []; lh_e = []; uh_e = []; Jsh_e = []
+        h_0 = []; lh_0 = []; uh_0 = []; Jsh_0 = []
         Jbx_e = []; lbx_e = []; ubx_e = []; Jsbx_e = []
         C_e = []; lg_e = []; ug_e = []; Jsg_e = []
 
@@ -373,6 +421,11 @@ class AcadosMethod(ExternalMethod):
                             h_e.append(c)
                             lh_e.append(lb)
                             uh_e.append(ub)
+                    if args["include_first"]:
+                        assert not depends_on(canon, self.slack), "lh <= h(x,u) <= uh does not support slacks for qualifier include_first=True."
+                        h_0.append(c)
+                        lh_0.append(lb)
+                        uh_0.append(ub)
                     if not args["include_first"]:
                         raise Exception("lh <= h(x,u) <= uh only supported for qualifier include_first=True.\n" + str(meta))                            
                     if Js.nnz()>0:
@@ -436,10 +489,13 @@ class AcadosMethod(ExternalMethod):
 
         # Flags to verify that each slack has a >=0 constraint
         slack_e_has_pos_const = DM.zeros(*self.slack_e.shape)
+        slack_0_has_pos_const = DM.zeros(*self.slack_0.shape)
 
         # Flags to check sign
         slack_e_lower = DM.zeros(*self.slack_e.shape)
         slack_e_upper = DM.zeros(*self.slack_e.shape)
+        slack_0_lower = DM.zeros(*self.slack_0.shape)
+        slack_0_upper = DM.zeros(*self.slack_0.shape)
 
         # Process point constraints
         # Probably should de-duplicate stuff wrt path constraints code
@@ -471,31 +527,48 @@ class AcadosMethod(ExternalMethod):
                 assert not depends_on(canon, self.slack), "Path constraints may only have non-signal slacks"
 
                 if has_t0:
-                    assert not depends_on(canon, self.slack_e), "Initial constraints may not have slacks."
-                
+                    assert not depends_on(canon, self.slack_e), "Initial constraints may not have final slacks."
+                    slack = self.slack_0
+                    slack_has_pos_const = slack_0_has_pos_const
+                if has_tf:
+                    assert not depends_on(canon, self.slack_0), "Initial constraints may not have initial slacks."
+                    slack = self.slack_e
+                    slack_has_pos_const = slack_e_has_pos_const
+
                 # Slack positivity constraint
-                if depends_on(canon, self.slack_e) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
-                    J,c = linear_coeff(canon, self.slack_e)
+                if depends_on(canon, slack) and not depends_on(canon, vertcat(stage.x, stage.u, stage.p)):
+                    J,c = linear_coeff(canon, slack)
                     is_perm = legit_Js(J)
                     lb_zero = np.all(np.array(evalf(lb-c)==0))
                     assert is_perm and lb_zero and ub_inf, "Only constraints allowed on slacks are '>=0'"
-                    slack_e_has_pos_const[J.sparsity().get_col()] = 1
+                    slack_has_pos_const[J.sparsity().get_col()] = 1
                     continue
                 
-                assert is_linear(canon, self.slack_e), "slacks can only enter linearly in constraints"
+                assert is_linear(canon, slack), "slacks can only enter linearly in constraints"
 
                 if has_t0:
-                    # t0
-                    check = is_linear(canon, stage.x)
-                    check = check and not depends_on(canon, stage.u)
-                    assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
+                    if mc.type==casadi.OPTI_EQUALITY:
+                        # t0
+                        check = is_linear(canon, stage.x)
+                        check = check and not depends_on(canon, stage.u)
+                        assert check, "at t=t0, only equality constraints on x are allowed. Got '%s'" % str(c)
 
-                    J,c = linear_coeff(canon, stage.x)
-                    Jbx_0.append(J)
-                    lbx_0.append(lb-c)
-                    ubx_0.append(ub-c)
+                        J,c = linear_coeff(canon, stage.x)
+                        Jbx_0.append(J)
+                        lbx_0.append(lb-c)
+                        ubx_0.append(ub-c)
 
-                    Jbxe_0.append( (mc.type == casadi.OPTI_EQUALITY) * J)
+                        Jbxe_0.append( J)
+                    else:
+                        Js, c = linear_coeff(canon, self.slack_0)
+                        # lh <= h(x,u) <= uh
+                        h_0.append(c)
+                        lh_0.append(lb)
+                        uh_0.append(ub)
+                        if not ub_inf: Js *= -1
+                        check_Js(Js)
+                        Jsh_e.append(Js)
+                        mark(slack_0_lower if ub_inf else slack_0_upper, Js)
                 else:
                     # tf
                     assert not depends_on(canon,stage.u), "Terminal constraints cannot depend on u"
@@ -581,6 +654,47 @@ class AcadosMethod(ExternalMethod):
         self.ocp.cost.zu_e = export_num_vec(zu)
         self.ocp.cost.zl_e = export_num_vec(zl)
 
+
+        # Lump together Js* across individual path constraint categories
+        Jsh_0 = MX(0, 1) if len(Jsh_0)==0 else vcat(Jsh_0)
+
+        # Indices needed to pull lower and upper parts of Qs, bs apart
+        li = sparsify(slack_0_lower).sparsity().row()
+        ui = sparsify(slack_0_upper).sparsity().row()
+
+        ns = self.slack_0.nnz()
+
+        Zl = MX(ns, ns)
+        Zu = MX(ns, ns)
+        zl = MX(ns, 1)
+        zu = MX(ns, 1)
+        Zl[li,li] = Qs_0[li,li]
+        Zu[ui,ui] = Qs_0[ui,ui]
+        zl[li,0] = bs_0[li,0]
+        zu[ui,0] = bs_0[ui,0]
+
+        hi = Jsh_0.sparsity().get_col()
+        ni = hi
+
+        # Re-order slacks according to (h)
+        Zl = Zl[ni,ni]
+        Zu = Zu[ni,ni]
+        zl = zl[ni]
+        zu = zu[ni]
+
+        assert np.all(np.array(slack_0_has_pos_const)), "Only variables allowed are slacks (and they need '>=0' constraints)"
+
+        # After re-ordering slacks, Js* become unit matrices interwoven with zero rows
+        # But let's just work with idxs* directly
+        self.ocp.constraints.idxsh_0 = np.array(Jsh_0.sparsity().row())
+
+        # These should become parametric
+        self.ocp.cost.Zl_0 = export_num_vec(diag(Zl))
+        self.ocp.cost.Zu_0 = export_num_vec(diag(Zu))
+        self.ocp.cost.zu_0 = export_num_vec(zu)
+        self.ocp.cost.zl_0 = export_num_vec(zl)
+
+
         ocp.constraints.constr_type = 'BGH'
 
         # No export_num here, let's do things parametrically
@@ -603,10 +717,16 @@ class AcadosMethod(ExternalMethod):
         m["lh"] = export_vec(lh)
         m["uh"] = export_vec(uh)
 
+        if h_0:
+            ocp.model.con_h_expr_0 = export_expr(h_0)
+            m["lh_0"] = export_vec(lh_0)
+            m["uh_0"] = export_vec(uh_0)
+        
         if h_e:
             ocp.model.con_h_expr_e = export_expr(h_e)
             m["lh_e"] = export_vec(lh_e)
             m["uh_e"] = export_vec(uh_e)
+
 
         self.ocp.constraints.Jbx_e = export_num(Jbx_e)
         m["lbx_e"] = export_vec(lbx_e)
@@ -625,8 +745,8 @@ class AcadosMethod(ExternalMethod):
                 return a
 
         if self.expand:
-            temp = Function('temp', [stage.x, stage.u, stage.p], [None2Empty(ocp.model.cost_expr_ext_cost), None2Empty(ocp.model.cost_expr_ext_cost_e),  None2Empty(ocp.model.con_h_expr_e), None2Empty(ocp.model.con_h_expr)])
-            [ocp.model.cost_expr_ext_cost, ocp.model.cost_expr_ext_cost_e, ocp.model.con_h_expr_e, ocp.model.con_h_expr] = temp(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)
+            temp = Function('temp', [stage.x, stage.u, stage.p], [None2Empty(ocp.model.cost_expr_ext_cost), None2Empty(ocp.model.cost_expr_ext_cost_e),  None2Empty(ocp.model.con_h_expr_0), None2Empty(ocp.model.con_h_expr_e), None2Empty(ocp.model.con_h_expr)])
+            [ocp.model.cost_expr_ext_cost, ocp.model.cost_expr_ext_cost_e, ocp.model.con_h_expr_0, ocp.model.con_h_expr_e, ocp.model.con_h_expr] = temp(self.ocp.model.x, self.ocp.model.u, self.ocp.model.p)
 
         # Issue: if you indicate some states for equality, they are eliminated,
         # and the presence of other bounds on that state are problematic
@@ -748,19 +868,25 @@ class AcadosMethod(ExternalMethod):
                 self.ocp_solver.constraints_set(self.N, "lh", v[:,-1])
             elif k=="uh_e":
                 self.ocp_solver.constraints_set(self.N, "uh", v[:,-1])
+            elif k=="lh_0":
+                self.ocp_solver.constraints_set(0, "lh", v[:,-1])
+            elif k=="uh_0":
+                self.ocp_solver.constraints_set(0, "uh", v[:,-1])
             elif k=="lbx_0":
                 self.ocp_solver.constraints_set(0, "lbx", v[:,0])
             elif k=="ubx_0":
                 self.ocp_solver.constraints_set(0, "ubx", v[:,0])
             else:
                 for i in range(self.N):
-                    if i==0 and k in ["lbx","ubx"]: continue
+                    if i==0 and k in ["lbx","ubx","lh","uh"]: continue
                     stride = self.mmap.size2_out(k)
                     if v.shape[0]>0:
                         e = v[:,i*stride:(i+1)*stride]
                         if is_vec:
                             e = e.reshape((-1))
-                        self.ocp_solver.constraints_set(i, k, e, api='new')
+                        print(i,k,e,e.shape)
+                        if e.size>0:
+                            self.ocp_solver.constraints_set(i, k, e, api='new')
 
     def solve(self, stage):
         self.set_matrices()
