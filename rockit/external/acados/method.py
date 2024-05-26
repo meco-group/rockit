@@ -148,7 +148,6 @@ class AcadosMethod(ExternalMethod):
             sv = symvar(c)
             case_0 = np.any(["_t0" in e.name() for e in sv])
             case_e = np.any(["_tf" in e.name() for e in sv])
-            print(c)
             assert not (case_0 and case_e), "Point constraints must be either at t0 or tf"
 
             for i,s_b in enumerate(slack_bounds):
@@ -836,7 +835,6 @@ class AcadosMethod(ExternalMethod):
             res[k] = ca.fmax(ca.fmin(res[k], INF),-INF)
 
         self.mmap_horizon = Function('mmap_horizon',[self.p_global_cat,ca.hcat(P_local),tgrid],[res[k] for k in outputs],['p_global','p_local','t'],outputs)
-        print(self.mmap_horizon)
 
         for k,v in stage._param_vals.items():
             self.set_value(stage, self, k, v)
@@ -844,7 +842,6 @@ class AcadosMethod(ExternalMethod):
         self.ocp.parameter_values = np.zeros(stage.p.shape[0])
 
         res = self.mmap(p_global=self.p_global_value,p_local=self.p_local_value[:,0],t=0)
-        print(res)
         # Set matrices
         for k, (_,is_vec) in self.m.items():
             v = np.array(res[k])
@@ -986,7 +983,6 @@ class AcadosMethod(ExternalMethod):
         return ret
     
     def solve(self, stage):
-        print("P0",self.P0)
         res = self.mmap_horizon(p_global=self.p_global_value,p_local=self.p_local_value,t=self.normalized_time_grid.T)
 
         res["p_local"] = self.p_local_value
