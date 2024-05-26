@@ -204,7 +204,6 @@ extern "C"
         for (int i=0;i<ROCKIT_N+1;++i) {
             for (int k=0;k<ROCKIT_P_LOCAL_SIZE1;++k) p[ROCKIT_P_GLOBAL_SIZE1+k] = arg[IN_P_LOCAL][k+i*ROCKIT_P_LOCAL_SIZE1];
             rockit_model_acados_update_params(&m->capsule, i, p, ROCKIT_P_GLOBAL_SIZE1+ROCKIT_P_LOCAL_SIZE1);
-            //printf("params: %e %e\n", p[0], p[1]);
         }
         //int rti_phase = 0;
 

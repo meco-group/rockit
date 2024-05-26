@@ -36,6 +36,7 @@ import os
 import shutil
 import subprocess
 import casadi as ca
+import tempfile
 
 INF = 1e5
 
@@ -58,10 +59,20 @@ def legit_Js(J):
     return True
 
 
+"""
+    def __init__(self,**kwargs):
+        ExternalMethod.__init__(self, **kwargs)
+        self.build_dir = tempfile.TemporaryDirectory(prefix="acados_rockit_")
+        self.build_dir_abs = self.build_dir.name
+        
+    def __del__(self):
+        self.build_dir.cleanup()
+"""
+
 class AcadosMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
-        self.build_dir_abs = "./foobar"
+        self.build_dir_abs = "./build_acados_rockit"
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:

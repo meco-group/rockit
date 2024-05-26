@@ -4,7 +4,7 @@ import unittest
 from rockit import Ocp, DirectMethod, MultipleShooting, FreeTime, Stage, external_method
 import numpy as np
 from casadi import kron, DM
-
+import casadi as ca
 from rockit.casadi_helpers import AutoBrancher
 
 class AcadosTests(unittest.TestCase):
@@ -316,6 +316,143 @@ class AcadosTests(unittest.TestCase):
           for k, expr in values:
             np.testing.assert_allclose(sold[k], ref[k], atol=tolerance)
           np.testing.assert_allclose(sol_t, ref_t, atol=tolerance)
+
+    def test_parameters(self):
+        
+      def reference(p_global_value,p_local_value):
+        ocp = Ocp(t0=0, T=10)
+
+        # Define two scalar states (vectors and matrices also supported)
+        x1 = ocp.state()
+        x2 = ocp.state()
+
+        # Define one piecewise constant control input
+        #  (use `order=1` for piecewise linear)
+        u = ocp.control()
+
+        # Compose time-dependent expressions a.k.a. signals
+        #  (explicit time-dependence is supported with `ocp.t`)
+        e = 1 - x2**2
+
+        # Specify differential equations for states
+        #  (DAEs also supported with `ocp.algebraic` and `add_alg`)
+        ocp.set_der(x1, e * x1 - x2 + p_global_value*u)
+        ocp.set_der(x2, x1)
+
+        # Lagrange objective term: signals in an integrand
+        ocp.add_objective(ocp.sum(x1**2 + (x2-p_local_value(ocp.t))**2 + u**2))
+        # Mayer objective term: signals evaluated at t_f = t0_+T
+        ocp.add_objective(ocp.at_tf(x1**2))
+
+        # Path constraints
+        #  (must be valid on the whole time domain running from `t0` to `tf`,
+        #   grid options available such as `grid='inf'`)
+        ocp.subject_to(x1 >= -0.25)
+        ocp.subject_to(-1 <= (u <= 1 ))
+
+        # Boundary constraints
+        ocp.subject_to(ocp.at_t0(x1) == 0)
+        ocp.subject_to(ocp.at_t0(x2) == 1)
+
+        # Pick an NLP solver backend
+        #  (CasADi `nlpsol` plugin):
+        ocp.solver('ipopt')
+
+        # Pick a solution method
+        method = external_method('acados', N=10,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=10)
+        ocp.method(method)
+
+        # Set initial guesses for states, controls and variables.
+        #  Default: zero
+        ocp.set_initial(x2, 0)                 # Constant
+        ocp.set_initial(x1, ocp.t/10)          # Function of time
+        ocp.set_initial(u, linspace(0, 0.1, 10)) # Matrix
+
+        # Solve
+        sol = ocp.solve()
+
+        return sol.sample(ocp.x,grid='control')[1]
+      
+      ref = reference(1,lambda t : 1)
+      ref_var_global = reference(1.1,lambda t : 1)
+      ref_var_local = reference(1,lambda t : 1.1)
+      ref_var_local2 = reference(1,lambda t : 1+0.01*t)
+      ref_var = reference(1.1,lambda t : 1+0.01*t)
+
+      ocp = Ocp(t0=0, T=10)
+
+      # Define two scalar states (vectors and matrices also supported)
+      x1 = ocp.state()
+      x2 = ocp.state()
+
+      # Define one piecewise constant control input
+      #  (use `order=1` for piecewise linear)
+      u = ocp.control()
+
+      p_local = ocp.parameter(grid='control')
+      ocp.set_value(p_local,[1+0*i*0.01 for i in range(11)])
+
+      p_global = ocp.parameter()
+      ocp.set_value(p_global,1)
+
+      # Compose time-dependent expressions a.k.a. signals
+      #  (explicit time-dependence is supported with `ocp.t`)
+      e = 1 - x2**2
+
+      # Specify differential equations for states
+      #  (DAEs also supported with `ocp.algebraic` and `add_alg`)
+      ocp.set_der(x1, e * x1 - x2 + p_global*u)
+      ocp.set_der(x2, x1)
+
+      # Lagrange objective term: signals in an integrand
+      ocp.add_objective(ocp.sum(x1**2 + (x2-p_local)**2 + u**2))
+      # Mayer objective term: signals evaluated at t_f = t0_+T
+      ocp.add_objective(ocp.at_tf(x1**2))
+
+      # Path constraints
+      #  (must be valid on the whole time domain running from `t0` to `tf`,
+      #   grid options available such as `grid='inf'`)
+      ocp.subject_to(x1 >= -0.25)
+      ocp.subject_to(-1 <= (u <= 1 ))
+
+      # Boundary constraints
+      ocp.subject_to(ocp.at_t0(x1) == 0)
+      ocp.subject_to(ocp.at_t0(x2) == 1)
+
+      # Pick an NLP solver backend
+      #  (CasADi `nlpsol` plugin):
+      ocp.solver('ipopt')
+
+      # Pick a solution method
+      method = external_method('acados', N=10,qp_solver='PARTIAL_CONDENSING_HPIPM',nlp_solver_max_iter=200,hessian_approx='EXACT',regularize_method = 'CONVEXIFY',integrator_type='ERK',nlp_solver_type='SQP',qp_solver_cond_N=10)
+      ocp.method(method)
+
+      # Set initial guesses for states, controls and variables.
+      #  Default: zero
+      ocp.set_initial(x2, 0)                 # Constant
+      ocp.set_initial(x1, ocp.t/10)          # Function of time
+      ocp.set_initial(u, linspace(0, 0.1, 10)) # Matrix
+    
+      # Solve
+      sol = ocp.solve()
+
+      res = sol.sample(ocp.x,grid='control')[1]
+      print(res)
+
+      f = ocp.to_function('f',[ocp.sample(ocp.x,grid='control')[1], ocp.sample(u,grid='control-')[1] ],[ocp.sample(ocp.x,grid='control')[1]])
+
+      np.testing.assert_allclose(res, np.array(f(0,0)).T, atol=1e-5)
+
+      np.testing.assert_allclose(ref, np.array(f(0,0)).T, atol=1e-5)
+
+      f = ocp.to_function('f',[p_global, ocp.sample(p_local,grid='control')[1], ocp.sample(ocp.x,grid='control')[1], ocp.sample(u,grid='control-')[1] ],[ocp.sample(ocp.x,grid='control')[1]])
+
+      np.testing.assert_allclose(ref, np.array(f(1,1,0,0)).T, atol=1e-5)
+      np.testing.assert_allclose(ref_var_global, np.array(f(1.1,1,0,0)).T, atol=1e-5)
+      np.testing.assert_allclose(ref_var_local, np.array(f(1,1.1,0,0)).T, atol=1e-5)
+      np.testing.assert_allclose(ref_var_local2, np.array(f(1,ca.hcat([1+i*0.01 for i in range(11)]),0,0)).T, atol=1e-5)
+
+      np.testing.assert_allclose(ref_var, np.array(f(1.1,ca.hcat([1+i*0.01 for i in range(11)]),0,0)).T, atol=1e-5)
 
 if __name__ == '__main__':
     unittest.main()
