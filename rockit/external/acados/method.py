@@ -72,7 +72,8 @@ def legit_Js(J):
 class AcadosMethod(ExternalMethod):
     def __init__(self,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
-        self.build_dir_abs = "./build_acados_rockit"
+        #self.build_dir_abs = "./build_acados_rockit"
+        self.build_dir_abs = "./foobar"
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
