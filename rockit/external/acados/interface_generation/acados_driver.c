@@ -137,7 +137,7 @@ extern "C"
         }
         if (arg[IN_C]) {
             for (int i=0;i<ROCKIT_N;++i) {
-                ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "C", (void*) (arg[IN_C]+i*MMAP_C_SIZE1));
+                ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "C", (void*) (arg[IN_C]+i*MMAP_C_SIZE1*ROCKIT_X_SIZE1));
             }
         }
         
@@ -146,7 +146,7 @@ extern "C"
         }
         if (arg[IN_D]) {
             for (int i=0;i<ROCKIT_N;++i) {
-                ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "D", (void*) (arg[IN_D]+i*MMAP_D_SIZE1));
+                ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "D", (void*) (arg[IN_D]+i*MMAP_D_SIZE1*ROCKIT_U_SIZE1));
             }
         }
         if (arg[IN_LG]) {
