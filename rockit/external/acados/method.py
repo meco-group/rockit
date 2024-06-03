@@ -883,10 +883,10 @@ class AcadosMethod(ExternalMethod):
 
         if not os.path.exists(os.path.join(self.build_dir_abs,"build")):
             # copy acados
-            try:
-                shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "external",os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
-            except:
-                pass
+            ACADOS_SOURCE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep + "external"
+            if 'ACADOS_SOURCE_DIR' in os.environ:
+                ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
+            shutil.copytree(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
 
         shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs,dirs_exist_ok=True)
         shutil.copytree(c_generated_code,self.build_dir_abs,dirs_exist_ok=True)
