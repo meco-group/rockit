@@ -882,12 +882,14 @@ class AcadosMethod(ExternalMethod):
         c_generated_code = os.path.join(os.getcwd(), "c_generated_code")
 
         if not os.path.exists(os.path.join(self.build_dir_abs,"build")):
-            # copy acados
-            ACADOS_SOURCE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep + "external"
-            if 'ACADOS_SOURCE_DIR' in os.environ:
-                ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
-            shutil.copytree(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
-
+            try:
+                # copy acados
+                ACADOS_SOURCE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep + "external"
+                if 'ACADOS_SOURCE_DIR' in os.environ:
+                    ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
+                shutil.copytree(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
+            except:
+                pass
         shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs,dirs_exist_ok=True)
         shutil.copytree(c_generated_code,self.build_dir_abs,dirs_exist_ok=True)
 
@@ -912,10 +914,12 @@ class AcadosMethod(ExternalMethod):
             out.write(f"#define ROCKIT_P_GLOBAL_SIZE2 {self.p_global_cat.shape[1]}\n")
 
         with open(os.path.join(self.build_dir_abs,"after_init.c.in"), "w") as after_init:
-            if self.linesearch:
-                after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
-            after_init.write(f"""int print_level=0;ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "print_level",&print_level);\n""")
-            
+            try:
+                if self.linesearch:
+                    after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
+                after_init.write(f"""int print_level=0;ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "print_level",&print_level);\n""")
+            except:
+                pass
         assert subprocess.run(["cmake","-S", ".","-B", os.path.join(self.build_dir_abs,"build"),"-DCMAKE_BUILD_TYPE=Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--build",os.path.join(self.build_dir_abs,"build"),"--config","Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--install",os.path.join(self.build_dir_abs,"build"),"--prefix","."], cwd=self.build_dir_abs).returncode==0
