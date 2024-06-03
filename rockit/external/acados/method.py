@@ -70,10 +70,12 @@ def legit_Js(J):
 """
 
 class AcadosMethod(ExternalMethod):
-    def __init__(self,feasibility_problem=False,acados_options=None,**kwargs):
+    def __init__(self,feasibility_problem=False,acados_options=None,model_name="rockit_model",**kwargs):
         ExternalMethod.__init__(self, **kwargs)
         #self.build_dir_abs = "./build_acados_rockit"
         self.build_dir_abs = "./foobar"
+
+        self.model_name = model_name
 
         self.feasibility_problem = feasibility_problem
         self.acados_options = {} if acados_options is None else acados_options
@@ -200,7 +202,7 @@ class AcadosMethod(ExternalMethod):
 
         #self.control_grid = self.normalized_time_grid
 
-        model.name = "rockit_model"
+        model.name = self.model_name
 
         ocp.model = model
 
