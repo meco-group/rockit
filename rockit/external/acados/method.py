@@ -866,7 +866,8 @@ class AcadosMethod(ExternalMethod):
         ocp.solver_options.shooting_nodes =np.ndarray.flatten(np.array(self.time_grid))
         # AcadosOcpOptions
 
-        for k,v in self.acados_options:
+        for k,v in self.acados_options.items():
+            print(k,v)
             setattr(ocp.solver_options, k, v)
 
         if self.feasibility_problem:
