@@ -70,10 +70,13 @@ def legit_Js(J):
 """
 
 class AcadosMethod(ExternalMethod):
-    def __init__(self,**kwargs):
+    def __init__(self,feasibility_problem=False,acados_options=None,**kwargs):
         ExternalMethod.__init__(self, **kwargs)
         #self.build_dir_abs = "./build_acados_rockit"
         self.build_dir_abs = "./foobar"
+
+        self.feasibility_problem = feasibility_problem
+        self.acados_options = {} if acados_options is None else acados_options
 
     def fill_placeholders_integral(self, phase, stage, expr, *args):
         if phase==1:
@@ -862,6 +865,12 @@ class AcadosMethod(ExternalMethod):
         #ocp.solver_options.print_level = 15
         ocp.solver_options.shooting_nodes =np.ndarray.flatten(np.array(self.time_grid))
         # AcadosOcpOptions
+
+        for k,v in self.acados_options:
+            setattr(ocp.solver_options, k, v)
+
+        if self.feasibility_problem:
+            ocp.translate_to_feasibility_problem()
 
         # By-pass acados's heuristic to check lbx==ubx numerically
         ocp.dims.nbxe_0 = self.ocp.constraints.idxbxe_0.shape[0]
