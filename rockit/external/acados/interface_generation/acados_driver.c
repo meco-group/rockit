@@ -210,7 +210,7 @@ extern "C"
         //ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "rti_phase", &rti_phase);
         rockit_model_acados_solve(&m->capsule);
 
-        rockit_model_acados_print_stats(&m->capsule);
+        //rockit_model_acados_print_stats(&m->capsule);
 
         if (res[OUT_X]) {
             for (int i=0;i<ROCKIT_N+1;++i) {

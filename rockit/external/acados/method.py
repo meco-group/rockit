@@ -867,7 +867,6 @@ class AcadosMethod(ExternalMethod):
         # AcadosOcpOptions
 
         for k,v in self.acados_options.items():
-            print(k,v)
             setattr(ocp.solver_options, k, v)
 
         if self.feasibility_problem:
@@ -915,12 +914,16 @@ class AcadosMethod(ExternalMethod):
             out.write(f"#define ROCKIT_P_GLOBAL_SIZE2 {self.p_global_cat.shape[1]}\n")
 
         with open(os.path.join(self.build_dir_abs,"after_init.c.in"), "w") as after_init:
-            try:
-                if self.linesearch:
-                    after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
-                after_init.write(f"""int print_level=0;ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "print_level",&print_level);\n""")
-            except:
-                pass
+            if self.linesearch:
+                after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
+
+            for k,v in self.acados_options.items():
+                if isinstance(v, int):
+                    after_init.write(f"""int {k}={v};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
+                elif isinstance(v, str):
+                    after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}","{v}");\n""")
+                elif isinstance(v, bool):
+                    after_init.write(f"""bool {k}={int(v)};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
         assert subprocess.run(["cmake","-S", ".","-B", os.path.join(self.build_dir_abs,"build"),"-DCMAKE_BUILD_TYPE=Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--build",os.path.join(self.build_dir_abs,"build"),"--config","Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--install",os.path.join(self.build_dir_abs,"build"),"--prefix","."], cwd=self.build_dir_abs).returncode==0
