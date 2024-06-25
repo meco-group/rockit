@@ -88,7 +88,7 @@ class DirectMethod:
     def add_variables(self, stage, opti):
         V = []
         for v in stage.variables['']:
-            V.append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+            V.append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain']))
         self.V = veccat(*V)
 
     def add_parameters(self, stage, opti):
@@ -279,11 +279,16 @@ class OptiWrapper(Opti):
     def non_converged_solution(self):
         return OptiSolWrapper(self, self.debug)
 
-    def variable(self,n=1,m=1, scale=1):
+    def variable(self,n=1,m=1, scale=1,domain='real'):
         if n==0 or m==0:
             return MX(n, m)
         else:
-            return scale*Opti.variable(self,n, m)
+            v = Opti.variable(self,n, m)
+            if hasattr(Opti,'set_domain'):
+                Opti.set_domain(self, v, domain)
+            else:
+                if domain!='real': raise Exception("This version of CasADi Opti stack does not support set_domain.")
+            return scale*v
 
     def cache_advanced(self):
         self._advanced_cache = self.advanced

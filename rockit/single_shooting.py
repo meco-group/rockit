@@ -50,7 +50,7 @@ class SingleShooting(SamplingMethod):
         self.Q.append(DM.zeros(stage.nxq))
 
         for k in range(self.N):
-            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s])) for s in stage.controls]) if stage.nu>0 else MX(0,1))
+            self.U.append(vcat([opti.variable(s.numel(), scale=vec(stage._scale[s]), domain=stage._catalog[s]['domain']) for s in stage.controls]) if stage.nu>0 else MX(0,1))
             self.X.append(None)
             self.Q.append(None)
             self.add_variables_V_control(stage, opti, k)

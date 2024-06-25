@@ -716,20 +716,20 @@ class SamplingMethod(DirectMethod):
             self.V_control = [[] for v in stage.variables['control']]
             self.V_control_plus = [[] for v in stage.variables['control+']]
             for i, v in enumerate(stage.variables['states']):
-                self.V_states.append([opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v])])
+                self.V_states.append([opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain'])])
         for i, v in enumerate(stage.variables['control']):
-            self.V_control[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+            self.V_control[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain']))
         for i, v in enumerate(stage.variables['control+']):
-            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain']))
         for i, v in enumerate(stage.variables['states']):
-            self.V_states[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+            self.V_states[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain']))
 
         self.t0_local[k] = self.time_grid.get_t0_local(opti, k, self.t0, self.N)
         self.T_local[k] = self.time_grid.get_T_local(opti, k, self.T, self.N)
 
     def add_variables_V_control_finalize(self, stage, opti):
         for i, v in enumerate(stage.variables['control+']):
-            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v]))
+            self.V_control_plus[i].append(opti.variable(v.shape[0], v.shape[1], scale=stage._scale[v], domain=stage._catalog[v]['domain']))
         if self.time_grid.localize_t0:
             self.t0_local[self.N] = opti.variable()
             self.control_grid = hcat(self.t0_local)

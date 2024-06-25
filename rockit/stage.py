@@ -312,7 +312,7 @@ class Stage:
         self._set_transcribed(False)
         return z
 
-    def variable(self, n_rows=1, n_cols=1, grid = '', order=0, scale=1, include_last=False, meta=None):
+    def variable(self, n_rows=1, n_cols=1, grid = '', order=0, scale=1, include_last=False, domain='real', meta=None):
         """Create a variable
 
         Variables are unknowns in the Optimal Control problem
@@ -334,6 +334,8 @@ class Stage:
             Relevant with grid='bspline'
         include_last : bool, optional
             Determines if a unique entry is foreseen at the tf edge.
+        domain : str, optional
+            Domain of the control signal. Possible values: 'real' (default), 'integer'
 
 
         Returns
@@ -354,16 +356,16 @@ class Stage:
         L = sum([len(e) for e in self.variables.values()])
         v = MX.sym("v"+str(L+1), n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        return self.register_variable(v, grid=grid, order=order, scale=scale, meta=meta, include_last=include_last)
+        return self.register_variable(v, grid=grid, order=order, scale=scale, meta=meta, domain=domain, include_last=include_last)
 
-    def register_variable(self, v, grid = '', order=0, scale=1, include_last=False, meta=None):
+    def register_variable(self, v, grid = '', order=0, scale=1, include_last=False, domain='real', meta=None):
         if isinstance(v, list):
             for e in v:
-                self.register_variable(e, scale=scale)
+                self.register_variable(e, scale=scale, domain=domain)
             return
         self._meta[v] = merge_meta(meta, get_meta())
         self._scale[v] = self._parse_scale(v, scale)
-        self._catalog[v] = {"type": 'variables', "sparsity": v.sparsity(), "grid": grid, "include_last": include_last, "order": order}
+        self._catalog[v] = {"type": 'variables', "sparsity": v.sparsity(), "grid": grid, "include_last": include_last, "order": order, "domain": domain}
         if include_last:
             grid+="+"
         self.variables[grid].append(v)
@@ -446,7 +448,7 @@ class Stage:
         self._set_transcribed(False)
         return p
 
-    def control(self, n_rows=1, n_cols=1, order=0, scale=1, meta=None):
+    def control(self, n_rows=1, n_cols=1, order=0, scale=1, domain='real', meta=None):
         """Create a control signal to optimize for
 
         A control signal is parametrized as a piecewise polynomial.
@@ -465,6 +467,8 @@ class Stage:
             In essence, this has the same effect as defining u = scale*ocp.control(),
             except that set_initial(u, ...) keeps working
             Default: 1
+        domain : str, optional
+            Domain of the control signal. Possible values: 'real' (default), 'integer'
         Returns
         -------
         s : :obj:`~casadi.MX`
@@ -488,17 +492,17 @@ class Stage:
 
         u = MX.sym("u", n_rows, n_cols)
         meta = merge_meta(meta, get_meta())
-        self.register_control(u, scale=scale, meta=meta)
+        self.register_control(u, scale=scale, domain=domain, meta=meta)
         return u
 
-    def register_control(self, u, scale=1, meta=None):
+    def register_control(self, u, scale=1, domain='real', meta=None):
         if isinstance(u,list):
             for e in u:
-                self.register_control(e, scale=scale)
+                self.register_control(e, scale=scale, domain=domain)
             return
         self._meta[u] = merge_meta(meta, get_meta())
         self._scale[u] = self._parse_scale(u, scale)
-        self._catalog[u] = {"type": 'controls', "sparsity": u.sparsity()}
+        self._catalog[u] = {"type": 'controls', "sparsity": u.sparsity(), "domain": domain}
         self.controls.append(u)
         self._set_transcribed(False)
         return u
