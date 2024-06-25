@@ -69,6 +69,23 @@ def legit_Js(J):
         self.build_dir.cleanup()
 """
 
+def recursive_overwrite(src, dest, ignore=None):
+    if os.path.isdir(src):
+        if not os.path.isdir(dest):
+            os.makedirs(dest)
+        files = os.listdir(src)
+        if ignore is not None:
+            ignored = ignore(src, files)
+        else:
+            ignored = set()
+        for f in files:
+            if f not in ignored:
+                recursive_overwrite(os.path.join(src, f), 
+                                    os.path.join(dest, f), 
+                                    ignore)
+    else:
+        shutil.copyfile(src, dest)
+
 class AcadosMethod(ExternalMethod):
     def __init__(self,feasibility_problem=False,acados_options=None,model_name="rockit_model",**kwargs):
         ExternalMethod.__init__(self, **kwargs)
@@ -889,11 +906,11 @@ class AcadosMethod(ExternalMethod):
                 ACADOS_SOURCE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep + "external"
                 if 'ACADOS_SOURCE_DIR' in os.environ:
                     ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
-                shutil.copytree(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"), symlinks=True, ignore_dangling_symlinks=True,dirs_exist_ok=True)
+                recursive_overwrite(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"))
             except:
                 pass
-        shutil.copytree(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs,dirs_exist_ok=True)
-        shutil.copytree(c_generated_code,self.build_dir_abs,dirs_exist_ok=True)
+        recursive_overwrite(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs)
+        recursive_overwrite(c_generated_code,self.build_dir_abs)
 
         with open(os.path.join(self.build_dir_abs,"rockit_config.h"),"w") as out:
 
@@ -927,9 +944,9 @@ class AcadosMethod(ExternalMethod):
                         after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}","{v}");\n""")
                     elif isinstance(v, bool):
                         after_init.write(f"""int {k}={v};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
-        assert subprocess.run(["cmake","-S", ".","-B", os.path.join(self.build_dir_abs,"build"),"-DCMAKE_BUILD_TYPE=Debug", "-DMODEL_NAME="+ self.model_name], cwd=self.build_dir_abs).returncode==0
-        assert subprocess.run(["cmake","--build",os.path.join(self.build_dir_abs,"build"),"--config","Debug"], cwd=self.build_dir_abs).returncode==0
-        assert subprocess.run(["cmake","--install",os.path.join(self.build_dir_abs,"build"),"--prefix","."], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","-S", ".","-B", "build","-DCMAKE_BUILD_TYPE=Debug", "-DMODEL_NAME="+ self.model_name], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","--build","build","--config","Debug"], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","--install","build","--prefix","."], cwd=self.build_dir_abs).returncode==0
         
         self.acados_driver = ca.external("acados_driver", self.build_dir_abs + "/lib/libacados_driver.so")
 
