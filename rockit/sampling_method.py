@@ -196,7 +196,7 @@ class UniformGrid(FixedGrid):
         FixedGrid.__init__(self, **kwargs)
 
     def constrain_T(self,T,Tnext,N):
-        return (T==Tnext,{})
+        return (Tnext==T,{})
 
     def scale_first(self, N):
         return 1.0/N
