@@ -1523,7 +1523,23 @@ class MiscTests(unittest.TestCase):
             np.testing.assert_allclose(xfsol, x0 + v0*tsf**power, atol=1e-6)
             np.testing.assert_allclose(vfsol, power*v0*tsf**(power-1), atol=1e-6)
 
+    def test_initial_localizeT(self):
+        for localize_T in [False,True]:
+            ocp = Ocp(T=FreeTime(10))
+            x = ocp.state()
+            u = ocp.control()
+            ocp.set_der(x,u)
+            ocp.subject_to(ocp.at_t0(x)==0)
+            ocp.subject_to(ocp.at_tf(x)==10)
+            ocp.subject_to(-1<= (u<= 1))
+            ocp.set_initial(x, ocp.t)
+            ocp.method(MultipleShooting(N=4,grid=UniformGrid(localize_T=localize_T)))
+            ocp.solver('ipopt',{'ipopt.max_iter':0})
+            sol = ocp.solve_limited()
 
+            [ts,xsol] = sol.sample(x,grid='control')
+            np.testing.assert_allclose(ts, xsol, atol=1e-6)
+  
     def test_samplingmethod_architecture(self):
         for method in [MultipleShooting(N=4),SingleShooting(N=4),DirectCollocation(N=4),SplineMethod(N=4)]:
             print(method)

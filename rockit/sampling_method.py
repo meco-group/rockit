@@ -592,6 +592,7 @@ class SamplingMethod(DirectMethod):
                     initial[self.T_local[k]] = control_grid_init[k+1]-control_grid_init[k]
 
             self.set_initial(stage, opti, initial)
+            self.set_initial(stage, opti, stage._initial) # Redo this: ocp.t is correct only now
             self.set_parameter(stage, opti)
 
 
