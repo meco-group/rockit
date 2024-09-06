@@ -21,6 +21,7 @@
 #
 
 import casadi as cs
+import os
 from casadi import *
 from collections import defaultdict, OrderedDict
 from contextlib import contextmanager
@@ -478,3 +479,76 @@ def rockit_unpickle_context():
     for c in ca_classes:
         delattr(c, '__setstate__')
         
+def interface_simulink(mdl,path='',block='',exclude_outputs='',exclude_inputs='',options=None,jacobian_options=None):
+    opts = {}
+    external_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'external')
+    opts["config_args"] = [external_dir,'DiffSimulinkModel',\
+        mdl,\
+        'path',path, \
+        'block',block, \
+        'exclude_outputs',exclude_outputs, \
+        'exclude_inputs',exclude_inputs]
+    opts["enable_fd"] = True
+
+    import copy
+    opts_nominal = copy.deepcopy(opts)
+    opts_nominal["config_args"] += ["with_diff","false"]
+
+    if os.name == 'nt':
+        suffix = ".dll"
+    else:
+        suffix = ".so"
+        
+    libmatlab_ipc_base = os.path.join(cs.GlobalOptions.getCasadiPath(),'libmatlab_ipc')
+
+    libmatlab_ipc_nominal = './libmatlab_ipc_nominal'+suffix
+    libmatlab_ipc_jacobian = './libmatlab_ipc_jacobian'+suffix
+
+    import shutil
+    shutil.copy(libmatlab_ipc_base+suffix,libmatlab_ipc_nominal)
+    shutil.copy(libmatlab_ipc_base+suffix,libmatlab_ipc_jacobian)
+
+    F = cs.external('F',libmatlab_ipc_nominal,opts_nominal)
+    J = cs.external('F',libmatlab_ipc_jacobian,opts)
+
+    nx = F.size1_in('x')
+    nu = F.size1_in('u')
+    np = F.size1_in('p')
+    ny = F.size1_out('y')
+
+    x = cs.MX.sym('x',nx)
+    u = cs.MX.sym('u',nu)
+    p = cs.MX.sym('p',np)
+
+    res = J(x=x,u=u,p=p)
+
+    out_names = ['jac_dx_x','jac_dx_u','jac_y_x','jac_y_u']
+
+
+    if jacobian_options is None:
+        jacobian_options = {}
+    jacobian_options.update({"never_inline":True,"enable_fd":False,"enable_forward":False,"enable_forward":False,"enable_jacobian":False})
+
+    jac_F = cs.Function('jac_F', \
+        [x,u,p,cs.MX(nx,1),cs.MX(ny,1)], \
+        [res['jac_dx_x'],res['jac_dx_u'],cs.DM(nx,np),res['jac_y_x'],res['jac_y_u'],cs.DM(ny,np)], \
+        ['x','u','p','out_dx','out_y'], \
+        ['jac_dx_x','jac_dx_u','jac_dx_p','jac_y_x','jac_y_u','jac_y_p'], \
+        jacobian_options)
+
+    res = F(x=x,u=u,p=p)
+    out_names = ['dx','y']
+
+    if options is None:
+        options = {}
+    options.update({"never_inline":True,"enable_fd":False,"enable_forward":False,"enable_forward":False,"enable_jacobian":True,"jac_penalty":0,"custom_jacobian":jac_F})
+
+    F = cs.Function('F', \
+        [x,u,p], \
+        [res[k] for k in out_names], \
+        ['x','u','p'], \
+        out_names, \
+        options)
+
+    return F
+

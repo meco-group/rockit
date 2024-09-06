@@ -45,7 +45,7 @@ from .sampling_method import FreeGrid, UniformGrid, GeometricGrid, DensityGrid, 
 from .grouping_techniques import LseGroup
 from .solution import OcpSolution
 from .external.manager import external_method
-from .casadi_helpers import rockit_pickle_context, rockit_unpickle_context
+from .casadi_helpers import rockit_pickle_context, rockit_unpickle_context, interface_simulink
 
 
 try:
