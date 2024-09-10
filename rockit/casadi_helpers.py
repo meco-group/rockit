@@ -487,7 +487,8 @@ def interface_simulink(mdl,path='',block='',exclude_outputs='',exclude_inputs=''
         'path',path, \
         'block',block, \
         'exclude_outputs',exclude_outputs, \
-        'exclude_inputs',exclude_inputs]
+        'exclude_inputs',exclude_inputs,
+		'cwd',os.getcwd()]
     opts["enable_fd"] = True
 
     import copy

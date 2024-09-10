@@ -55,7 +55,9 @@ classdef DiffSimulinkModel < handle
         %       A list (seperated by ';') of output names to exclude from the model. Default is '' (empty string).
         %   'with_diff' (char, optional)
         %       'true' or 'false' indicating if we want derivatives or not.
-        %
+        %   'cwd'
+        %       Current working directory. Default is '' (empty string).
+
 
         p = inputParser;
         addRequired(p,'mdl',@ischar);
@@ -65,6 +67,7 @@ classdef DiffSimulinkModel < handle
         addParameter(p,'exclude_inputs','',@ischar);
         addParameter(p,'exclude_outputs','',@ischar);
         addParameter(p,'with_diff','true',@ischar);
+        addParameter(p,'cwd','',@ischar);
 
         parse(p,varargin{:});
 
@@ -73,6 +76,11 @@ classdef DiffSimulinkModel < handle
         mdl = args.mdl;
 
         self.with_diff = strcmp(args.with_diff,'true');
+        
+        
+        if ~isempty(args.cwd)
+            cd(args.cwd);
+        end
 
         if ~isempty(args.path)
             path_split = strsplit(args.path,';');
@@ -110,7 +118,7 @@ classdef DiffSimulinkModel < handle
         else
             exclude_inputs = strsplit(args.exclude_inputs,';');
         end
-
+        
         op = operpoint(mdl);
 
         set_param(mdl,'SimulationCommand','start')
@@ -167,6 +175,7 @@ classdef DiffSimulinkModel < handle
 
             io(end+1) = linio(output,1,'output');
         end
+        
 
         set_param(mdl,'SimulationCommand','stop')
 
@@ -179,7 +188,7 @@ classdef DiffSimulinkModel < handle
 
         self.x_subsel = 1:sum(dims_out);
         self.u_subsel = 1:sum(dims_in);
-
+        
         self.nx = length(self.x_subsel);
         self.nu = length(self.u_subsel);
         self.np = 0; % get_param('model2/Gain4', 'DialogParameters')
@@ -211,13 +220,13 @@ classdef DiffSimulinkModel < handle
     end
     function [] = export(self, name)
         fileID = fopen(name, 'w');
-        fprintf(filedID, 'equations:\n');
-        fprintf(filedID, '  type: simulink\n');
-        fprintf(filedID, '  config:\n');
+        fprintf(fileID, 'equations:\n');
+        fprintf(fileID, '  type: simulink\n');
+        fprintf(fileID, '  config:\n');
         for i=1:numel(self.varargin)
-            fprintf(filedID, '    -- %s\n',self.varargin{i});
+            fprintf(fileID, '    -- %s\n',self.varargin{i});
         end
-        fprintf(filedID, '    equations:\n');
+        fprintf(fileID, '    equations:\n');
         fclose(fileID);
     end
     function [sys,info] = debug(self)
