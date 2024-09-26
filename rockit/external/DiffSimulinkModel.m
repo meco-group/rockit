@@ -5,6 +5,8 @@ classdef DiffSimulinkModel < handle
         mdl
         opts
 
+        N
+
         dims_in
         dims_out
 
@@ -17,6 +19,8 @@ classdef DiffSimulinkModel < handle
         u_subsel
 
         with_diff
+
+        sllin
 
         varargin
     end
@@ -58,6 +62,7 @@ classdef DiffSimulinkModel < handle
         %   'cwd'
         %       Current working directory. Default is '' (empty string).
 
+        %-  'N' Number of requested evaluations
 
         p = inputParser;
         addRequired(p,'mdl',@ischar);
@@ -68,6 +73,7 @@ classdef DiffSimulinkModel < handle
         addParameter(p,'exclude_outputs','',@ischar);
         addParameter(p,'with_diff','true',@ischar);
         addParameter(p,'cwd','',@ischar);
+        addParameter(p,'N',1,@isnumeric);
 
         parse(p,varargin{:});
 
@@ -75,6 +81,7 @@ classdef DiffSimulinkModel < handle
 
         mdl = args.mdl;
 
+        self.N = args.N;
         self.with_diff = strcmp(args.with_diff,'true');
         
         
@@ -180,7 +187,12 @@ classdef DiffSimulinkModel < handle
         set_param(mdl,'SimulationCommand','stop')
 
         self.io = io;
-        op = operpoint(mdl);
+        
+        op = {};
+        for i=1:self.N
+            op{end+1} = operpoint(mdl);
+        end
+        op = [op{:}];
         self.op = op;
 
         self.dims_in = dims_in;
@@ -196,8 +208,10 @@ classdef DiffSimulinkModel < handle
 
         self.mdl = mdl;
 
-        sllin = slLinearizer(self.mdl,self.io, self.op, self.opts);  
+        sllin = slLinearizer(self.mdl,self.io, self.op, self.opts);
+        self.sllin = sllin;
         [sys,info] = getIOTransfer(sllin,self.io);
+        fastRestartForLinearAnalysis(mdl,'on');
         self.nx = size(sys.B,1);
         self.nu = size(sys.B,2);
         self.ny = size(sys.C,1);
@@ -247,9 +261,9 @@ classdef DiffSimulinkModel < handle
     function out = get_sparsity_in(self,i)
       switch(i)
           case 0
-              out = int64([self.nx,1]);
+              out = int64([self.nx,self.N]);
           case 1
-              out = int64([self.nu,1]);
+              out = int64([self.nu,self.N]);
           case 2
               out = int64([self.np,1]);
           otherwise
@@ -259,17 +273,17 @@ classdef DiffSimulinkModel < handle
     function out = get_sparsity_out(self,i)
       switch(i)
           case 0
-              out = int64([self.nx,1]);
+              out = int64([self.nx,self.N]);
           case 1
-              out = int64([self.ny,1]);
+              out = int64([self.ny,self.N]);
           case 2
-              out = int64([self.nx,self.nx]);
+              out = int64([self.nx,self.N*self.nx]);
           case 3
-              out = int64([self.nx,self.nu]);
+              out = int64([self.nx,self.N*self.nu]);
           case 4
-              out = int64([self.ny,self.nx]);
+              out = int64([self.ny,self.N*self.nx]);
           case 5
-              out = int64([self.ny,self.nu]);
+              out = int64([self.ny,self.N*self.nu]);
           otherwise
               error('Internal error');
       end
@@ -305,18 +319,22 @@ classdef DiffSimulinkModel < handle
             offset = offset + n;
         end
 
-        self.mdl
-        self.io
-        self.op
-        self.opts
+        self.sllin.OperatingPoints = self.op;
 
-        sllin = slLinearizer(self.mdl,self.io, self.op, self.opts);  
+        
 
-        [sys,info] = getIOTransfer(sllin,self.io);
+        tic
+        [sys,info] = getIOTransfer(self.sllin,self.io);
+        r=toc;
+
+        %fileID = fopen('log.txt','a');
+        %fprintf(fileID, 'getIOTransfer: %f\n',r);
+        %fclose(fileID);
+
         dx = info.Offsets.dx;
         y = info.Offsets.y;
         if self.with_diff
-            res = {dx, y, sys.A, sys.B, sys.C, sys.D};
+            res = {dx, y, reshape(sys.A,self.nx,self.nx*self.N), reshape(sys.B,self.nx,self.nu*self.N), reshape(sys.C,self.ny,self.N*self.nx), reshape(sys.D,self.ny,self.N*self.nu)};
         else
             res = {dx, y};
         end
