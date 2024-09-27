@@ -300,6 +300,13 @@ classdef DiffSimulinkModel < handle
       end
       out = names{i+1};
     end
+    function delete(self)
+        fileID = fopen('lookatyou.txt','w');
+        fprintf(fileID, 'we\n');
+        fastRestartForLinearAnalysis(self.mdl,'off');
+        fprintf(fileID, 'rule\n');
+        fclose(fileID);
+    end
     function [res] = eval(self, arg)
         offset = 0;
         x = arg{1}
