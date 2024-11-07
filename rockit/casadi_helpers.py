@@ -96,6 +96,8 @@ def reinterpret_expr(expr, symbols_from, symbols_to):
                 work[o[0]] = -work[i[0]]
             elif op == OP_CONSTPOW:
                 work[o[0]] = work[i[0]]**work[i[1]]
+            elif op == OP_VERTCAT:
+                work[o[0]] = vcat([work[e] for e in i])
             elif op == OP_CALL:
                 cn = f.instruction_MX(k)
                 fn = cn.which_function()
@@ -103,10 +105,17 @@ def reinterpret_expr(expr, symbols_from, symbols_to):
                 for i,e in enumerate(o):
                     work[e] = res[i]
             else:
-                print('Unknown operation: ', op)
+                try:
+                    e = f.instruction_MX(k)
+                    res = e.eval_mx([work[e] for e in i])
+                    for i,e in enumerate(o):
+                        work[e] = res[i]
+                except:
+                    print('Unknown operation: ', op)
 
-                print('------')
-                print('Evaluated ' + str(f))
+                    print('------')
+                    print('Evaluated ' + str(f))
+                    raise Exception()
 
     return output_val[0]
 
