@@ -47,7 +47,10 @@ def reinterpret_expr(expr, symbols_from, symbols_to):
         print(reinterpret_expr(z,[y],[sin(y)]))
     """
 
-    f = Function('f', symbols_from, [expr])
+    try:
+        f = Function('f', symbols_from, [expr], {"allow_free":True})
+    except:
+        f = Function('f', symbols_from, [expr])
 
     # Work vector
     work = [None for i in range(f.sz_w())]
