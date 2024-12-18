@@ -20,9 +20,9 @@
 %
 %
 
-% Dae example
+% Simulation example
 % ===========
-% Example of adding an algebraic state and algebraic equation
+% Also known as "initial value problem" IVP
 import rockit.*
 
 ocp = Ocp('T',10);
