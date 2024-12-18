@@ -100,6 +100,15 @@ title('Control signal');
 xlabel('Times [s]');
 grid on
 
+[tsol, zsol] = sol.sample(z, 'grid','integrator','refine',100);
+
+figure();
+hold on
+plot(tsol,zsol);
+title('Algebraic variable');
+xlabel('Times [s]');
+grid on
+
 [tsc, x1c] = sol.sample(x1, 'grid','integrator', 'refine',100);
 
 figure();
@@ -107,6 +116,7 @@ hold on
 plot(tsc, x1c, '-');
 plot(tsa, x1a, 'o');
 plot(tsb, x1b, '.');
+title('State x1');
 xlabel('Times [s]');
 grid on
 
