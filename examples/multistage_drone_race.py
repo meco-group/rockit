@@ -349,13 +349,13 @@ T = (float(T1), float(T2), float(T3), float(T4), float(T5))
 # =============================================================================
 # Plots
 fig = plt.figure()
-ax = fig.gca(projection='3d')
+ax = fig.add_subplot(projection='3d')
 ax.set_xlabel('X-Position (m)')
 ax.set_ylabel('Y-Position (m)')
 ax.set_zlabel('Z-Position (m)')
-ax.w_xaxis.pane.fill = False
-ax.w_yaxis.pane.fill = False
-ax.w_zaxis.pane.fill = False
+ax.xaxis.pane.fill = False
+ax.yaxis.pane.fill = False
+ax.zaxis.pane.fill = False
 
 # Plot gates
 alpha = 0.5
