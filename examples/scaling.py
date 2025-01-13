@@ -24,7 +24,7 @@
 A scaling Example
 ===================
 
-Shows how to fix scaling of a badly sclaed problem
+Shows how to fix scaling of a badly scaled problem
 """
 
 
