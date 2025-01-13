@@ -85,7 +85,7 @@ class MultipleShooting(SamplingMethod):
             if stage.nxq>0:
                 xqk_temp = self.q+FF["Qi"]
             else:
-                xqk_temp = DM.zeros(stage.nxq, 1)
+                xqk_temp = DM.zeros(stage.nxq, self.M)
             zk_temp = FF["Zi"]
 
             # we cannot return a list from a casadi function
