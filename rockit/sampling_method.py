@@ -445,9 +445,13 @@ class SamplingMethod(DirectMethod):
 
         ode, diffeq, partition, composition, qpartition, qcomposition = stage._hybrid()
 
-        quad_c = DM.zeros(qpartition.numel_out(0))
-        quad_d = DM.zeros(qpartition.numel_out(1))
+        XQ_dummy = MX.zeros(stage.nxq)
+        qc0, qd0 = partition(XQ_dummy)
+
+        quad_c = DM.zeros(qc0.shape[0])
+        quad_d = DM.zeros(qd0.shape[1])
         Xc0, Xd0 = partition(X0)
+
 
         Xc0_sym = MX.sym('Xc0', Xc0.shape)
         Xd0_sym = MX.sym('Xd0', Xd0.shape)
@@ -493,19 +497,10 @@ class SamplingMethod(DirectMethod):
             Z0_current = intg_res["zf"]
 
         Qi = qcomposition(hcat(Qc),hcat(Qd))
-        if Qi.shape==(0,1):
-            Qi = MX.zeros(0,self.M)
         Xi = composition(hcat(Xc),hcat(Xd))
-        if Xi.shape==(0,1):
-            Xi = MX.zeros(0,self.M)
 
         poly_coeffs = composition(hcat(poly_coeffs_c),hcat(poly_coeffs_d))
-        if hcat(poly_coeffs_c).shape==(0,0) and hcat(poly_coeffs_d).shape==(0,0):
-            poly_coeffs = MX.zeros(0,0)
-            
         poly_coeffs_q = qcomposition(hcat(poly_coeffs_c_q),hcat(poly_coeffs_d_q))
-        if hcat(poly_coeffs_c_q).shape==(0,0) and hcat(poly_coeffs_d_q).shape==(0,0):
-            poly_coeffs_q = MX.zeros(0,0)
 
         ret = Function('F', [X0, U, T, t0, P, Z0], [
                         composition(Xc[-1],Xd[-1]),

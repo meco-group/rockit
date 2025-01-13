@@ -1217,10 +1217,33 @@ class Stage:
         diffeq = Function('diffeq', [x_c, x_d, self.u, vertcat(self.p, self.v), t, self.DT, self.DT_control], [next, qnext], ["x_c", "x_d", "u", "p", "t0", "DT", "DT_control"], ["xf","qf"])
 
         partition = Function('partition',[veccat(*self.states)],[x_c, x_d])
+
         composition = Function('composition',[x_c, x_d],[veccat(*self.states)])
         qpartition = Function('qpartition',[veccat(*self.qstates)],[qx_c, qx_d])
         qcomposition = Function('qcomposition',[qx_c, qx_d],[veccat(*self.qstates)])
-        return ode, diffeq, partition, composition, qpartition, qcomposition
+        def qcomposition_wrapper(c,d):
+            if d.shape[0]==0: return c
+            if c.shape[0]==0: return d
+            return qcomposition(c,d)
+        def composition_wrapper(c,d):
+            if d.shape[0]==0: return c
+            if c.shape[0]==0: return d
+            return composition(c,d)
+        
+        def partition_wrapper(x):
+            if x_d.shape[0]==0:
+                return x,MX(0,1)
+            if x_c.shape[0]==0:
+                return MX(0,1),x
+            return partition(x)
+        def qpartition_wrapper(x):
+            if qx_d.shape[0]==0:
+                return x,MX(0,1)
+            if qx_c.shape[0]==0:
+                return MX(0,1),x
+            return qpartition(x)
+        
+        return ode, diffeq, partition_wrapper, composition_wrapper, qpartition_wrapper, qcomposition_wrapper
 
     # Internal methods
     def _ode(self):
