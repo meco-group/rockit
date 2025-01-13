@@ -67,7 +67,7 @@ class MultipleShooting(SamplingMethod):
         if F.numel_out("poly_coeff_q")==0:
             self.poly_coeff_q = None
 
-        self.q = 0
+        self.q = DM.zeros(stage.nxq, 1)
 
         FFs = []
         self.xqk.append(DM.zeros(stage.nxq))
@@ -81,7 +81,11 @@ class MultipleShooting(SamplingMethod):
             poly_coeff_q_temp = FF["poly_coeff_q"]
             poly_coeff_z_temp = FF["poly_coeff_z"]
             xk_temp = FF["Xi"]
-            xqk_temp = self.q+FF["Qi"]
+            
+            if stage.nxq>0:
+                xqk_temp = self.q+FF["Qi"]
+            else:
+                xqk_temp = DM.zeros(stage.nxq, 1)
             zk_temp = FF["Zi"]
 
             # we cannot return a list from a casadi function
