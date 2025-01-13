@@ -1,5 +1,8 @@
 function varargout = external_method(varargin)
   global pythoncasadiinterface
+    if isempty(pythoncasadiinterface)
+    pythoncasadiinterface = impact.PythonCasadiInterface;
+  end
   [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'name','kwargs'});
   if isempty(kwargs)
     res = py.rockit.external_method(args{:});

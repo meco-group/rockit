@@ -234,7 +234,7 @@ classdef Stage < handle
     end
     function varargout = variable(obj,varargin)
       % Create a variable
-      % Arguments: n_rows=1, n_cols=1, grid=, order=0, scale=1, include_last=False, meta=None
+      % Arguments: n_rows=1, n_cols=1, grid=, order=0, scale=1, include_last=False, domain=real, meta=None
       % 
       %         Variables are unknowns in the Optimal Control problem
       %         for which we seek optimal values.
@@ -255,6 +255,8 @@ classdef Stage < handle
       %             Relevant with grid='bspline'
       %         include_last : bool, optional
       %             Determines if a unique entry is foreseen at the tf edge.
+      %         domain : str, optional
+      %             Domain of the control signal. Possible values: 'real' (default), 'integer'
       % 
       % 
       %         Returns
@@ -272,7 +274,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(v, 3)
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','order','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','grid','order','scale','include_last','domain','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -292,7 +294,7 @@ classdef Stage < handle
     end
     function varargout = register_variable(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','order','scale','include_last','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'v','grid','order','scale','include_last','domain','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -401,7 +403,7 @@ classdef Stage < handle
     end
     function varargout = control(obj,varargin)
       % Create a control signal to optimize for
-      % Arguments: n_rows=1, n_cols=1, order=0, scale=1, meta=None
+      % Arguments: n_rows=1, n_cols=1, order=0, scale=1, domain=real, meta=None
       % 
       %         A control signal is parametrized as a piecewise polynomial.
       %         By default (order=0), it is piecewise constant.
@@ -419,6 +421,8 @@ classdef Stage < handle
       %             In essence, this has the same effect as defining u = scale*ocp.control(),
       %             except that set_initial(u, ...) keeps working
       %             Default: 1
+      %         domain : str, optional
+      %             Domain of the control signal. Possible values: 'real' (default), 'integer'
       %         Returns
       %         -------
       %         s : :obj:`~casadi.MX`
@@ -434,7 +438,7 @@ classdef Stage < handle
       %         >>> ocp.set_initial(u, sin(ocp.t)) # Optional: give initial guess
       %         
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order','scale','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'n_rows','n_cols','order','scale','domain','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -454,7 +458,7 @@ classdef Stage < handle
     end
     function varargout = register_control(obj,varargin)
       global pythoncasadiinterface
-      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'u','scale','meta'});
+      [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,1,{'u','scale','domain','meta'});
       meta = py.None;
       try
         st = dbstack('-completenames',1);
@@ -769,7 +773,7 @@ classdef Stage < handle
     end
     function varargout = subject_to(obj,varargin)
       % Adds a constraint to the problem
-      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac339990>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac3399d0>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7ff1ac339e90>, meta=None
+      % Arguments: constr, grid=None, include_first=True, include_last=True, scale=1, refine=1, group_refine=<rockit.grouping_techniques.GroupingTechnique object at 0x7efdabcc4070>, group_dim=<rockit.grouping_techniques.GroupingTechnique object at 0x7efdabcc40a0>, group_control=<rockit.grouping_techniques.GroupingTechnique object at 0x7efdabcc40d0>, meta=None
       % 
       %         Parameters
       %         ----------
@@ -1191,9 +1195,109 @@ classdef Stage < handle
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.v);
     end
+    function out = p_global_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_global_list);
+    end
+    function out = p_control_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_control_list);
+    end
+    function out = p_integrator_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_integrator_list);
+    end
+    function out = p_integrator_roots_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_integrator_roots_list);
+    end
+    function out = v_global_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_global_list);
+    end
+    function out = v_control_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_control_list);
+    end
+    function out = v_integrator_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_integrator_list);
+    end
+    function out = v_integrator_roots_list(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_integrator_roots_list);
+    end
+    function out = p_global(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_global);
+    end
+    function out = p_control(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_control);
+    end
+    function out = p_integrator(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_integrator);
+    end
+    function out = p_integrator_roots(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.p_integrator_roots);
+    end
+    function out = v_global(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_global);
+    end
+    function out = v_control(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_control);
+    end
+    function out = v_integrator(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_integrator);
+    end
+    function out = v_integrator_roots(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.v_integrator_roots);
+    end
+    function out = pv_global(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.pv_global);
+    end
+    function out = pv_control(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.pv_control);
+    end
+    function out = pv_integrator(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.pv_integrator);
+    end
+    function out = pv_integrator_roots(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.pv_integrator_roots);
+    end
+    function out = npv_global(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.npv_global);
+    end
+    function out = npv_control(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.npv_control);
+    end
+    function out = npv_integrator(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.npv_integrator);
+    end
+    function out = npv_integrator_roots(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.npv_integrator_roots);
+    end
     function out = nx(obj)
       global pythoncasadiinterface
       out = pythoncasadiinterface.python2matlab(obj.parent.nx);
+    end
+    function out = nxq(obj)
+      global pythoncasadiinterface
+      out = pythoncasadiinterface.python2matlab(obj.parent.nxq);
     end
     function out = nz(obj)
       global pythoncasadiinterface
