@@ -84,7 +84,7 @@ def recursive_overwrite(src, dest, ignore=None):
                                     os.path.join(dest, f), 
                                     ignore)
     else:
-        shutil.copyfile(src, dest)
+        shutil.copyfile(src, dest, follow_symlinks=False)
 
 class AcadosMethod(ExternalMethod):
     def __init__(self,feasibility_problem=False,acados_options=None,model_name="rockit_model",**kwargs):
