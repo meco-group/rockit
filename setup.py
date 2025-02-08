@@ -9,6 +9,24 @@ import os
 
 version = "0.2.1"
 
+def package_files(directory):
+    paths = []
+    for (path, directories, filenames) in os.walk(directory):
+
+        for filename in filenames:
+            if filename.endswith(".pyd"): continue
+            full = os.path.join(path, filename)
+            if "__pycache__" in full: continue
+            if "acados_matlab_octave" in full: continue
+            if "examples" in full: continue
+            if "/." in full: continue
+            if "/test/" in full: continue
+            if "/docs/" in full: continue
+            if "/utils/" in full: continue
+            if "/external/external/" in full: continue
+            paths.append(full)
+    return paths
+
 setup(
     name='rockit-meco',
     version=version,
@@ -26,8 +44,10 @@ setup(
         'casadi>=3.5,<4.0',
         'numpy',
         'matplotlib',
-        'scipy'
+        'scipy',
+        'future-fstrings'
     ],
+    data_files=[('acados',package_files('rockit/external/acados/external'))],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
