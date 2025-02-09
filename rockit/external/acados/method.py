@@ -944,7 +944,7 @@ class AcadosMethod(ExternalMethod):
                         after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}","{v}");\n""")
                     elif isinstance(v, bool):
                         after_init.write(f"""int {k}={v};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
-        assert subprocess.run(["cmake","-S", ".","-B", "build","-DCMAKE_BUILD_TYPE=Debug", "-DMODEL_NAME="+ self.model_name], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","-S", ".","-B", "build","-DCMAKE_BUILD_TYPE=Debug", "-DMODEL_NAME="+ self.model_name, "-DBLASFEO_EXAMPLES=OFF"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--build","build","--config","Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--install","build","--prefix","."], cwd=self.build_dir_abs).returncode==0
         

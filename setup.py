@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 import glob
 import os
 
-version = "0.2.3"
+version = "0.2.5"
 
 def package_files(directory):
     paths = []
@@ -22,8 +22,8 @@ def package_files(directory):
             if "/." in full: continue
             if "/test/" in full: continue
             if "/docs/" in full: continue
-            if "/utils/" in full: continue
-            if "/external/external/" in full and ("hpipm" not in full and "blasfeo" not in full): continue
+            if "/acados/utils/" in full: continue
+            if "/external/external/" in full and ("hpipm" not in full and "blasfeo" not in full and "/external/external/CMakeLists.txt" not in full): continue
             paths.append(full)
     return paths
 
