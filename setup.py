@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 import glob
 import os
 
-version = "0.2.2"
+version = "0.2.3"
 
 def package_files(directory):
     paths = []
@@ -23,7 +23,7 @@ def package_files(directory):
             if "/test/" in full: continue
             if "/docs/" in full: continue
             if "/utils/" in full: continue
-            if "/external/external/" in full: continue
+            if "/external/external/" in full and ("hpipm" not in full and "blasfeo" not in full): continue
             paths.append(full)
     return paths
 
@@ -47,7 +47,8 @@ setup(
         'scipy',
         'future-fstrings'
     ],
-    data_files=[('acados',package_files('rockit/external/acados/external'))],
+    data_files=[('acados',package_files('rockit/external/acados/external')),
+                ('acados_interface',package_files('rockit/external/acados/interface_generation'))],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)',
