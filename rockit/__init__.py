@@ -46,7 +46,7 @@ from .grouping_techniques import LseGroup
 from .solution import OcpSolution
 from .external.manager import external_method
 from .casadi_helpers import rockit_pickle_context, rockit_unpickle_context, interface_simulink
-
+from .global_options import GlobalOptions
 
 try:
   matlab_path = os.path.realpath(os.path.dirname(os.path.realpath(__file__)))

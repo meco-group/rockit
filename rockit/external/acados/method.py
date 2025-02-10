@@ -25,6 +25,7 @@ from acados_template.utils import J_to_idx
 
 from ...freetime import FreeTime
 from ..method import ExternalMethod, legit_J, check_Js
+from ...global_options import GlobalOptions
 from ...solution import OcpSolution
 
 import numpy as np
@@ -37,6 +38,7 @@ import shutil
 import subprocess
 import casadi as ca
 import tempfile
+import platform
 
 INF = 1e5
 
@@ -905,9 +907,10 @@ class AcadosMethod(ExternalMethod):
                 # copy acados
                 ACADOS_SOURCE_DIR = os.path.dirname(os.path.realpath(__file__)) + os.sep + "external"
                 if 'ACADOS_SOURCE_DIR' in os.environ:
-                    ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
+                    if os.environ['ACADOS_SOURCE_DIR']!='':
+                        ACADOS_SOURCE_DIR = os.environ['ACADOS_SOURCE_DIR']
                 recursive_overwrite(ACADOS_SOURCE_DIR, os.path.join(self.build_dir_abs,"acados"))
-            except:
+            except Exception as e:
                 pass
         recursive_overwrite(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs)
         recursive_overwrite(c_generated_code,self.build_dir_abs)
@@ -944,11 +947,16 @@ class AcadosMethod(ExternalMethod):
                         after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}","{v}");\n""")
                     elif isinstance(v, bool):
                         after_init.write(f"""int {k}={v};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
-        assert subprocess.run(["cmake","-S", ".","-B", "build","-DCMAKE_BUILD_TYPE=Debug", "-DMODEL_NAME="+ self.model_name, "-DBLASFEO_EXAMPLES=OFF"], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","-S", "."] + GlobalOptions.get_cmake_flags()+["-B", "build", "-DMODEL_NAME="+ self.model_name, "-DBLASFEO_EXAMPLES=OFF"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--build","build","--config","Debug"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--install","build","--prefix","."], cwd=self.build_dir_abs).returncode==0
         
-        self.acados_driver = ca.external("acados_driver", self.build_dir_abs + "/lib/libacados_driver.so")
+        driver_parts = ["lib","libacados_driver.so"]
+        if platform.system() == "Darwin":
+            driver_parts[1] = "libacados_driver.dylib"
+        if platform.system() == "Windows":
+            driver_parts = ["bin","acados_driver.dll"]
+        self.acados_driver = ca.external("acados_driver", os.path.join(self.build_dir_abs,*driver_parts))
 
         X0 = DM.zeros(ocp.dims.nx, self.N+1)
         U0 = DM.zeros(ocp.dims.nu, self.N)

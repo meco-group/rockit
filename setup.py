@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 import glob
 import os
 
-version = "0.2.6"
+version = "0.2.8"
 
 def package_files(directory):
     paths = []
