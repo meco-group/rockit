@@ -477,7 +477,7 @@ extern "C"
         m->nlp_solver = rockit_model_acados_get_nlp_solver(&m->capsule);
         m->nlp_opts = rockit_model_acados_get_nlp_opts(&m->capsule);
 
-        #include "after_init.c.in"
+        #include "after_init.h"
         
         return 0;
     }

@@ -34,6 +34,56 @@ import casadi as ca
 
 INF = 1e5
 
+import platform
+import os
+import shutil
+
+class HeaderDirectory:
+    def __init__(self,dir,path):
+        self.dir = dir
+        self.path = path
+    
+    def copy_to_build_dir(self, build_dir):
+        pass
+
+    def get_flags(self,build_dir):
+        return ["-I" + os.path.join(build_dir,self.dir)]
+
+class InertArtifact:
+    def __init__(self, name, path):
+        [self.reldir,self.name] = os.path.split(name)
+        self.relative = name
+        self.path = path
+
+    def copy_to_build_dir(self, build_dir):
+        os.makedirs(os.path.join(build_dir, self.reldir),exist_ok=True)
+        print(self.name,self.path,self.reldir)
+        shutil.copy(os.path.join(self.path, self.reldir, self.name), os.path.join(build_dir, self.reldir))
+
+class SourceArtifact(InertArtifact):
+    pass
+
+class HeaderArtifact(InertArtifact):
+    pass
+class LibraryArtifact:
+    def __init__(self, basename, basepath):
+        self.basename = basename # No starting lib, ending so/dll
+        self.basepath = basepath # Not including /lib or /bin
+
+    def copy_to_build_dir(self, build_dir):
+        for lib_absolute in self:
+          shutil.copy(lib_absolute, build_dir)
+
+    def __iter__(self):
+        if platform.system()=='Windows':
+            yield os.path.join(self.basepath, "bin", self.basename+".dll")
+            yield os.path.join(self.basepath, "lib", self.basename+".lib")
+        if platform.system()=='Linux':
+            yield os.path.join(self.basepath, "lib", "lib"+self.basename+".so")
+        if platform.system()=='Darwin':
+            yield os.path.join(self.basepath, "lib", "lib"+self.basename+".dylib")
+
+
 def legit_J(J):
     """
     Checks if J, a pre-multiplier for states and control, is of legitimate structure
@@ -100,6 +150,7 @@ class ExternalMethod:
         self.expand = expand
         self.supported = {} if supported is None else supported
         self.free_time = False
+        self.artifacts = []
 
     def inherit(self, parent):
         pass

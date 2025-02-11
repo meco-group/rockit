@@ -24,7 +24,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver, AcadosM
 from acados_template.utils import J_to_idx
 
 from ...freetime import FreeTime
-from ..method import ExternalMethod, legit_J, check_Js
+from ..method import ExternalMethod, legit_J, check_Js, SourceArtifact, HeaderArtifact, LibraryArtifact, HeaderDirectory
 from ...global_options import GlobalOptions
 from ...solution import OcpSolution
 
@@ -898,9 +898,10 @@ class AcadosMethod(ExternalMethod):
 
         #self.ocp_solver = AcadosOcpSolver(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
 
-        AcadosOcpSolver.generate(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
+        ret = AcadosOcpSolver.generate(ocp, json_file = 'acados_ocp_' + ocp.model.name + '.json')
 
         c_generated_code = os.path.join(os.getcwd(), "c_generated_code")
+
 
         if not os.path.exists(os.path.join(self.build_dir_abs,"build")):
             try:
@@ -936,7 +937,7 @@ class AcadosMethod(ExternalMethod):
             out.write(f"#define ROCKIT_P_GLOBAL_SIZE2 {self.p_global_cat.shape[1]}\n")
 
         if 0:
-            with open(os.path.join(self.build_dir_abs,"after_init.c.in"), "w") as after_init:
+            with open(os.path.join(self.build_dir_abs,"after_init.h"), "w") as after_init:
                 if self.linesearch:
                     after_init.write(f"""ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "globalization","merit_backtracking");\n""")
 
@@ -957,6 +958,28 @@ class AcadosMethod(ExternalMethod):
         if platform.system() == "Windows":
             driver_parts = ["bin","acados_driver.dll"]
         self.acados_driver = ca.external("acados_driver", os.path.join(self.build_dir_abs,*driver_parts))
+
+        self.artifacts.append(HeaderDirectory("include", self.build_dir_abs))
+        self.artifacts.append(HeaderDirectory(os.path.join("include","hpipm","include"), self.build_dir_abs))
+
+
+        for name in open(os.path.join(self.build_dir_abs, "build", "source_files.txt"),"r").read().strip().split(";"):
+            relpath = os.path.relpath(name,start=self.build_dir_abs)
+            self.artifacts.append(SourceArtifact(relpath, self.build_dir_abs))
+        for name in open(os.path.join(self.build_dir_abs, "build", "header_files.txt"),"r").read().strip().split(";"):
+            relpath = os.path.relpath(name,start=self.build_dir_abs)
+            self.artifacts.append(HeaderArtifact(relpath, self.build_dir_abs))
+
+        self.artifacts.append(HeaderArtifact(relpath, self.build_dir_abs))
+        with open(os.path.join(self.build_dir_abs, "build", "install_manifest.txt"),"r") as install_manifest:
+            for line in install_manifest.readlines():
+                line = line.strip()
+                if line.endswith(".h"):
+                    self.artifacts.append(HeaderArtifact(os.path.relpath(line,start=self.build_dir_abs), self.build_dir_abs))
+
+        self.artifacts.append(LibraryArtifact("acados", self.build_dir_abs))
+        self.artifacts.append(LibraryArtifact("blasfeo", self.build_dir_abs))
+        self.artifacts.append(LibraryArtifact("hpipm", self.build_dir_abs))
 
         X0 = DM.zeros(ocp.dims.nx, self.N+1)
         U0 = DM.zeros(ocp.dims.nu, self.N)
