@@ -91,8 +91,7 @@ def recursive_overwrite(src, dest, ignore=None):
 class AcadosMethod(ExternalMethod):
     def __init__(self,feasibility_problem=False,acados_options=None,model_name="rockit_model",**kwargs):
         ExternalMethod.__init__(self, **kwargs)
-        #self.build_dir_abs = "./build_acados_rockit"
-        self.build_dir_abs = "./foobar"
+        self.build_dir_abs = "./build_acados_rockit"
 
         self.model_name = model_name
 
@@ -915,6 +914,8 @@ class AcadosMethod(ExternalMethod):
                 pass
         recursive_overwrite(os.path.dirname(os.path.realpath(__file__)) + os.sep + "interface_generation",self.build_dir_abs)
         recursive_overwrite(c_generated_code,self.build_dir_abs)
+
+        shutil.rmtree(c_generated_code)
 
         with open(os.path.join(self.build_dir_abs,"rockit_config.h"),"w") as out:
 

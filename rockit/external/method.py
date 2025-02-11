@@ -57,7 +57,6 @@ class InertArtifact:
 
     def copy_to_build_dir(self, build_dir):
         os.makedirs(os.path.join(build_dir, self.reldir),exist_ok=True)
-        print(self.name,self.path,self.reldir)
         shutil.copy(os.path.join(self.path, self.reldir, self.name), os.path.join(build_dir, self.reldir))
 
 class SourceArtifact(InertArtifact):
