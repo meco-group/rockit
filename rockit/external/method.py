@@ -76,7 +76,9 @@ class LibraryArtifact:
 
     def __iter__(self):
         if platform.system()=='Windows':
-            yield os.path.join(self.basepath, "bin", self.basename+".dll")
+            dll = os.path.join(self.basepath, "bin", self.basename+".dll")
+            if os.path.exsists(dll):
+                yield dll
             yield os.path.join(self.basepath, "lib", self.basename+".lib")
         if platform.system()=='Linux':
             yield os.path.join(self.basepath, "lib", "lib"+self.basename+".so")
