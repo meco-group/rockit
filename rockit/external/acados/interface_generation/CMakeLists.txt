@@ -26,7 +26,7 @@ add_library(acados_driver SHARED ${ROCKIT_MODEL_SOURCES} rockit_config.h)
 file(WRITE "${CMAKE_BINARY_DIR}/source_files.txt" "${ROCKIT_MODEL_SOURCES}\n")
 file(WRITE "${CMAKE_BINARY_DIR}/header_files.txt" "${ROCKIT_MODEL_HEADERS};${CMAKE_CURRENT_SOURCE_DIR}/after_init.h\n")
 
-set_property(SOURCE acados_driver.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/after_init.c.in)
+set_property(SOURCE acados_driver.c APPEND PROPERTY OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/after_init.h)
 target_link_libraries(acados_driver acados)
 
 INSTALL(TARGETS acados_driver
