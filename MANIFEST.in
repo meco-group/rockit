@@ -1,1 +1,27 @@
-graft rockit/+rockit
+recursive-include rockit/external *.c *.cpp *.S *.h *.hpp *.txt *.pxd *.in LICENSE *.cmake
+
+prune rockit/external/acados/external/interfaces/acados_matlab_octave
+prune rockit/external/acados/external/examples
+prune rockit/external/acados/external/test
+prune rockit/external/acados/external/docs
+prune rockit/external/acados/external/bin
+prune rockit/external/acados/external/utils
+prune rockit/external/acados/external/external/hpipm/examples
+prune rockit/external/acados/external/external/hpipm/experimental
+prune rockit/external/acados/external/external/hpipm/test_problems
+prune rockit/external/acados/external/external/hpipm/benchmark
+prune rockit/external/acados/external/external/hpipm/utils
+prune rockit/external/acados/external/external/hpipm/lib
+prune rockit/external/acados/external/external/hpipm/interfaces/matlab_octave
+prune rockit/external/acados/external/external/hpipm/interfaces/python
+prune rockit/external/acados/external/external/hpipm/interfaces/simulink
+prune rockit/external/acados/external/external/hpipm/interfaces/archive
+prune rockit/external/acados/external/external/osqp
+prune rockit/external/acados/external/external/qpoases
+prune rockit/external/acados/external/external/catch
+prune rockit/external/acados/external/external/daqp
+prune rockit/external/acados/external/external/hpmpc
+prune rockit/external/acados/external/external/jsonlab
+prune rockit/external/acados/external/external/qpdunes
+prune **/foobar
+prune **/c_generated_code

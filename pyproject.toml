@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rockit-meco"
+version = "0.4.5"
+description = "Rapid Optimal Control Kit"
+readme = "README.md"
+requires-python = ">=3.6"
+authors = [
+    { name = "MECO-Group", email = "joris.gillis@kuleuven.be" }
+]
+license = { file = "LICENSE" }
+keywords = ["OCP", "optimal control", "casadi"]
+dependencies = [
+    "casadi>=3.5,<4.0",
+    "numpy",
+    "matplotlib",
+    "scipy",
+    "future-fstrings"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering"
+]
+
+[project.urls]
+Homepage = "https://gitlab.kuleuven.be/meco-software/rockit"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+exclude = ["tests*","examples*","docs*","cookbook*","matlab*","misc*",
+    "rockit.external.acados.external.external.osqp*",
+    "rockit.external.acados.external.external.catch*",
+    "rockit.external.acados.external.external.daqp*",
+    "rockit.external.acados.external.external.hpmpc*",
+    "rockit.external.acados.external.external.jsonlab*",
+    "rockit.external.acados.external.external.qpdunes*",
+    "rockit.external.acados.external.external.qpoases*",
+    "rockit.external.acados.external.external.hpipm.examples*",
+    "rockit.external.acados.external.external.hpipm.interfaces.python*",
+    "rockit.external.acados.external.utils*",
+    "rockit.external.acados.external.examples*",
+    "rockit.external.acados.external.test*",
+    "rockit.external.acados.external.docs*",
+    "rockit.external.acados.external.bin*",
+    "**.foobar*",
+    "foobar*"]
+
