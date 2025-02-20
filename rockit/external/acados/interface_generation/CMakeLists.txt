@@ -3,7 +3,11 @@ project(interface_usage VERSION 0.1.0)
 
 set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
-set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
+if(APPLE)
+  set(CMAKE_INSTALL_RPATH "@loader_path/;@loader_path/lib/")
+else()
+  set(CMAKE_INSTALL_RPATH "$ORIGIN;$ORIGIN/lib")
+endif()
 
 set(MODEL_NAME "rockit_model" CACHE STRING "Name of the model")
 
