@@ -362,7 +362,7 @@ class GeometricGrid(FixedGrid):
         return vec
 
 class SamplingMethod(DirectMethod):
-    def __init__(self, N=50, M=1, intg='rk', intg_options=None, grid=UniformGrid(), **kwargs):
+    def __init__(self, N=50, M=1, intg='rk', intg_options=None, grid=UniformGrid(), expand=False, **kwargs):
         """
         Parameters
         ----------
@@ -375,6 +375,8 @@ class SamplingMethod(DirectMethod):
         intg : `str`
             Rockit-specific methods: 'rk', 'expl_euler' - these allow to make use of signal sampling with 'refine'
             Others are passed on as-is to CasADi
+        expand : bool, optional
+            Expand the discretized Function dynamics
         """
         DirectMethod.__init__(self, **kwargs)
         self.N = N
@@ -382,6 +384,7 @@ class SamplingMethod(DirectMethod):
         self.intg = intg
         self.intg_options = {} if intg_options is None else intg_options
         self.time_grid = grid
+        self.expand = expand
         self.clean()
 
     def clean(self):
@@ -514,6 +517,8 @@ class SamplingMethod(DirectMethod):
                         hcat(poly_coeffs_z)],
                        ['x0', 'u', 'T', 't0', 'p', 'z0'], ['xf', 'Xi', 'poly_coeff', 'qf', 'Qi', 'poly_coeff_q', 'zf', 'Zi', 'poly_coeff_z'])
         assert not ret.has_free()
+        if self.expand:
+            ret = ret.expand()
         return ret
 
     def intg_rk(self, f, X_c, X_d, U, P, Z):
@@ -522,6 +527,9 @@ class SamplingMethod(DirectMethod):
         DT_control = MX.sym("DT_control")
         t0 = MX.sym("t0")
         Z0 = MX.sym("z0", 0, 1)
+        if self.intg_options.get("expand",False):
+            f = f.expand()
+
         # A single Runge-Kutta 4 step
         k1 = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0)
         k2 = f(x_c=X_c + DT / 2 * k1["ode"], x_d=X_d, u=U, p=P, t=t0+DT/2)
@@ -549,6 +557,8 @@ class SamplingMethod(DirectMethod):
         t0 = MX.sym("t0")
         Z0 = MX.sym("z0", 0, 1)
         k = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0)
+        if self.intg_options.get("expand",False):
+            f = f.expand()
         poly_coeff = hcat([X_c, k["ode"]])
         poly_coeff_q = k["quad"]
 
