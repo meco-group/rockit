@@ -950,7 +950,7 @@ class AcadosMethod(ExternalMethod):
                     elif isinstance(v, bool):
                         after_init.write(f"""int {k}={v};ocp_nlp_solver_opts_set(m->nlp_config, m->nlp_opts, "{k}",&{k});\n""")
         assert subprocess.run(["cmake","-S", "."] + GlobalOptions.get_cmake_flags()+["-B", "build", "-DMODEL_NAME="+ self.model_name, "-DBLASFEO_EXAMPLES=OFF", ], cwd=self.build_dir_abs).returncode==0
-        assert subprocess.run(["cmake","--build","build","--config","Debug"], cwd=self.build_dir_abs).returncode==0
+        assert subprocess.run(["cmake","--build","build","--config","Release"], cwd=self.build_dir_abs).returncode==0
         assert subprocess.run(["cmake","--install","build","--prefix","."], cwd=self.build_dir_abs).returncode==0
         
         driver_parts = ["lib","libacados_driver.so"]
@@ -958,7 +958,14 @@ class AcadosMethod(ExternalMethod):
             driver_parts[1] = "libacados_driver.dylib"
         if platform.system() == "Windows":
             driver_parts = ["bin","acados_driver.dll"]
-        self.acados_driver = ca.external("acados_driver", os.path.join(self.build_dir_abs,*driver_parts))
+
+        shared_path = os.path.join(self.build_dir_abs,*driver_parts)
+        shared_path_dir,shared_file = os.path.split(shared_path)
+        
+        backup = os.getcwd()
+        os.chdir(shared_path_dir)
+        self.acados_driver = ca.external("acados_driver", os.path.join(".",shared_file))
+        os.chdir(backup)
 
         self.artifacts.append(HeaderDirectory("include", self.build_dir_abs))
         self.artifacts.append(HeaderDirectory(os.path.join("include","hpipm","include"), self.build_dir_abs))

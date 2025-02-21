@@ -243,6 +243,9 @@ classdef Ocp < rockit.Stage
   methods(Static)
     function varargout = load(varargin)
       global pythoncasadiinterface
+      if isempty(pythoncasadiinterface)
+        pythoncasadiinterface = rockit.PythonCasadiInterface;
+      end
       [args,kwargs] = pythoncasadiinterface.matlab2python_arg(varargin,0,{'name'});
       if isempty(kwargs)
         res = py.rockit.ocp.Ocp.load(args{:});
