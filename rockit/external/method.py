@@ -46,6 +46,9 @@ class HeaderDirectory:
     def copy_to_build_dir(self, build_dir):
         pass
 
+    def resolve_dir(self,build_dir):
+        return os.path.join(build_dir,self.dir)
+
     def get_flags(self,build_dir):
         return ["-I" + os.path.join(build_dir,self.dir)]
 
