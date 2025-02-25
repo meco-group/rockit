@@ -550,6 +550,31 @@ class SamplingMethod(DirectMethod):
 
         return Function('F', [X_c, X_d, U, t0, DT, DT_control, P, Z0], [X_c + DT / 6 * (k1["ode"] + 2 * k2["ode"] + 2 * k3["ode"] + k4["ode"]), poly_coeff, DT / 6 * (k1["quad"] + 2 * k2["quad"] + 2 * k3["quad"] + k4["quad"]), poly_coeff_q, MX(0, 1), MX()], ['x_c0', 'x_d', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
 
+    def intg_heun(self, f, X_c, X_d, U, P, Z):
+        assert Z.is_empty()
+        DT = MX.sym("DT")
+        DT_control = MX.sym("DT_control")
+        t0 = MX.sym("t0")
+        Z0 = MX.sym("z0", 0, 1)
+        if self.intg_options.get("expand",False):
+            f = f.expand()
+
+
+
+        k1 = f(x_c=X_c, x_d=X_d, u=U, p=P, t=t0)
+        k2 = f(x_c=X_c + DT * k1["ode"], x_d=X_d, u=U, p=P, t=t0+DT)
+
+
+        f0 = k1["ode"]
+        f1 = (k2["ode"]-k1["ode"])/2/DT
+        poly_coeff = hcat([X_c, f0, f1])
+
+        f0 = k1["quad"]
+        f1 = (k2["quad"]-k1["quad"])/2/DT
+        poly_coeff_q = hcat([f0, f1])
+
+        return Function('F', [X_c, X_d, U, t0, DT, DT_control, P, Z0], [X_c + DT / 2 * (k1["ode"] + k2["ode"]), poly_coeff, DT / 2 * (k1["quad"] + k2["quad"]), poly_coeff_q, MX(0, 1), MX()], ['x_c0', 'x_d', 'u', 't0', 'DT', 'DT_control', 'p', 'z0'], ['xf', 'poly_coeff', 'qf', 'poly_coeff_q', 'zf', 'poly_coeff_z'])
+
     def intg_expl_euler(self, f, X_c, X_d, U, P, Z):
         assert Z.is_empty()
         DT = MX.sym("DT")
