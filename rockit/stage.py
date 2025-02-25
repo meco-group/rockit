@@ -763,6 +763,13 @@ class Stage:
         self._set_transcribed(False)
         self._constraints = defaultdict(list)
 
+    def clear_objective(self):
+        """
+        Remove any previously declared objectove terms from the problem
+        """
+        self._set_transcribed(False)
+        self._objective = 0
+
     def subject_to(self, constr, grid=None,include_first=True,include_last=True,scale=1,refine=1,group_refine=GroupingTechnique(),group_dim=GroupingTechnique(),group_control=GroupingTechnique(),meta=None):
         """Adds a constraint to the problem
 
