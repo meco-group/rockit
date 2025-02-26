@@ -27,6 +27,7 @@ from .splines import BSplineBasis, BSpline
 from .casadi_helpers import reinterpret_expr, HashOrderedDict, HashDict, is_numeric
 from numpy import nan, inf
 import numpy as np
+import scipy
 from collections import defaultdict
 from .splines.micro_spline import bspline_derivative, eval_on_knots, get_greville_points
 from .casadi_helpers import get_ranges_dict
@@ -704,10 +705,13 @@ class SamplingMethod(DirectMethod):
         tscale = self.T / self.N / self.M
         tpower = vcat([tscale**i for i in range(degree+1)])
         coeff = coeff * repmat(tpower.T,stage.nx,1)
-        # TODO: bernstein transformation as function of degree
-        Poly_to_Bernstein_matrix_4 = DM([[1,0,0,0,0],[1,1.0/4, 0, 0, 0],[1, 1.0/2, 1.0/6, 0, 0],[1, 3.0/4, 1.0/2, 1.0/4, 0],[1, 1, 1, 1, 1]])
+        n = coeff.T.shape[0]-1
+        M = np.zeros((n+1, n+1))
+        for i in range(n+1):
+            for j in range(i+1):
+                M[i, j] = scipy.special.comb(i, j) / scipy.special.comb(n, j)
         # Use a direct way to obtain Bernstein coefficients from polynomial coefficients
-        state_coeff = mtimes(Poly_to_Bernstein_matrix_4,coeff.T)
+        state_coeff = mtimes(M,coeff.T)
         
         # Replace symbols for states by BSpline object derivatives
         subst_from = list(stage.states)
