@@ -1428,7 +1428,22 @@ class Stage:
         if self._method is not None:
             if self is self.master:
                 self._method.main_transcribe(self, phase=phase, **kwargs)
-            self._method.transcribe(self, phase=phase, **kwargs)
+            if len(self._stages)>0 and phase==1:
+                gen = self._method.transcribe(self, phase=phase, **kwargs)
+                if gen:
+                    count = 0
+                    for _,s in zip(self._method.transcribe(self, phase=phase, **kwargs),self._stages):
+                        s._transcribe_recurse(phase=phase, **kwargs)
+                        count+= 1
+                    assert count==len(self._stages)
+                else:
+                    for s in self._stages:
+                        s._transcribe_recurse(phase=phase, **kwargs)
+                return
+            else:
+                gen = self._method.transcribe(self, phase=phase, **kwargs)
+                if gen:
+                    list(gen)
         else:
             pass
 

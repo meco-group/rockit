@@ -125,12 +125,31 @@ class DirectMethod:
         if phase>1: return
         self.add_variables(stage, self.opti)
         self.add_parameters(stage, self.opti)
-
-        for c, m, _ in stage._constraints["point"]:
-            self.opti.subject_to(self.eval_top(stage, c), meta = m)
         self.opti.add_objective(self.eval_top(stage, stage._objective))
         self.set_initial(stage, self.opti, stage._initial)
         self.set_parameter(stage, self.opti)
+
+        n_stages = max(1, len(stage._stages))
+
+        def max_stage(expr):
+            if len(stage._stages)==0: return 0
+            for i in reversed(range(n_stages)):
+                if expr.dep(0) in stage._stages[i]._placeholders or expr.dep(1) in stage._stages[i]._placeholders:
+                   return i
+            return 0
+        
+        groups = [[] for _ in range(n_stages)]
+        for c, m, _ in stage._constraints["point"]:
+            k = max_stage(c)
+            groups[k].append((c, m, _))
+
+        for i in range(n_stages):
+            for c, m, _ in groups[i]:
+               self.opti.subject_to(self.eval_top(stage, c), meta = m)
+            yield
+
+
+    
 
     def set_initial(self, stage, master, initial):
         opti = master.opti if hasattr(master, 'opti') else master
